@@ -107,8 +107,15 @@
 
   /* layout de duas colunas em telas largas (aproveita a lateral direita) */
   .cols { display:grid; grid-template-columns:minmax(0,1fr); gap:16px; align-items:start; }
-  @media (min-width:1150px){ .cols { grid-template-columns:minmax(0,1fr) 312px; } .rail { position:sticky; top:18px; } }
-  .rail { display:flex; flex-direction:column; gap:13px; }
+  @media (min-width:1150px){
+    .cols { grid-template-columns:minmax(0,1fr) 312px; }
+    /* coluna da direita fica parada na tela enquanto o conteúdo rola */
+    .rail { position:sticky; top:18px; max-height:calc(100vh - 36px); overflow-y:auto; overscroll-behavior:contain; padding-right:2px; }
+    .rail::-webkit-scrollbar { width:6px; }
+    .rail::-webkit-scrollbar-thumb { background:var(--border-strong); border-radius:3px; }
+    .rail::-webkit-scrollbar-track { background:transparent; }
+  }
+  .rail { display:flex; flex-direction:column; gap:13px; scrollbar-width:thin; }
   .rcard { background:var(--card); border:1px solid var(--border); border-radius:17px; padding:15px 16px; box-shadow:var(--shadow); }
   .rcard-h { display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:730; margin-bottom:10px; }
   .rcard-h .rh-ic { width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
