@@ -110,12 +110,9 @@
   @media (min-width:1150px){
     .cols { grid-template-columns:minmax(0,1fr) 312px; }
     /* coluna da direita fica parada na tela enquanto o conteúdo rola */
-    .rail { position:sticky; top:18px; max-height:calc(100vh - 36px); overflow-y:auto; overscroll-behavior:contain; padding-right:2px; }
-    .rail::-webkit-scrollbar { width:6px; }
-    .rail::-webkit-scrollbar-thumb { background:var(--border-strong); border-radius:3px; }
-    .rail::-webkit-scrollbar-track { background:transparent; }
+    .rail { position:sticky; top:18px; }
   }
-  .rail { display:flex; flex-direction:column; gap:13px; scrollbar-width:thin; }
+  .rail { display:flex; flex-direction:column; gap:13px; }
   .rcard { background:var(--card); border:1px solid var(--border); border-radius:17px; padding:15px 16px; box-shadow:var(--shadow); }
   .rcard-h { display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:730; margin-bottom:10px; }
   .rcard-h .rh-ic { width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
@@ -124,9 +121,6 @@
   .rrow:first-of-type { border-top:none; }
   .rrow .rr-n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text2); }
   .rrow .rr-v { font-weight:690; font-variant-numeric:tabular-nums; }
-  .rlist { font-size:12.5px; color:var(--text2); line-height:1.55; }
-  .rlist li { margin:0 0 7px 15px; }
-  .rlist b { color:var(--text); }
   .rday { width:26px; height:26px; border-radius:8px; background:var(--card2); color:var(--text2); font-size:11px; font-weight:730; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 
   @media (max-width:820px) {
@@ -975,9 +969,6 @@ function railResumo(){
      <div class="rrow"><span class="rr-n">Gastos variáveis</span><span class="rr-v neg">${fmt(F.variaveis)}</span></div>
      <div class="rrow" style="border-top:2px solid var(--border-strong)"><span class="rr-n"><b>Sobra</b></span><span class="rr-v" style="color:${F.sobra>=0?cssv("--green"):cssv("--rose")}">${fmt(F.sobra)}</span></div>`);
 }
-function railDicas(titulo, itens){
-  return rcard(titulo,"book",cssv("--slate"),`<ul class="rlist">${itens.map(i=>`<li>${i}</li>`).join("")}</ul>`);
-}
 
 /* ================= TEXTOS DE AJUDA ================= */
 const T={
@@ -1052,13 +1043,7 @@ function renderInicio(){
       <div class="chart-host" id="hIni">${ch.svg}</div>
       <div class="cap">O saldo <b>vai se acumulando</b>: a cada mês soma-se a sua sobra ao que já existia. Hoje o histórico ainda é projetado — quando seus extratos forem importados, a parte já realizada aparecerá com valores reais.</div></div>`;
 
-  const lateral = railResumo() + railVencimentos() + railDicas("Como ler esta página",[
-    "O <b>índice</b> é um resumo; os quatro cartões explicam o que o compõe.",
-    "O cartão verde mostra <b>o único passo</b> que importa agora. Resolva-o antes de olhar o resto.",
-    "As <b>metas</b> são financiadas na ordem de prioridade, não todas ao mesmo tempo.",
-    "Todo valor tem um <b>?</b> ao lado explicando de onde vem.",
-  ]);
-  pagina(principal, lateral);
+  pagina(principal, railResumo() + railVencimentos());
   hoverChart("hIni", ch);
 }
 
@@ -1121,13 +1106,7 @@ function renderMetas(){
   const lateral = rcard("Ordem de prioridade","target",cssv("--brand"),
       metas.map((m,i)=>`<div class="rrow"><span class="rday">${i+1}º</span><span class="rr-n">${esc(m.nome)}</span><span class="rr-v" style="color:${m.cor}">${plano[i].mes!==null?labelMes(plano[i].mes):"+10a"}</span></div>`).join("")
       +`<div class="cap" style="margin-top:8px">Data prevista no ritmo atual.</div>`)
-    + railResumo()
-    + railDicas("Entenda os campos",[
-      "<b>Guardar por mês</b>: quanto seria preciso se esta fosse sua única meta.",
-      "<b>Previsão no ritmo atual</b>: já considera que as metas dividem a mesma sobra.",
-      "O selo verde/amarelo compara a <b>previsão real</b> com o prazo que você definiu.",
-      "Quer antecipar? Veja o simulador na aba <b>Projeção</b>.",
-    ]);
+    + railResumo();
   pagina(principal, lateral);
 }
 
@@ -1222,13 +1201,7 @@ function renderProjecao(){
        <div class="rrow"><span class="rr-n">Reajuste/inflação</span><span class="rr-v">não aplicado</span></div>
        <div class="rrow"><span class="rr-n">Parcelas que terminam</span><span class="rr-v">consideradas</span></div>
        <div class="rrow"><span class="rr-n">Destino da sobra</span><span class="rr-v">escada do foco</span></div>
-       <div class="cap" style="margin-top:8px">Valores em reais de hoje, sem correção pela inflação.</div>`)
-    + railDicas("Como usar",[
-      "Mude o <b>período</b> nos botões para olhar mais perto ou mais longe.",
-      "Passe o mouse (ou toque) nos gráficos para ver <b>mês e valor</b>.",
-      "Use o <b>simulador</b> para responder “e se eu apertar um pouco mais?”.",
-      "A tabela detalha cada mês: entrou, saiu fixo, saiu variável e saldo.",
-    ]);
+       <div class="cap" style="margin-top:8px">Valores em reais de hoje, sem correção pela inflação.</div>`);
   pagina(principal, lateral);
   hoverChart("hSaldo", chS);
   hoverChart("hFluxo", chF);
@@ -1386,13 +1359,7 @@ function renderInvestir(){
       `<div class="rrow"><span class="rr-n">Você tem</span><span class="rr-v">${fmt(F.reserva)}</span></div>
        <div class="rrow"><span class="rr-n">Ideal (${F.mesesIdeal} meses)</span><span class="rr-v">${fmt(F.reservaIdeal)}</span></div>
        <div class="rrow"><span class="rr-n">Falta</span><span class="rr-v" style="color:${cssv("--amber")}">${fmt(Math.max(0,F.reservaIdeal-F.reserva))}</span></div>
-       <div class="cap" style="margin-top:8px">A reserva deve ficar em aplicação de <b>liquidez imediata</b>: o objetivo é estar disponível, não render muito.</div>`)
-    + railDicas("Boas práticas",[
-      "Primeiro a <b>reserva</b>, depois o dinheiro que busca crescimento.",
-      "Quanto <b>mais tempo aplicado</b>, menor o imposto na renda fixa.",
-      "Concentrar tudo num único lugar aumenta o risco — diversificar ajuda.",
-      "Esta área é <b>educativa</b>: não é recomendação de investimento.",
-    ]);
+       <div class="cap" style="margin-top:8px">A reserva deve ficar em aplicação de <b>liquidez imediata</b>: o objetivo é estar disponível, não render muito.</div>`);
   pagina(principal, lateral);
   hoverChart("hRend", chR);
 }
