@@ -2,11 +2,13 @@
    Guarda os arquivos do site em cache; os DADOS ficam em localStorage (ver app).
    Chamadas ao Supabase nunca são cacheadas aqui: quando não há rede, o app usa
    o último retrato salvo e entra em modo somente-consulta. */
-const CACHE = "consultoria-v6";
+const CACHE = "consultoria-v7";
 const ARQUIVOS = [
   "./",
   "./index.html",
   "./vendor/supabase.js",
+  "./vendor/pdf.min.js",
+  "./vendor/pdf.worker.min.js",
   "./manifest.webmanifest",
   "./favicon-32.png",
   "./apple-touch-icon.png",
