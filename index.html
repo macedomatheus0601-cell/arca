@@ -7,245 +7,282 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
-    --bg: #eef0f4; --bg2: #e7eaf0;
-    --card: #ffffff; --card2: #f5f6f9;
-    --border: #e6e8ee; --border-strong: #d7dae2;
-    --text: #141821; --text2: #565d6b; --muted: #9198a5;
-    --brand: #2560c8; --brand2: #1c4fa6;
-    --green: #0f9d6b; --green-bg: #e4f6ee;
-    --amber: #d1810a; --amber-bg: #fbeed6;
-    --teal: #0a97b0; --teal-bg: #dff3f6;
-    --rose: #dc4b52; --rose-bg: #fce7e8;
-    --slate: #6b7385; --slate-bg: #eceef3;
-    --grad-hero: linear-gradient(140deg, #2f6bd6 0%, #163f8f 100%);
-    --grad-foco: linear-gradient(135deg, #109c7e 0%, #0b8ea4 100%);
-    --shadow: 0 4px 18px rgba(30,40,70,0.08);
-    --shadow-lg: 0 12px 34px rgba(30,40,70,0.14);
+    --bg:#eef0f4; --bg2:#e7eaf0; --card:#ffffff; --card2:#f5f6f9;
+    --border:#e6e8ee; --border-strong:#d7dae2;
+    --text:#141821; --text2:#565d6b; --muted:#9198a5;
+    --brand:#2560c8; --brand2:#1c4fa6;
+    --green:#0f9d6b; --green-bg:#e4f6ee;
+    --amber:#d1810a; --amber-bg:#fbeed6;
+    --teal:#0a97b0; --teal-bg:#dff3f6;
+    --rose:#dc4b52; --rose-bg:#fce7e8;
+    --slate:#6b7385; --slate-bg:#eceef3;
+    --grad-hero:linear-gradient(140deg,#2f6bd6 0%,#163f8f 100%);
+    --grad-foco:linear-gradient(135deg,#109c7e 0%,#0b8ea4 100%);
+    --shadow:0 4px 18px rgba(30,40,70,.08); --shadow-lg:0 12px 34px rgba(30,40,70,.14);
   }
   :root[data-theme="dark"] {
-    --bg: #0c0e13; --bg2: #101319;
-    --card: #171a21; --card2: #1f232c;
-    --border: #262b35; --border-strong: #333a46;
-    --text: #f0f1f4; --text2: #aab2c0; --muted: #727a89;
-    --brand: #5b8bf5; --brand2: #3a6ad8;
-    --green: #35c98e; --green-bg: #10281f;
-    --amber: #e0a13c; --amber-bg: #2c2210;
-    --teal: #3bb9cf; --teal-bg: #0e2429;
-    --rose: #ec6d73; --rose-bg: #2c1517;
-    --slate: #8d94a5; --slate-bg: #1e222b;
-    --grad-hero: linear-gradient(140deg, #2a5cc0 0%, #143a80 100%);
-    --grad-foco: linear-gradient(135deg, #0e8a6e 0%, #0a7f95 100%);
-    --shadow: 0 4px 18px rgba(0,0,0,0.4);
-    --shadow-lg: 0 14px 36px rgba(0,0,0,0.5);
+    --bg:#0c0e13; --bg2:#101319; --card:#171a21; --card2:#1f232c;
+    --border:#262b35; --border-strong:#333a46;
+    --text:#f0f1f4; --text2:#aab2c0; --muted:#727a89;
+    --brand:#5b8bf5; --brand2:#3a6ad8;
+    --green:#35c98e; --green-bg:#10281f;
+    --amber:#e0a13c; --amber-bg:#2c2210;
+    --teal:#3bb9cf; --teal-bg:#0e2429;
+    --rose:#ec6d73; --rose-bg:#2c1517;
+    --slate:#8d94a5; --slate-bg:#1e222b;
+    --grad-hero:linear-gradient(140deg,#2a5cc0 0%,#143a80 100%);
+    --grad-foco:linear-gradient(135deg,#0e8a6e 0%,#0a7f95 100%);
+    --shadow:0 4px 18px rgba(0,0,0,.4); --shadow-lg:0 14px 36px rgba(0,0,0,.5);
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; min-height: 100vh; transition: background .3s, color .3s; }
-  button { font-family: inherit; cursor: pointer; border: none; background: none; }
-  input { font-family: inherit; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Segoe UI",system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--text);
+         font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased; min-height:100vh; transition:background .3s,color .3s; }
+  button { font-family:inherit; cursor:pointer; border:none; background:none; }
+  input, select { font-family:inherit; }
 
   /* ---------- LOGIN ---------- */
-  .login-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 100; background: radial-gradient(900px 500px at 50% -10%, var(--bg2), var(--bg)); }
-  .login-card { background: var(--card); border: 1px solid var(--border); border-radius: 22px; padding: 30px 26px; width: 100%; max-width: 380px; box-shadow: var(--shadow-lg); }
-  .login-mark { width: 54px; height: 54px; border-radius: 16px; background: var(--grad-hero); color: #fff; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; box-shadow: var(--shadow); }
-  .login-mark svg { width: 28px; height: 28px; }
-  .login-card h1 { font-size: 20px; font-weight: 750; text-align: center; letter-spacing: -0.3px; }
-  .login-card .lsub { font-size: 13px; color: var(--muted); text-align: center; margin: 4px 0 22px; }
-  .field { margin-bottom: 13px; }
-  .field label { font-size: 12.5px; color: var(--text2); font-weight: 600; display: block; margin-bottom: 5px; }
-  .field input { width: 100%; height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--border-strong); background: var(--card2); color: var(--text); font-size: 15px; outline: none; transition: border-color .15s; }
-  .field input:focus { border-color: var(--brand); }
-  .login-btn { width: 100%; height: 47px; border-radius: 12px; background: var(--grad-hero); color: #fff; font-size: 15px; font-weight: 700; margin-top: 8px; transition: transform .1s, opacity .2s; }
-  .login-btn:active { transform: scale(0.98); }
-  .login-btn:disabled { opacity: 0.6; cursor: default; }
-  .login-err { background: var(--rose-bg); color: var(--rose); font-size: 12.5px; font-weight: 600; padding: 9px 12px; border-radius: 10px; margin-bottom: 14px; display: none; }
-  .login-err.show { display: block; }
+  .login-overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; z-index:100; background:radial-gradient(900px 500px at 50% -10%,var(--bg2),var(--bg)); }
+  .login-card { background:var(--card); border:1px solid var(--border); border-radius:22px; padding:30px 26px; width:100%; max-width:380px; box-shadow:var(--shadow-lg); }
+  .login-mark { width:54px; height:54px; border-radius:16px; background:var(--grad-hero); color:#fff; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; box-shadow:var(--shadow); }
+  .login-mark svg { width:28px; height:28px; }
+  .login-card h1 { font-size:20px; font-weight:750; text-align:center; letter-spacing:-.3px; }
+  .login-card .lsub { font-size:13px; color:var(--muted); text-align:center; margin:4px 0 22px; }
+  .field { margin-bottom:13px; }
+  .field label { font-size:12.5px; color:var(--text2); font-weight:600; display:block; margin-bottom:5px; }
+  .field input { width:100%; height:46px; padding:0 14px; border-radius:12px; border:1px solid var(--border-strong); background:var(--card2); color:var(--text); font-size:15px; outline:none; transition:border-color .15s; }
+  .field input:focus { border-color:var(--brand); }
+  .login-btn { width:100%; height:47px; border-radius:12px; background:var(--grad-hero); color:#fff; font-size:15px; font-weight:700; margin-top:8px; transition:transform .1s,opacity .2s; }
+  .login-btn:active { transform:scale(.98); }
+  .login-btn:disabled { opacity:.6; cursor:default; }
+  .login-err { background:var(--rose-bg); color:var(--rose); font-size:12.5px; font-weight:600; padding:9px 12px; border-radius:10px; margin-bottom:14px; display:none; }
+  .login-err.show { display:block; }
 
   /* ---------- SHELL ---------- */
-  .shell { display: none; min-height: 100vh; }
-  .shell.show { display: grid; grid-template-columns: 232px 1fr; }
-  .sidebar { background: var(--card); border-right: 1px solid var(--border); padding: 18px 14px; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
-  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 6px 18px; }
-  .brand .mark { width: 38px; height: 38px; border-radius: 11px; background: var(--grad-hero); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .brand .mark svg { width: 20px; height: 20px; }
-  .brand .bname { font-weight: 750; font-size: 15px; letter-spacing: -0.3px; }
-  .brand .bsub { font-size: 10.5px; color: var(--muted); }
-  .nav { display: flex; flex-direction: column; gap: 3px; flex: 1; }
-  .nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 11px; color: var(--text2); font-size: 14px; font-weight: 600; width: 100%; text-align: left; transition: background .15s, color .15s; }
-  .nav-item svg { width: 19px; height: 19px; flex-shrink: 0; }
-  .nav-item:hover { background: var(--card2); color: var(--text); }
-  .nav-item.active { background: color-mix(in srgb, var(--brand) 13%, transparent); color: var(--brand); }
-  .side-foot { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 8px; display: flex; align-items: center; gap: 10px; }
-  .side-foot .u-name { font-size: 12.5px; font-weight: 700; }
-  .side-foot .u-role { font-size: 10.5px; color: var(--muted); }
+  .shell { display:none; min-height:100vh; }
+  .shell.show { display:grid; grid-template-columns:232px 1fr; transition:grid-template-columns .22s ease; }
+  .shell.show.nav-hidden { grid-template-columns:0px 1fr; }
+  .sidebar { background:var(--card); border-right:1px solid var(--border); padding:18px 14px; display:flex; flex-direction:column; position:sticky; top:0; height:100vh; overflow:hidden; }
+  .shell.nav-hidden .sidebar { padding-left:0; padding-right:0; border-right-color:transparent; }
+  .shell.nav-hidden .sidebar > * { opacity:0; pointer-events:none; transition:opacity .12s; }
+  .brand { display:flex; align-items:center; gap:10px; padding:4px 6px 18px; }
+  .brand .mark { width:38px; height:38px; border-radius:11px; background:var(--grad-hero); color:#fff; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .brand .mark svg { width:20px; height:20px; }
+  .brand .bname { font-weight:750; font-size:15px; letter-spacing:-.3px; white-space:nowrap; }
+  .brand .bsub { font-size:10.5px; color:var(--muted); white-space:nowrap; }
+  .nav { display:flex; flex-direction:column; gap:3px; flex:1; }
+  .nav-item { display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:11px; color:var(--text2); font-size:14px; font-weight:600; width:100%; text-align:left; white-space:nowrap; transition:background .15s,color .15s; }
+  .nav-item svg { width:19px; height:19px; flex-shrink:0; }
+  .nav-item:hover { background:var(--card2); color:var(--text); }
+  .nav-item.active { background:color-mix(in srgb,var(--brand) 13%,transparent); color:var(--brand); }
+  .side-foot { border-top:1px solid var(--border); padding-top:12px; margin-top:8px; display:flex; align-items:center; gap:10px; }
+  .side-foot .u-name { font-size:12.5px; font-weight:700; white-space:nowrap; }
+  .side-foot .u-role { font-size:10.5px; color:var(--muted); }
 
-  .main { padding: 22px 26px 60px; max-width: 1000px; width: 100%; }
-  .main-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
-  .page-title { font-size: 22px; font-weight: 780; letter-spacing: -0.4px; }
-  .top-actions { display: flex; gap: 9px; }
-  .top-btn { width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--border-strong); background: var(--card); color: var(--text2); display: flex; align-items: center; justify-content: center; font-size: 18px; transition: transform .1s, border-color .2s; }
-  .top-btn:active { transform: scale(0.92); }
-  .top-btn svg { width: 19px; height: 19px; }
-  .avatar { width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0; background: var(--grad-hero); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 17px; box-shadow: var(--shadow); }
+  .main { padding:22px 26px 60px; max-width:1000px; width:100%; }
+  .main-top { display:flex; align-items:center; gap:11px; margin-bottom:20px; }
+  .page-title { font-size:22px; font-weight:780; letter-spacing:-.4px; flex:1; min-width:0; }
+  .top-btn { width:42px; height:42px; border-radius:12px; border:1px solid var(--border-strong); background:var(--card); color:var(--text2); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; transition:transform .1s,border-color .2s; }
+  .top-btn:hover { border-color:var(--brand); color:var(--brand); }
+  .top-btn:active { transform:scale(.92); }
+  .top-btn svg { width:19px; height:19px; }
+  .avatar { width:46px; height:46px; border-radius:14px; flex-shrink:0; background:var(--grad-hero); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:17px; box-shadow:var(--shadow); }
 
-  @media (max-width: 820px) {
-    .shell.show { grid-template-columns: 1fr; }
-    .sidebar { position: fixed; bottom: 0; left: 0; right: 0; top: auto; height: auto; flex-direction: row; border-right: none; border-top: 1px solid var(--border); padding: 7px 8px; z-index: 50; box-shadow: 0 -4px 18px rgba(0,0,0,0.07); }
-    .brand, .side-foot { display: none; }
-    .nav { flex-direction: row; gap: 2px; }
-    .nav-item { flex-direction: column; gap: 3px; padding: 7px 4px; font-size: 10px; border-radius: 10px; justify-content: center; }
-    .nav-item svg { width: 21px; height: 21px; }
-    .main { padding: 18px 15px 92px; }
+  @media (max-width:820px) {
+    .shell.show, .shell.show.nav-hidden { grid-template-columns:1fr; }
+    .sidebar { position:fixed; bottom:0; left:0; right:0; top:auto; height:auto; flex-direction:row; border-right:none; border-top:1px solid var(--border); padding:7px 8px !important; z-index:50; overflow:visible; box-shadow:0 -4px 18px rgba(0,0,0,.07); }
+    .shell.nav-hidden .sidebar > * { opacity:1; pointer-events:auto; }
+    .brand, .side-foot { display:none; }
+    .nav { flex-direction:row; gap:2px; }
+    .nav-item { flex-direction:column; gap:3px; padding:7px 3px; font-size:9.5px; border-radius:10px; justify-content:center; }
+    .nav-item svg { width:21px; height:21px; }
+    .main { padding:18px 15px 92px; }
+    #menuBtn { display:none; }
   }
 
-  .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 800; margin: 26px 2px 12px; }
-  .eyebrow:first-child { margin-top: 4px; }
+  .eyebrow { font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); font-weight:800; margin:26px 2px 12px; }
+  .eyebrow:first-child { margin-top:4px; }
 
   /* ---------- HERO ---------- */
-  .hero { background: var(--grad-hero); border-radius: 22px; color: #fff; padding: 22px; box-shadow: var(--shadow-lg); position: relative; overflow: hidden; display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
-  .hero::after { content: ""; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%; background: rgba(255,255,255,0.10); }
-  .hero::before { content: ""; position: absolute; right: 40px; bottom: -80px; width: 160px; height: 160px; border-radius: 50%; background: rgba(255,255,255,0.07); }
-  .gauge-wrap { position: relative; width: 168px; height: 168px; flex-shrink: 0; z-index: 1; }
-  .gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  .gauge-score { font-size: 46px; font-weight: 800; line-height: 1; letter-spacing: -1px; }
-  .gauge-of { font-size: 12px; opacity: 0.8; margin-top: 3px; }
-  .hero-info { flex: 1; min-width: 180px; z-index: 1; }
-  .hero-tag { font-size: 11.5px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.82; font-weight: 700; }
-  .hero-title { font-size: 22px; font-weight: 750; margin: 5px 0 3px; letter-spacing: -0.4px; }
-  .hero-desc { font-size: 13.5px; opacity: 0.9; line-height: 1.5; margin-bottom: 14px; }
-  .pillars { display: flex; gap: 8px; flex-wrap: wrap; }
-  .pillar { background: rgba(255,255,255,0.14); border-radius: 12px; padding: 8px 11px; flex: 1; min-width: 96px; }
-  .pillar .p-lbl { font-size: 10.5px; opacity: 0.82; display: flex; align-items: center; gap: 5px; }
-  .pillar .p-val { font-size: 16px; font-weight: 700; margin-top: 3px; }
-  .p-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .hero { background:var(--grad-hero); border-radius:22px; color:#fff; padding:22px; box-shadow:var(--shadow-lg); position:relative; overflow:hidden; display:flex; gap:22px; align-items:center; flex-wrap:wrap; }
+  .hero::after { content:""; position:absolute; right:-60px; top:-60px; width:220px; height:220px; border-radius:50%; background:rgba(255,255,255,.10); }
+  .hero::before { content:""; position:absolute; right:40px; bottom:-80px; width:160px; height:160px; border-radius:50%; background:rgba(255,255,255,.07); }
+  .gauge-wrap { position:relative; width:168px; height:168px; flex-shrink:0; z-index:1; }
+  .gauge-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .gauge-score { font-size:46px; font-weight:800; line-height:1; letter-spacing:-1px; }
+  .gauge-of { font-size:12px; opacity:.8; margin-top:3px; }
+  .hero-info { flex:1; min-width:180px; z-index:1; }
+  .hero-tag { font-size:11.5px; text-transform:uppercase; letter-spacing:1px; opacity:.82; font-weight:700; }
+  .hero-title { font-size:22px; font-weight:750; margin:5px 0 3px; letter-spacing:-.4px; }
+  .hero-desc { font-size:13.5px; opacity:.9; line-height:1.5; margin-bottom:14px; }
+  .pillars { display:flex; gap:8px; flex-wrap:wrap; }
+  .pillar { background:rgba(255,255,255,.14); border-radius:12px; padding:8px 11px; flex:1; min-width:96px; }
+  .pillar .p-lbl { font-size:10.5px; opacity:.82; display:flex; align-items:center; gap:5px; }
+  .pillar .p-val { font-size:16px; font-weight:700; margin-top:3px; }
+  .p-dot { width:7px; height:7px; border-radius:50%; display:inline-block; }
 
   /* ---------- TILES ---------- */
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr)); gap: 13px; }
-  .tile { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); transition: transform .15s, box-shadow .15s; }
-  .tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
-  .chip { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
-  .chip svg { width: 20px; height: 20px; }
-  .chip.blue { background: color-mix(in srgb, var(--brand) 15%, transparent); color: var(--brand); }
-  .chip.green { background: var(--green-bg); color: var(--green); }
-  .chip.amber { background: var(--amber-bg); color: var(--amber); }
-  .chip.teal { background: var(--teal-bg); color: var(--teal); }
-  .chip.rose { background: var(--rose-bg); color: var(--rose); }
-  .chip.slate { background: var(--slate-bg); color: var(--slate); }
-  .t-label { font-size: 12.5px; color: var(--text2); }
-  .t-value { font-size: 25px; font-weight: 780; letter-spacing: -0.6px; margin-top: 3px; font-variant-numeric: tabular-nums; }
-  .t-foot { display: flex; align-items: center; gap: 6px; margin-top: 7px; font-size: 11.5px; font-weight: 600; }
-  .badge { padding: 2px 8px; border-radius: 20px; font-size: 10.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
-  .badge.g { background: var(--green-bg); color: var(--green); }
-  .badge.y { background: var(--amber-bg); color: var(--amber); }
-  .badge.r { background: var(--rose-bg); color: var(--rose); }
-  .badge.n { background: var(--slate-bg); color: var(--slate); }
-  .spark { margin-top: 10px; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(158px,1fr)); gap:13px; }
+  .tile { background:var(--card); border:1px solid var(--border); border-radius:18px; padding:16px; box-shadow:var(--shadow); transition:transform .15s,box-shadow .15s; }
+  .tile:hover { transform:translateY(-2px); box-shadow:var(--shadow-lg); }
+  .chip { width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; margin-bottom:12px; }
+  .chip svg { width:20px; height:20px; }
+  .chip.blue { background:color-mix(in srgb,var(--brand) 15%,transparent); color:var(--brand); }
+  .chip.green { background:var(--green-bg); color:var(--green); }
+  .chip.amber { background:var(--amber-bg); color:var(--amber); }
+  .chip.teal { background:var(--teal-bg); color:var(--teal); }
+  .chip.rose { background:var(--rose-bg); color:var(--rose); }
+  .chip.slate { background:var(--slate-bg); color:var(--slate); }
+  .t-label { font-size:12.5px; color:var(--text2); }
+  .t-value { font-size:25px; font-weight:780; letter-spacing:-.6px; margin-top:3px; font-variant-numeric:tabular-nums; }
+  .t-foot { display:flex; align-items:center; gap:6px; margin-top:7px; font-size:11.5px; font-weight:600; }
+  .badge { padding:2px 8px; border-radius:20px; font-size:10.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px; }
+  .badge.g { background:var(--green-bg); color:var(--green); }
+  .badge.y { background:var(--amber-bg); color:var(--amber); }
+  .badge.r { background:var(--rose-bg); color:var(--rose); }
+  .badge.n { background:var(--slate-bg); color:var(--slate); }
+  .badge.b { background:color-mix(in srgb,var(--brand) 14%,transparent); color:var(--brand); }
+  .spark { margin-top:10px; }
 
-  .foco { background: var(--grad-foco); color: #fff; border-radius: 20px; padding: 20px 22px; box-shadow: var(--shadow-lg); position: relative; overflow: hidden; display: flex; align-items: center; gap: 16px; }
-  .foco .f-ic { width: 52px; height: 52px; border-radius: 15px; flex-shrink: 0; background: rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; }
-  .foco .f-ic svg { width: 26px; height: 26px; }
-  .foco .f-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.85; font-weight: 700; }
-  .foco .f-title { font-size: 18px; font-weight: 750; margin: 3px 0 4px; letter-spacing: -0.3px; }
-  .foco .f-desc { font-size: 13px; opacity: 0.92; line-height: 1.45; }
+  .foco { background:var(--grad-foco); color:#fff; border-radius:20px; padding:20px 22px; box-shadow:var(--shadow-lg); display:flex; align-items:center; gap:16px; }
+  .foco .f-ic { width:52px; height:52px; border-radius:15px; flex-shrink:0; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; }
+  .foco .f-ic svg { width:26px; height:26px; }
+  .foco .f-tag { font-size:11px; text-transform:uppercase; letter-spacing:.8px; opacity:.85; font-weight:700; }
+  .foco .f-title { font-size:18px; font-weight:750; margin:3px 0 4px; letter-spacing:-.3px; }
+  .foco .f-desc { font-size:13px; opacity:.92; line-height:1.45; }
 
-  .goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 13px; }
-  .goal { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); display: flex; gap: 14px; align-items: center; }
-  .ring-wrap { position: relative; flex-shrink: 0; width: 68px; height: 68px; }
-  .ring-pct { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 750; }
-  .goal .g-body { flex: 1; min-width: 0; }
-  .goal .g-name { font-size: 15px; font-weight: 720; display: flex; align-items: center; gap: 7px; }
-  .goal .g-name .mini-ic { width: 15px; height: 15px; }
-  .goal .g-vals { font-size: 12.5px; color: var(--text2); margin: 5px 0 6px; font-variant-numeric: tabular-nums; }
-  .goal .g-vals b { color: var(--text); }
-  .goal .g-when { font-size: 11px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; background: var(--card2); padding: 3px 9px; border-radius: 20px; }
+  .goals { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:13px; }
+  .goal { background:var(--card); border:1px solid var(--border); border-radius:18px; padding:16px; box-shadow:var(--shadow); display:flex; gap:14px; align-items:center; }
+  .ring-wrap { position:relative; flex-shrink:0; width:68px; height:68px; }
+  .ring-pct { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:750; }
+  .goal .g-body { flex:1; min-width:0; }
+  .goal .g-name { font-size:15px; font-weight:720; display:flex; align-items:center; gap:7px; }
+  .goal .g-name .mini-ic { width:15px; height:15px; }
+  .goal .g-vals { font-size:12.5px; color:var(--text2); margin:5px 0 6px; font-variant-numeric:tabular-nums; }
+  .goal .g-vals b { color:var(--text); }
+  .goal .g-when { font-size:11px; color:var(--muted); display:inline-flex; align-items:center; gap:5px; background:var(--card2); padding:3px 9px; border-radius:20px; }
 
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 18px; box-shadow: var(--shadow); }
-  .card + .card { margin-top: 13px; }
-  .card-h { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
-  .card-h .ct { font-size: 15px; font-weight: 730; }
-  .card-h .cs { font-size: 12px; color: var(--muted); margin-top: 1px; }
-  .card-h .c-end { text-align: right; }
-  .card-h .c-end .lbl { font-size: 11px; color: var(--muted); }
-  .card-h .c-end .val { font-size: 20px; font-weight: 780; color: var(--brand); letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
-  .legend { display: flex; gap: 14px; font-size: 11.5px; color: var(--text2); margin: 4px 0 8px; flex-wrap: wrap; }
-  .legend span { display: flex; align-items: center; gap: 6px; }
-  .sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
-  .ln { width: 20px; height: 3px; border-radius: 2px; display: inline-block; background: var(--brand); }
-  .ln.d { background: repeating-linear-gradient(90deg, var(--brand) 0 3px, transparent 3px 7px); }
-  svg.chart { width: 100%; height: auto; display: block; }
-  .cap { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
-  .note { font-size: 12px; color: var(--muted); margin-top: 14px; line-height: 1.5; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:18px; box-shadow:var(--shadow); }
+  .card + .card { margin-top:13px; }
+  .card-h { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+  .card-h .ct { font-size:15px; font-weight:730; }
+  .card-h .cs { font-size:12px; color:var(--muted); margin-top:1px; }
+  .card-h .c-end { text-align:right; }
+  .card-h .c-end .lbl { font-size:11px; color:var(--muted); }
+  .card-h .c-end .val { font-size:20px; font-weight:780; color:var(--brand); letter-spacing:-.4px; font-variant-numeric:tabular-nums; }
+  .legend { display:flex; gap:14px; font-size:11.5px; color:var(--text2); margin:4px 0 8px; flex-wrap:wrap; }
+  .legend span { display:flex; align-items:center; gap:6px; }
+  .sw { width:11px; height:11px; border-radius:3px; display:inline-block; flex-shrink:0; }
+  .ln { width:20px; height:3px; border-radius:2px; display:inline-block; background:var(--brand); }
+  .ln.d { background:repeating-linear-gradient(90deg,var(--brand) 0 3px,transparent 3px 7px); }
+  svg.chart { width:100%; height:auto; display:block; }
+  .cap { font-size:12px; color:var(--muted); margin-top:10px; line-height:1.5; }
+  .note { font-size:12px; color:var(--muted); margin-top:14px; line-height:1.5; }
+  .disclaimer { background:var(--card2); border:1px solid var(--border); border-radius:12px; padding:11px 13px; font-size:11.5px; color:var(--text2); line-height:1.5; margin-top:14px; }
 
-  /* ---------- metas detalhadas ---------- */
-  .goal-full { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 18px; box-shadow: var(--shadow); margin-bottom: 13px; }
-  .gf-top { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-  .gf-body { flex: 1; min-width: 190px; }
-  .gf-name { font-size: 16px; font-weight: 740; display: flex; align-items: center; gap: 8px; }
-  .gf-name .ic { width: 18px; height: 18px; display: inline-flex; }
-  .gf-vals { font-size: 13px; color: var(--text2); margin: 6px 0 9px; font-variant-numeric: tabular-nums; }
-  .gf-vals b { color: var(--text); }
-  .track { height: 9px; background: var(--card2); border-radius: 5px; overflow: hidden; }
-  .fill { height: 100%; border-radius: 5px; }
-  .gf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap: 10px; margin-top: 15px; padding-top: 14px; border-top: 1px solid var(--border); }
-  .mini { background: var(--card2); border-radius: 12px; padding: 10px 12px; }
-  .mini .m-l { font-size: 11px; color: var(--muted); }
-  .mini .m-v { font-size: 16px; font-weight: 730; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  /* ---------- metas ---------- */
+  .goal-full { background:var(--card); border:1px solid var(--border); border-radius:18px; padding:18px; box-shadow:var(--shadow); margin-bottom:13px; }
+  .gf-top { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+  .gf-body { flex:1; min-width:200px; }
+  .gf-name { font-size:16px; font-weight:740; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .gf-name .ic { width:18px; height:18px; display:inline-flex; flex-shrink:0; }
+  .gf-vals { font-size:13px; color:var(--text2); margin:7px 0 5px; font-variant-numeric:tabular-nums; }
+  .gf-vals b { color:var(--text); }
+  .track { height:9px; background:var(--card2); border-radius:5px; overflow:hidden; }
+  .fill { height:100%; border-radius:5px; }
+  .gf-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:10px; margin-top:15px; padding-top:14px; border-top:1px solid var(--border); }
+  .mini { background:var(--card2); border-radius:12px; padding:10px 12px; }
+  .mini .m-l { font-size:11px; color:var(--muted); }
+  .mini .m-v { font-size:16px; font-weight:730; margin-top:2px; font-variant-numeric:tabular-nums; }
 
-  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 13px; }
-  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 15px; box-shadow: var(--shadow); }
-  .stat .s-l { font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 7px; }
-  .stat .s-v { font-size: 21px; font-weight: 770; margin-top: 6px; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
-  .sign { width: 21px; height: 21px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0; }
+  /* barras comparativas com rótulo (sem ambiguidade) */
+  .cmp { margin-top:14px; padding-top:13px; border-top:1px solid var(--border); }
+  .cmp-t { font-size:12px; font-weight:700; color:var(--text2); margin-bottom:9px; }
+  .cmp-row { display:flex; align-items:center; gap:10px; margin-bottom:7px; font-size:12.5px; }
+  .cmp-row .cr-l { width:118px; flex-shrink:0; color:var(--text2); }
+  .cmp-row .cr-bar { flex:1; height:16px; background:var(--card2); border-radius:5px; overflow:hidden; min-width:50px; }
+  .cmp-row .cr-f { height:100%; border-radius:5px; }
+  .cmp-row .cr-v { width:92px; text-align:right; font-weight:700; font-variant-numeric:tabular-nums; flex-shrink:0; }
 
-  /* ---------- donut + legenda ---------- */
-  .donut-row { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
-  .donut-box { position: relative; width: 190px; flex-shrink: 0; margin: 0 auto; }
-  .donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
-  .donut-center .dc-v { font-size: 19px; font-weight: 780; letter-spacing: -0.4px; }
-  .donut-center .dc-l { font-size: 11px; color: var(--muted); }
-  .dleg { flex: 1; min-width: 190px; }
-  .dleg-row { display: flex; align-items: center; gap: 9px; padding: 7px 0; border-top: 1px solid var(--border); font-size: 13px; }
-  .dleg-row:first-child { border-top: none; }
-  .dleg-row .dl-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .dleg-row .dl-v { font-weight: 680; font-variant-numeric: tabular-nums; }
-  .dleg-row .dl-p { font-size: 11.5px; color: var(--muted); width: 38px; text-align: right; }
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:13px; }
+  .stat { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:15px; box-shadow:var(--shadow); }
+  .stat .s-l { font-size:12px; color:var(--text2); display:flex; align-items:center; gap:7px; }
+  .stat .s-v { font-size:21px; font-weight:770; margin-top:6px; letter-spacing:-.4px; font-variant-numeric:tabular-nums; }
+  .sign { width:21px; height:21px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; flex-shrink:0; }
+
+  /* ---------- tabela ---------- */
+  .tbl-wrap { overflow-x:auto; border:1px solid var(--border); border-radius:14px; margin-top:14px; -webkit-overflow-scrolling:touch; }
+  table { width:100%; border-collapse:collapse; font-size:13px; min-width:400px; }
+  th { text-align:right; padding:9px 12px; font-weight:700; color:var(--text2); background:var(--card2); font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; }
+  th:first-child, td:first-child { text-align:left; }
+  td { padding:9px 12px; border-top:1px solid var(--border); font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap; }
+  tfoot td { border-top:2px solid var(--border-strong); font-weight:750; background:var(--card2); }
+  .pos { color:var(--green); } .neg { color:var(--rose); }
+
+  /* ---------- donut ---------- */
+  .donut-row { display:flex; gap:22px; align-items:center; flex-wrap:wrap; }
+  .donut-box { position:relative; width:190px; flex-shrink:0; margin:0 auto; }
+  .donut-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
+  .donut-center .dc-v { font-size:18px; font-weight:780; letter-spacing:-.4px; }
+  .donut-center .dc-l { font-size:11px; color:var(--muted); }
+  .dleg { flex:1; min-width:190px; }
+  .dleg-row { display:flex; align-items:center; gap:9px; padding:7px 0; border-top:1px solid var(--border); font-size:13px; }
+  .dleg-row:first-child { border-top:none; }
+  .dleg-row .dl-n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dleg-row .dl-v { font-weight:680; font-variant-numeric:tabular-nums; }
+  .dleg-row .dl-p { font-size:11.5px; color:var(--muted); width:42px; text-align:right; }
 
   /* ---------- simulador ---------- */
-  .sim { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
-  .sim input[type=range] { flex: 1; min-width: 160px; accent-color: var(--brand); height: 26px; }
-  .sim-val { font-size: 14px; font-weight: 720; color: var(--brand); min-width: 96px; text-align: right; font-variant-numeric: tabular-nums; }
-  .sim-out { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 10px; margin-top: 14px; }
+  .sim { display:flex; align-items:center; gap:13px; flex-wrap:wrap; }
+  .sim input[type=range] { flex:1; min-width:150px; accent-color:var(--brand); height:26px; }
+  .num-in { height:40px; width:120px; padding:0 11px; border-radius:11px; border:1px solid var(--border-strong); background:var(--card2); color:var(--text); font-size:14.5px; font-weight:700; outline:none; text-align:right; font-variant-numeric:tabular-nums; }
+  .num-in:focus { border-color:var(--brand); }
+  .sim-out { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-top:14px; }
+  .quick { display:flex; gap:7px; flex-wrap:wrap; margin-top:10px; }
+  .quick button { border:1px solid var(--border-strong); background:var(--card); border-radius:20px; padding:5px 13px; font-size:12px; font-weight:650; color:var(--text2); }
+  .quick button:hover { border-color:var(--brand); color:var(--brand); }
 
-  /* ---------- perfil ---------- */
-  .id-card { background: var(--grad-hero); color: #fff; border-radius: 22px; padding: 22px; box-shadow: var(--shadow-lg); position: relative; overflow: hidden; display: flex; align-items: center; gap: 17px; flex-wrap: wrap; }
-  .id-card::after { content: ""; position: absolute; right: -50px; top: -70px; width: 210px; height: 210px; border-radius: 50%; background: rgba(255,255,255,0.09); }
-  .id-av { width: 66px; height: 66px; border-radius: 20px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 25px; font-weight: 750; flex-shrink: 0; z-index: 1; }
-  .id-info { z-index: 1; flex: 1; min-width: 170px; }
-  .id-name { font-size: 21px; font-weight: 760; letter-spacing: -0.4px; }
-  .id-sub { font-size: 13px; opacity: 0.85; margin-top: 2px; }
-  .id-tags { display: flex; gap: 7px; margin-top: 11px; flex-wrap: wrap; }
-  .id-tag { background: rgba(255,255,255,0.17); border-radius: 20px; padding: 4px 11px; font-size: 11.5px; font-weight: 650; }
-  .arc-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 13px; }
-  .arc-card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); text-align: center; }
-  .arc-box { position: relative; width: 124px; margin: 0 auto 6px; }
-  .arc-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  .arc-center .ac-v { font-size: 24px; font-weight: 790; letter-spacing: -0.5px; }
-  .arc-center .ac-of { font-size: 10.5px; color: var(--muted); }
-  .arc-card .ac-l { font-size: 13px; font-weight: 660; }
-  .arc-card .ac-d { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
-  .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px,1fr)); gap: 11px; }
-  .info-c { background: var(--card); border: 1px solid var(--border); border-radius: 15px; padding: 13px 15px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 12px; }
-  .info-c .ic-b { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--card2); color: var(--text2); }
-  .info-c .ic-b svg { width: 17px; height: 17px; }
-  .info-c .i-l { font-size: 11px; color: var(--muted); }
-  .info-c .i-v { font-size: 14px; font-weight: 660; margin-top: 1px; }
-  .diff-card { background: var(--amber-bg); border: 1px solid color-mix(in srgb, var(--amber) 28%, transparent); border-radius: 18px; padding: 17px 19px; display: flex; align-items: center; gap: 14px; }
-  .diff-card .d-ic { width: 44px; height: 44px; border-radius: 13px; background: color-mix(in srgb, var(--amber) 20%, transparent); color: var(--amber); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .diff-card .d-ic svg { width: 22px; height: 22px; }
-  .diff-card .d-l { font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--amber); font-weight: 750; }
-  .diff-card .d-v { font-size: 16px; font-weight: 700; margin-top: 2px; color: var(--text); }
+  /* ---------- investir ---------- */
+  .id-card { background:var(--grad-hero); color:#fff; border-radius:22px; padding:22px; box-shadow:var(--shadow-lg); position:relative; overflow:hidden; display:flex; align-items:center; gap:17px; flex-wrap:wrap; }
+  .id-card::after { content:""; position:absolute; right:-50px; top:-70px; width:210px; height:210px; border-radius:50%; background:rgba(255,255,255,.09); }
+  .id-av { width:62px; height:62px; border-radius:19px; background:rgba(255,255,255,.2); display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:750; flex-shrink:0; z-index:1; }
+  .id-info { z-index:1; flex:1; min-width:170px; }
+  .id-name { font-size:20px; font-weight:760; letter-spacing:-.4px; }
+  .id-sub { font-size:13px; opacity:.88; margin-top:3px; line-height:1.45; }
+  .id-tags { display:flex; gap:7px; margin-top:11px; flex-wrap:wrap; }
+  .id-tag { background:rgba(255,255,255,.18); border-radius:20px; padding:4px 12px; font-size:11.5px; font-weight:650; }
+  .ap-row { display:flex; align-items:center; gap:11px; padding:11px 0; border-top:1px solid var(--border); }
+  .ap-row:first-child { border-top:none; }
+  .ap-ic { width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .ap-ic svg { width:17px; height:17px; }
+  .ap-b { flex:1; min-width:0; }
+  .ap-n { font-size:13.5px; font-weight:680; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ap-s { font-size:11.5px; color:var(--muted); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ap-v { font-size:14px; font-weight:730; font-variant-numeric:tabular-nums; text-align:right; flex-shrink:0; }
+  .ap-del { width:28px; height:28px; border-radius:8px; color:var(--muted); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:16px; }
+  .ap-del:hover { background:var(--rose-bg); color:var(--rose); }
+  .ap-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:9px; margin-top:14px; padding-top:14px; border-top:1px solid var(--border); align-items:end; }
+  .ap-form label { font-size:11px; color:var(--muted); display:block; margin-bottom:4px; }
+  .ap-form input, .ap-form select { width:100%; height:40px; padding:0 10px; border-radius:11px; border:1px solid var(--border-strong); background:var(--card2); color:var(--text); font-size:13.5px; outline:none; }
+  .ap-form input:focus, .ap-form select:focus { border-color:var(--brand); }
+  .btn-p { height:40px; border-radius:11px; background:var(--brand); color:#fff; font-size:13.5px; font-weight:700; padding:0 16px; }
+  .btn-p:active { transform:scale(.98); }
+  .chk { display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--text2); height:40px; }
+  .chk input { width:auto; height:auto; }
+  .prem { display:flex; gap:13px; flex-wrap:wrap; align-items:end; }
+  .prem > div { flex:1; min-width:130px; }
+  .prem label { font-size:11px; color:var(--muted); display:block; margin-bottom:4px; }
+  details { margin-top:16px; }
+  summary { cursor:pointer; font-size:13px; color:var(--text2); font-weight:640; padding:9px 0; }
+  .info-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; margin-top:8px; }
+  .info-c { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:12px 14px; display:flex; align-items:center; gap:11px; }
+  .info-c .ic-b { width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex-shrink:0; background:var(--card2); color:var(--text2); }
+  .info-c .ic-b svg { width:16px; height:16px; }
+  .info-c .i-l { font-size:10.5px; color:var(--muted); }
+  .info-c .i-v { font-size:13.5px; font-weight:650; margin-top:1px; }
 
-  .state { text-align: center; padding: 60px 20px; color: var(--muted); }
-  .state .big { font-size: 40px; margin-bottom: 10px; }
+  .state { text-align:center; padding:60px 20px; color:var(--muted); }
+  .state .big { font-size:40px; margin-bottom:10px; }
+  .empty { color:var(--muted); font-size:13px; padding:8px 0; }
 </style>
 </head>
 <body>
@@ -273,15 +310,14 @@
       <div><div class="bname">Consultoria</div><div class="bsub">Gestão financeira</div></div>
     </div>
     <nav class="nav" id="nav"></nav>
-    <div class="side-foot"><div class="avatar" id="sideAvatar" style="width:34px;height:34px;border-radius:10px;font-size:13px">–</div><div><div class="u-name" id="sideName"></div><div class="u-role">cliente</div></div></div>
+    <div class="side-foot"><div class="avatar" id="sideAvatar" style="width:34px;height:34px;border-radius:10px;font-size:13px">–</div><div><div class="u-name" id="sideName"></div><div class="u-role" id="sideRole">cliente</div></div></div>
   </aside>
   <main class="main">
     <div class="main-top">
+      <button class="top-btn" id="menuBtn" aria-label="Mostrar ou ocultar o menu" title="Ocultar menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
       <div class="page-title" id="pageTitle">Início</div>
-      <div class="top-actions">
-        <button class="top-btn" id="themeBtn" aria-label="Alternar tema">☾</button>
-        <button class="top-btn" id="logoutBtn" aria-label="Sair" title="Sair"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
-      </div>
+      <button class="top-btn" id="themeBtn" aria-label="Alternar tema">☾</button>
+      <button class="top-btn" id="logoutBtn" aria-label="Sair" title="Sair"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
     </div>
     <div id="pageContent"></div>
   </main>
@@ -308,37 +344,51 @@ const ICONS = {
   heart:'<path d="M12 20.5S3.5 15 3.5 9.2A4.7 4.7 0 0 1 12 6.4a4.7 4.7 0 0 1 8.5 2.8c0 5.8-8.5 11.3-8.5 11.3z"/>',
   wallet:'<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H18v3"/><rect x="3" y="7.5" width="18" height="12.5" rx="2.5"/><circle cx="17" cy="14" r="1.3"/>',
   calendar:'<rect x="3" y="5" width="18" height="16" rx="2.5"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
+  building:'<rect x="4" y="3" width="16" height="18" rx="2"/><line x1="9" y1="7.5" x2="9" y2="7.5"/><line x1="15" y1="7.5" x2="15" y2="7.5"/><line x1="9" y1="12" x2="9" y2="12"/><line x1="15" y1="12" x2="15" y2="12"/><path d="M10 21v-4h4v4"/>',
+  coins:'<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v5c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 11v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5"/>',
 };
 const svgIcon=(n,c="")=>`<svg class="${c}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]||ICONS.target}</svg>`;
 
 /* ================= SUPABASE ================= */
-const SUPABASE_URL = "https://famyaxiruknwzbdktghf.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_QPIF7Y1cNmBUMIg7rjIVSg_4wybh6CH";
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_URL="https://famyaxiruknwzbdktghf.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_QPIF7Y1cNmBUMIg7rjIVSg_4wybh6CH";
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 
 /* ================= ESTADO ================= */
-let F={}, metas=[], perfilData=null, compsData=[], objsData=[];
-let currentPage="inicio", extraPoupanca=0;
+let F={}, metas=[], perfilData=null, compsData=[], objsData=[], apsData=[];
+let currentPage="inicio", extraPoupanca=0, isHost=false;
+const CDI_PADRAO=0.105, PCT_CDI_PADRAO=1.00;
 
 /* ================= HELPERS ================= */
 const fmt = v => "R$ " + Math.round(v).toLocaleString("pt-BR");
-const fmtK = v => Math.abs(v) >= 1000 ? "R$ " + (v/1000).toLocaleString("pt-BR",{maximumFractionDigits:1}) + "k" : fmt(v);
+const fmtK = v => Math.abs(v)>=1000 ? "R$ "+(v/1000).toLocaleString("pt-BR",{maximumFractionDigits:1})+"k" : fmt(v);
+const pct1 = v => (v*100).toLocaleString("pt-BR",{maximumFractionDigits:2})+"%";
 const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num = v => Number(v)||0;
 const MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-const MESES_L=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 function mesAno(d){ if(!d) return ""; const dt=new Date(d+"T00:00:00"); return MESES[dt.getMonth()]+"/"+dt.getFullYear(); }
 function labelMes(off){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+off); return MESES[d.getMonth()]+"/"+String(d.getFullYear()).slice(2); }
-function labelMesLongo(off){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+off); return MESES_L[d.getMonth()]+" de "+d.getFullYear(); }
 function dataBR(d){ if(!d) return null; const dt=new Date(d+"T00:00:00"); return String(dt.getDate()).padStart(2,'0')+"/"+String(dt.getMonth()+1).padStart(2,'0')+"/"+dt.getFullYear(); }
-function idade(d){ if(!d) return null; const n=new Date(), b=new Date(d+"T00:00:00"); let a=n.getFullYear()-b.getFullYear(); const m=n.getMonth()-b.getMonth(); if(m<0||(m===0&&n.getDate()<b.getDate())) a--; return a; }
-const ND = '<span style="color:var(--muted);font-weight:500">não informado</span>';
+function idade(d){ if(!d) return null; const n=new Date(),b=new Date(d+"T00:00:00"); let a=n.getFullYear()-b.getFullYear(); const m=n.getMonth()-b.getMonth(); if(m<0||(m===0&&n.getDate()<b.getDate())) a--; return a; }
+const ND='<span style="color:var(--muted);font-weight:500">não informado</span>';
 
 const GOAL_STYLE={
   reserva_emergencia:{ic:"shield",cor:"--teal"}, viagem:{ic:"pin",cor:"--amber"},
   compra_bem:{ic:"flag",cor:"--green"}, quitar_dividas:{ic:"alert",cor:"--rose"},
   aposentadoria:{ic:"trend",cor:"--brand"}, economia_mensal:{ic:"piggy",cor:"--green"},
   educacao:{ic:"target",cor:"--teal"}, outro:{ic:"target",cor:"--brand"},
+};
+const CLASSES={
+  renda_fixa:{l:"Renda fixa",cor:"--brand",ic:"shield"},
+  acoes:{l:"Ações",cor:"--green",ic:"trend"},
+  fiis:{l:"Fundos imobiliários",cor:"--teal",ic:"building"},
+  fundos:{l:"Fundos",cor:"--amber",ic:"brief"},
+  previdencia:{l:"Previdência",cor:"--rose",ic:"calendar"},
+  poupanca:{l:"Poupança",cor:"--slate",ic:"piggy"},
+  cripto:{l:"Cripto",cor:"--rose",ic:"coins"},
+  caixa:{l:"Caixa / conta",cor:"--slate",ic:"wallet"},
+  outro:{l:"Outro",cor:"--slate",ic:"wallet"},
 };
 const CAT_VARS=["--brand","--teal","--green","--amber","--rose","--slate"];
 
@@ -357,35 +407,52 @@ document.getElementById("loginForm").addEventListener("submit", async e=>{
 });
 document.getElementById("logoutBtn").addEventListener("click", async ()=>{ await sb.auth.signOut(); location.reload(); });
 
+/* ================= MENU RETRÁTIL ================= */
+document.getElementById("menuBtn").addEventListener("click", ()=>{
+  const h=shell.classList.toggle("nav-hidden");
+  try{ localStorage.setItem("navHidden", h?"1":"0"); }catch(e){}
+  document.getElementById("menuBtn").title = h ? "Mostrar menu" : "Ocultar menu";
+});
+try{ if(localStorage.getItem("navHidden")==="1") shell.classList.add("nav-hidden"); }catch(e){}
+
 /* ================= CARREGAR DADOS ================= */
 async function loadData(attempt=1){
   const body=document.getElementById("pageContent");
   body.innerHTML=`<div class="state"><div class="big">⏳</div>Carregando seus dados...</div>`;
   try{
-    const [pr,cr,or]=await Promise.all([
+    const [pr,cr,or,ar,ur]=await Promise.all([
       sb.from("perfis").select("*").eq("ativo",true).limit(1),
       sb.from("compromissos_recorrentes").select("*").eq("ativo",true),
       sb.from("objetivos").select("*").eq("status","ativo").order("prioridade",{ascending:true}),
+      sb.from("aplicacoes").select("*"),
+      sb.from("usuarios").select("role").limit(1),
     ]);
     if(pr.error) throw pr.error; if(cr.error) throw cr.error; if(or.error) throw or.error;
     const perfil=(pr.data||[])[0];
     if(!perfil){ body.innerHTML=`<div class="state"><div class="big">📋</div>Ainda não há dados cadastrados para o seu perfil.<br>Fale com seu consultor.</div>`; return; }
     perfilData=perfil; compsData=cr.data||[]; objsData=or.data||[];
-    const num=v=>Number(v)||0;
+    apsData = ar.error ? [] : (ar.data||[]);           /* tabela pode não existir ainda */
+    isHost = !ur.error && ((ur.data||[])[0]||{}).role==="host";
+
     const renda=compsData.filter(c=>c.tipo==="receita").reduce((s,c)=>s+num(c.valor),0);
     const fixos=compsData.filter(c=>c.tipo==="despesa").reduce((s,c)=>s+num(c.valor),0);
     const parcelaDivida=compsData.filter(c=>c.tipo==="despesa"&&c.eh_divida).reduce((s,c)=>s+num(c.valor),0);
-    const reserva=num(perfil.reserva_atual);
-    const sobra=perfil.poupanca_mensal_atual!=null?num(perfil.poupanca_mensal_atual):(renda-fixos);
+    const investido=apsData.reduce((s,a)=>s+num(a.valor_atual),0);
+    const reservaAps=apsData.filter(a=>a.eh_reserva).reduce((s,a)=>s+num(a.valor_atual),0);
+    const reserva = reservaAps>0 ? reservaAps : num(perfil.reserva_atual);
+    const sobra = perfil.poupanca_mensal_atual!=null ? num(perfil.poupanca_mensal_atual) : (renda-fixos);
     F={ nome:perfil.nome||"você", inicial:(perfil.iniciais||(perfil.nome||"?")[0]||"?").toUpperCase(),
-        renda, fixos, reserva, parcelaDivida, sobra, variaveis:Math.max(0,renda-fixos-sobra),
-        taxa:renda>0?sobra/renda:0, mesesReserva:fixos>0?reserva/fixos:0, divida:renda>0?parcelaDivida/renda:0 };
+        renda, fixos, reserva, investido, parcelaDivida, sobra, variaveis:Math.max(0,renda-fixos-sobra),
+        taxa:renda>0?sobra/renda:0, mesesReserva:fixos>0?reserva/fixos:0, divida:renda>0?parcelaDivida/renda:0,
+        cdi: perfil.cdi_anual!=null?num(perfil.cdi_anual):CDI_PADRAO,
+        pctCdi: perfil.pct_cdi!=null?num(perfil.pct_cdi):PCT_CDI_PADRAO };
     metas=objsData.map(o=>{ const st=GOAL_STYLE[o.tipo]||GOAL_STYLE.outro;
       return { nome:o.descricao||o.tipo, tipo:o.tipo, ic:st.ic, corVar:st.cor, cor:cssv(st.cor),
                atual:num(o.valor_atual), alvo:num(o.valor_alvo), dataAlvo:o.data_alvo,
                quando:o.data_alvo?"meta "+mesAno(o.data_alvo):"" }; });
     document.getElementById("sideAvatar").textContent=F.inicial;
     document.getElementById("sideName").textContent=F.nome;
+    document.getElementById("sideRole").textContent=isHost?"consultor":"cliente";
     setPage(currentPage);
   }catch(e){
     const msg=(e&&e.message)?e.message:String(e);
@@ -397,30 +464,29 @@ async function loadData(attempt=1){
   }
 }
 
-/* ================= CÁLCULOS ================= */
+/* ================= MOTOR DE CÁLCULO ================= */
 function ativoNoMes(c,off){
-  const hoje=new Date(); const alvo=new Date(hoje.getFullYear(),hoje.getMonth()+off,1);
+  const hoje=new Date(), alvo=new Date(hoje.getFullYear(),hoje.getMonth()+off,1);
   if(c.data_fim){ if(new Date(c.data_fim+"T00:00:00")<alvo) return false; }
   else if(c.total_parcelas!=null&&c.parcela_atual!=null){
-    const rest=Number(c.total_parcelas)-Number(c.parcela_atual);
-    if(off>rest) return false;
+    if(off > Number(c.total_parcelas)-Number(c.parcela_atual)) return false;
   }
-  if(c.data_inicio){ if(new Date(c.data_inicio+"T00:00:00")>new Date(alvo.getFullYear(),alvo.getMonth()+1,0)) return false; }
+  if(c.data_inicio && new Date(c.data_inicio+"T00:00:00") > new Date(alvo.getFullYear(),alvo.getMonth()+1,0)) return false;
   return true;
 }
-function receitaMes(off){ return compsData.filter(c=>c.tipo==="receita"&&ativoNoMes(c,off)).reduce((s,c)=>s+(Number(c.valor)||0),0); }
-function fixosMes(off){ return compsData.filter(c=>c.tipo==="despesa"&&ativoNoMes(c,off)).reduce((s,c)=>s+(Number(c.valor)||0),0); }
+const receitaMes = off => compsData.filter(c=>c.tipo==="receita"&&ativoNoMes(c,off)).reduce((s,c)=>s+num(c.valor),0);
+const fixosMes   = off => compsData.filter(c=>c.tipo==="despesa"&&ativoNoMes(c,off)).reduce((s,c)=>s+num(c.valor),0);
 function projetar(n=24, extra=0){
   const out=[]; let saldo=F.reserva;
-  out.push({off:0, receita:receitaMes(0), despesa:fixosMes(0)+F.variaveis, sobra:F.sobra, saldo});
+  out.push({off:0,receita:receitaMes(0),despesa:fixosMes(0)+F.variaveis,sobra:F.sobra,saldo});
   for(let i=1;i<=n;i++){
     const rec=receitaMes(i), desp=fixosMes(i)+F.variaveis, sob=rec-desp+extra;
-    saldo+=sob; out.push({off:i, receita:rec, despesa:desp, sobra:sob, saldo});
+    saldo+=sob; out.push({off:i,receita:rec,despesa:desp,sobra:sob,saldo});
   }
   return out;
 }
 function planoAlocacao(extra=0, horizonte=120){
-  const itens=metas.map(m=>({nome:m.nome, cor:m.cor, ic:m.ic, falta:Math.max(0,m.alvo-m.atual), mes:null}));
+  const itens=metas.map(m=>({nome:m.nome,cor:m.cor,ic:m.ic,falta:Math.max(0,m.alvo-m.atual),mes:null}));
   const proj=projetar(horizonte,extra);
   for(let i=1;i<=horizonte;i++){
     let disp=proj[i]?proj[i].sobra:0;
@@ -440,29 +506,35 @@ function calcScore(){
   return { score:Math.round((pPoup*0.34+pDiv*0.30+pRes*0.36)*100), pPoup, pDiv, pRes };
 }
 function focoInfo(){
-  if(F.divida>=0.30) return {t:"Reduzir as dívidas caras", d:"Suas dívidas consomem uma fatia grande da renda. O primeiro passo é aliviar isso — é o que destrava o resto."};
-  if(F.mesesReserva<3) return {t:"Completar sua reserva de emergência", d:`Você tem hoje ${F.mesesReserva.toLocaleString("pt-BR",{maximumFractionDigits:1})} meses de gastos guardados. O primeiro passo é chegar a 6 meses — é o que traz segurança antes de mirar os outros objetivos.`};
-  if(F.taxa<0.10) return {t:"Organizar e sobrar mais", d:"Sobra pouco no fim do mês. Vamos mapear os gastos e liberar mais espaço para as suas metas."};
-  return {t:"Acelerar seus objetivos", d:"Sua base está saudável! Agora é hora de dar velocidade às suas metas e fazer o dinheiro render mais."};
+  if(F.divida>=0.30) return {t:"Reduzir as dívidas caras",d:"Suas dívidas consomem uma fatia grande da renda. O primeiro passo é aliviar isso — é o que destrava o resto."};
+  if(F.mesesReserva<3) return {t:"Completar sua reserva de emergência",d:`Você tem hoje ${F.mesesReserva.toLocaleString("pt-BR",{maximumFractionDigits:1})} meses de gastos guardados. O primeiro passo é chegar a 6 meses — é o que traz segurança antes de mirar os outros objetivos.`};
+  if(F.taxa<0.10) return {t:"Organizar e sobrar mais",d:"Sobra pouco no fim do mês. Vamos mapear os gastos e liberar mais espaço para as suas metas."};
+  return {t:"Acelerar seus objetivos",d:"Sua base está saudável! Agora é hora de dar velocidade às suas metas e fazer o dinheiro render mais."};
 }
+/* juros compostos: aporte mensal + montante inicial */
+function montante(p0, pmt, taxaMes, n){
+  if(taxaMes<=0) return p0+pmt*n;
+  return p0*Math.pow(1+taxaMes,n) + pmt*((Math.pow(1+taxaMes,n)-1)/taxaMes);
+}
+const taxaMensal = () => Math.pow(1+F.cdi*F.pctCdi, 1/12)-1;
 
-/* ================= GRÁFICOS (SVG) ================= */
+/* ================= GRÁFICOS ================= */
 function gaugeSvg(score){
   const cx=90,cy=90,r=72,C=2*Math.PI*r,arc=(C*0.75)*(score/100);
   return `<svg viewBox="0 0 180 180" style="width:100%;height:100%">
     <defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="0.5" stop-color="#8fe6c3"/><stop offset="1" stop-color="#ffffff"/></linearGradient></defs>
     <g transform="rotate(135 ${cx} ${cy})">
-      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="14" stroke-linecap="round" stroke-dasharray="${(C*0.75).toFixed(1)} ${(C*0.25).toFixed(1)}"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="14" stroke-linecap="round" stroke-dasharray="${(C*.75).toFixed(1)} ${(C*.25).toFixed(1)}"/>
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#gg)" stroke-width="14" stroke-linecap="round" stroke-dasharray="${arc.toFixed(1)} ${(C-arc).toFixed(1)}"/></g></svg>`;
 }
-function ringSvg(pct,color,sw=7){
-  const r=28,C=2*Math.PI*r,arc=C*Math.max(0,Math.min(100,pct))/100;
+function ringSvg(p,color,sw=7){
+  const r=28,C=2*Math.PI*r,arc=C*Math.max(0,Math.min(100,p))/100;
   return `<svg viewBox="0 0 68 68" style="width:100%;height:100%">
     <circle cx="34" cy="34" r="${r}" fill="none" stroke="${cssv("--card2")}" stroke-width="${sw}"/>
     <circle cx="34" cy="34" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${arc.toFixed(1)} ${(C-arc).toFixed(1)}" transform="rotate(-90 34 34)"/></svg>`;
 }
-function arcSvg(pct,color){
-  const cx=62,cy=62,r=48,C=2*Math.PI*r,full=C*0.72,arc=full*Math.max(0,Math.min(1,pct));
+function arcSvg(p,color){
+  const cx=62,cy=62,r=48,C=2*Math.PI*r,full=C*0.72,arc=full*Math.max(0,Math.min(1,p));
   return `<svg viewBox="0 0 124 124" style="width:100%;height:auto">
     <g transform="rotate(140 ${cx} ${cy})">
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${cssv("--card2")}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${full.toFixed(1)} ${(C-full).toFixed(1)}"/>
@@ -473,110 +545,140 @@ function sparkSvg(vals,color){
   const pts=vals.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
   const id="sg"+Math.random().toString(36).slice(2,7);
   return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:34px">
-    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity="0.28"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".28"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
     <polygon points="0,${H} ${pts} ${W},${H}" fill="url(#${id})"/>
     <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
-/* linha de saldo acumulado */
+/* rótulo com enquadramento seguro (não corta nas bordas) */
+function txtAnchor(x,W,pad=34){ return x<pad ? "start" : (x>W-pad ? "end" : "middle"); }
+
 function saldoSvg(proj){
-  const values=proj.map(p=>p.saldo);
-  const W=720,H=270,padT=16,padB=24,padL=6,padR=6;
-  const min=Math.min(...values),max=Math.max(...values),range=(max-min)||1;
-  const x=i=>padL+i*(W-padL-padR)/(values.length-1), y=v=>padT+(max-v)/range*(H-padT-padB);
+  const v=proj.map(p=>p.saldo);
+  const W=720,H=270,padT=16,padB=26,padL=8,padR=8;
+  const min=Math.min(...v),max=Math.max(...v),range=(max-min)||1;
+  const x=i=>padL+i*(W-padL-padR)/(v.length-1), y=t=>padT+(max-t)/range*(H-padT-padB);
   const brand=cssv("--brand"),grid=cssv("--border"),tick=cssv("--muted"),card=cssv("--card");
-  let grd="";
-  for(let g=0;g<=3;g++){ const gy=padT+g*(H-padT-padB)/3,gv=max-g*range/3;
-    grd+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="${grid}" stroke-width="1"/><text x="${padL+2}" y="${(gy-5).toFixed(1)}" fill="${tick}" font-size="11" font-family="Segoe UI,sans-serif">${fmtK(gv)}</text>`; }
+  let g="";
+  for(let k=0;k<=3;k++){ const gy=padT+k*(H-padT-padB)/3, gv=max-k*range/3;
+    g+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="${grid}" stroke-width="1"/><text x="${padL+2}" y="${(gy-5).toFixed(1)}" fill="${tick}" font-size="11" font-family="Segoe UI,sans-serif">${fmtK(gv)}</text>`; }
   let xl="";
-  for(let i=0;i<values.length;i+=6) xl+=`<text x="${x(i).toFixed(1)}" y="${H-6}" fill="${tick}" font-size="10.5" text-anchor="middle" font-family="Segoe UI,sans-serif">${labelMes(i)}</text>`;
-  const pts=values.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  for(let i=0;i<v.length;i+=6){ const px=x(i); xl+=`<text x="${px.toFixed(1)}" y="${H-7}" fill="${tick}" font-size="10.5" text-anchor="${txtAnchor(px,W)}" font-family="Segoe UI,sans-serif">${labelMes(i)}</text>`; }
+  const pts=v.map((t,i)=>`${x(i).toFixed(1)},${y(t).toFixed(1)}`).join(" ");
   const id="ar"+Math.random().toString(36).slice(2,7);
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Projeção do saldo acumulado">
-    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${brand}" stop-opacity="0.26"/><stop offset="1" stop-color="${brand}" stop-opacity="0"/></linearGradient></defs>
-    ${grd}${xl}
-    <polygon points="${padL},${H-padB} ${pts} ${(W-padR)},${H-padB}" fill="url(#${id})"/>
-    <polyline points="${pts}" fill="none" stroke="${brand}" stroke-width="3.2" stroke-dasharray="1.5 7" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
-    <circle cx="${x(0).toFixed(1)}" cy="${y(values[0]).toFixed(1)}" r="6" fill="${brand}" stroke="${card}" stroke-width="3"/>
-    <text x="${x(0).toFixed(1)}" y="${(y(values[0])-13).toFixed(1)}" fill="${tick}" font-size="11" text-anchor="start" font-family="Segoe UI,sans-serif">hoje</text></svg>`;
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${brand}" stop-opacity=".26"/><stop offset="1" stop-color="${brand}" stop-opacity="0"/></linearGradient></defs>
+    ${g}${xl}<polygon points="${padL},${H-padB} ${pts} ${(W-padR)},${H-padB}" fill="url(#${id})"/>
+    <polyline points="${pts}" fill="none" stroke="${brand}" stroke-width="3.2" stroke-dasharray="1.5 7" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>
+    <circle cx="${x(0).toFixed(1)}" cy="${y(v[0]).toFixed(1)}" r="6" fill="${brand}" stroke="${card}" stroke-width="3"/></svg>`;
 }
-/* barras receita x despesa */
-function barsSvg(proj,n=12){
+
+/* FLUXO: entradas acima do eixo, saídas abaixo, saldo como linha */
+function fluxoSvg(proj,n=12){
   const d=proj.slice(1,n+1);
-  const W=720,H=225,padT=12,padB=26,padL=8,padR=8;
-  const max=Math.max(...d.map(x=>Math.max(x.receita,x.despesa)))*1.08||1;
-  const gw=(W-padL-padR)/d.length, bw=Math.min(13,gw*0.30), base=H-padB;
-  const y=v=>padT+(1-v/max)*(base-padT);
-  const green=cssv("--green"),rose=cssv("--rose"),tick=cssv("--muted"),grid=cssv("--border");
+  const W=720,H=320,padT=22,padB=42,padL=10,padR=10;
+  const maxAbs=Math.max(...d.map(p=>Math.max(p.receita,p.despesa)))*1.14||1;
+  const plotH=H-padT-padB, zero=padT+plotH/2, half=plotH/2;
+  const y=v=>zero-(v/maxAbs)*half;
+  const gw=(W-padL-padR)/d.length, bw=Math.min(16,gw*0.32);
+  const green=cssv("--green"),rose=cssv("--rose"),tick=cssv("--muted"),grid=cssv("--border"),text=cssv("--text"),card=cssv("--card");
   let g="";
-  for(let k=0;k<=3;k++){ const gy=padT+k*(base-padT)/3; g+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="${grid}" stroke-width="1"/>`; }
-  let bars="";
+  [0.5,1].forEach(f=>{ [1,-1].forEach(s=>{ const gy=zero-s*f*half;
+    g+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="${grid}" stroke-width="1"/>`; }); });
+  g+=`<text x="${padL+2}" y="${(zero-half+11).toFixed(1)}" fill="${tick}" font-size="10.5" font-family="Segoe UI,sans-serif">${fmtK(maxAbs)}</text>`;
+  g+=`<text x="${padL+2}" y="${(zero+half-3).toFixed(1)}" fill="${tick}" font-size="10.5" font-family="Segoe UI,sans-serif">-${fmtK(maxAbs)}</text>`;
+  let bars="",lin=[];
   d.forEach((p,i)=>{
     const cx=padL+gw*i+gw/2;
-    const hr=Math.max(2,base-y(p.receita)), hd=Math.max(2,base-y(p.despesa));
-    bars+=`<rect x="${(cx-bw-1).toFixed(1)}" y="${y(p.receita).toFixed(1)}" width="${bw.toFixed(1)}" height="${hr.toFixed(1)}" rx="3" fill="${green}"/>`;
-    bars+=`<rect x="${(cx+1).toFixed(1)}" y="${y(p.despesa).toFixed(1)}" width="${bw.toFixed(1)}" height="${hd.toFixed(1)}" rx="3" fill="${rose}"/>`;
-    if(i%2===0) bars+=`<text x="${cx.toFixed(1)}" y="${H-8}" fill="${tick}" font-size="10.5" text-anchor="middle" font-family="Segoe UI,sans-serif">${labelMes(p.off)}</text>`;
+    const hr=Math.max(2,zero-y(p.receita)), hd=Math.max(2,y(-p.despesa)-zero);
+    bars+=`<rect x="${(cx-bw-1.5).toFixed(1)}" y="${y(p.receita).toFixed(1)}" width="${bw.toFixed(1)}" height="${hr.toFixed(1)}" rx="3.5" fill="${green}"/>`;
+    bars+=`<rect x="${(cx+1.5).toFixed(1)}" y="${zero.toFixed(1)}" width="${bw.toFixed(1)}" height="${hd.toFixed(1)}" rx="3.5" fill="${rose}"/>`;
+    lin.push([cx,y(p.sobra)]);
+    if(i%2===0||d.length<=8) bars+=`<text x="${cx.toFixed(1)}" y="${H-22}" fill="${tick}" font-size="10.5" text-anchor="${txtAnchor(cx,W,26)}" font-family="Segoe UI,sans-serif">${labelMes(p.off)}</text>`;
   });
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Receita e despesa por mês">${g}<line x1="${padL}" y1="${base}" x2="${W-padR}" y2="${base}" stroke="${grid}" stroke-width="1.2"/>${bars}</svg>`;
+  const lp=lin.map(p=>`${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+  const dots=lin.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4" fill="${text}" stroke="${card}" stroke-width="2"/>`).join("");
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Entradas, saídas e saldo por mês">
+    ${g}${bars}
+    <line x1="${padL}" y1="${zero.toFixed(1)}" x2="${W-padR}" y2="${zero.toFixed(1)}" stroke="${cssv("--border-strong")}" stroke-width="1.6"/>
+    <polyline points="${lp}" fill="none" stroke="${text}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>${dots}
+    <text x="${W-padR}" y="${H-5}" fill="${tick}" font-size="10" text-anchor="end" font-family="Segoe UI,sans-serif">a linha preta é o saldo do mês</text></svg>`;
 }
-/* rosca de composição */
+function fluxoTabela(proj,n=12){
+  const d=proj.slice(1,n+1);
+  const tR=d.reduce((s,p)=>s+p.receita,0), tD=d.reduce((s,p)=>s+p.despesa,0), tS=d.reduce((s,p)=>s+p.sobra,0);
+  const rows=d.map(p=>`<tr><td>${labelMes(p.off)}</td><td class="pos">${fmt(p.receita)}</td><td class="neg">${fmt(p.despesa)}</td><td class="${p.sobra>=0?"pos":"neg"}"><b>${fmt(p.sobra)}</b></td></tr>`).join("");
+  return `<div class="tbl-wrap"><table>
+    <thead><tr><th>Mês</th><th>Entrou</th><th>Saiu</th><th>Saldo</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td>Total ${n} meses</td><td class="pos">${fmt(tR)}</td><td class="neg">${fmt(tD)}</td><td class="${tS>=0?"pos":"neg"}">${fmt(tS)}</td></tr></tfoot>
+  </table></div>`;
+}
 function donutSvg(items){
   const total=items.reduce((s,i)=>s+i.valor,0)||1;
   const cx=100,cy=100,r=72,C=2*Math.PI*r;
   let acc=0,segs="";
-  items.forEach(it=>{
-    const len=C*(it.valor/total), vis=Math.max(1,len-3);
+  items.forEach(it=>{ const len=C*(it.valor/total), vis=Math.max(1,len-3);
     segs+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${it.cor}" stroke-width="27" stroke-dasharray="${vis.toFixed(1)} ${(C-vis).toFixed(1)}" stroke-dashoffset="${(-acc).toFixed(1)}" transform="rotate(-90 ${cx} ${cy})"/>`;
-    acc+=len;
-  });
-  return `<svg viewBox="0 0 200 200" style="width:100%;height:auto" role="img" aria-label="Composição das despesas">${segs}</svg>`;
+    acc+=len; });
+  return `<svg viewBox="0 0 200 200" style="width:100%;height:auto" role="img" aria-label="Composição">${segs}</svg>`;
 }
-/* linha do tempo das metas */
+/* linha do tempo das metas — rótulos sempre enquadrados */
 function timelineSvg(plano){
   const ating=plano.filter(p=>p.mes!==null).map(p=>p.mes);
-  const maxM=Math.max(12,...(ating.length?ating:[12]));
-  const W=720,padL=8,padR=8,rowH=44,padT=30;
-  const H=padT+plano.length*rowH+6;
+  const maxM=Math.max(6,...(ating.length?ating:[12]));
+  const W=720,padL=12,padR=12,rowH=48,padT=36;
+  const H=padT+plano.length*rowH+8;
   const x=m=>padL+(m/maxM)*(W-padL-padR);
-  const tick=cssv("--muted"),grid=cssv("--border"),text=cssv("--text"),card=cssv("--card");
-  const step=maxM<=12?3:(maxM<=30?6:12);
+  const tick=cssv("--muted"),grid=cssv("--border"),text=cssv("--text"),card=cssv("--card"),cardm=cssv("--card2");
+  const step = maxM<=6?1 : maxM<=12?2 : maxM<=24?4 : maxM<=48?6 : 12;
   let axis="";
   for(let m=0;m<=maxM;m+=step){
-    axis+=`<line x1="${x(m).toFixed(1)}" y1="20" x2="${x(m).toFixed(1)}" y2="${H-4}" stroke="${grid}" stroke-width="1"/>`;
-    axis+=`<text x="${x(m).toFixed(1)}" y="13" fill="${tick}" font-size="10.5" text-anchor="middle" font-family="Segoe UI,sans-serif">${labelMes(m)}</text>`;
+    const px=x(m);
+    axis+=`<line x1="${px.toFixed(1)}" y1="22" x2="${px.toFixed(1)}" y2="${H-4}" stroke="${grid}" stroke-width="1"/>`;
+    axis+=`<text x="${px.toFixed(1)}" y="14" fill="${tick}" font-size="10.5" text-anchor="${txtAnchor(px,W,30)}" font-family="Segoe UI,sans-serif">${labelMes(m)}</text>`;
   }
   let rows="";
   plano.forEach((p,i)=>{
-    const yy=padT+i*rowH+12;
-    const end=p.mes!==null?x(p.mes):x(maxM);
-    rows+=`<text x="${padL+1}" y="${yy-4}" fill="${text}" font-size="11.5" font-weight="600" font-family="Segoe UI,sans-serif">${esc(p.nome)}</text>`;
-    rows+=`<rect x="${padL}" y="${yy}" width="${Math.max(6,end-padL).toFixed(1)}" height="13" rx="6.5" fill="${p.cor}" opacity="${p.mes!==null?0.9:0.28}"/>`;
+    const yy=padT+i*rowH+14, end=p.mes!==null?x(p.mes):W-padR;
+    rows+=`<text x="${padL+1}" y="${yy-5}" fill="${text}" font-size="11.5" font-weight="600" font-family="Segoe UI,sans-serif">${esc(p.nome)}</text>`;
+    rows+=`<rect x="${padL}" y="${yy}" width="${(W-padR-padL).toFixed(1)}" height="13" rx="6.5" fill="${cardm}"/>`;
     if(p.mes!==null){
+      rows+=`<rect x="${padL}" y="${yy}" width="${Math.max(8,end-padL).toFixed(1)}" height="13" rx="6.5" fill="${p.cor}"/>`;
       rows+=`<circle cx="${end.toFixed(1)}" cy="${yy+6.5}" r="6.5" fill="${p.cor}" stroke="${card}" stroke-width="2.5"/>`;
-      const anchor = end > W*0.78 ? "end" : "start";
-      const tx = anchor==="end" ? end-12 : end+12;
-      rows+=`<text x="${tx.toFixed(1)}" y="${yy+11}" fill="${tick}" font-size="10.5" text-anchor="${anchor}" font-family="Segoe UI,sans-serif">${labelMes(p.mes)}</text>`;
-    } else {
-      rows+=`<text x="${(W-padR-2).toFixed(1)}" y="${yy+11}" fill="${tick}" font-size="10.5" text-anchor="end" font-family="Segoe UI,sans-serif">além de 10 anos</text>`;
+      const dir = end>W*0.72 ? -1 : 1;
+      rows+=`<text x="${(end+dir*13).toFixed(1)}" y="${yy+11}" fill="${tick}" font-size="10.5" text-anchor="${dir<0?"end":"start"}" font-family="Segoe UI,sans-serif">${labelMes(p.mes)}</text>`;
+    }else{
+      rows+=`<rect x="${padL}" y="${yy}" width="${(W-padR-padL).toFixed(1)}" height="13" rx="6.5" fill="${p.cor}" opacity=".22"/>`;
+      rows+=`<text x="${(W-padR-4).toFixed(1)}" y="${yy+11}" fill="${tick}" font-size="10.5" text-anchor="end" font-family="Segoe UI,sans-serif">além de 10 anos</text>`;
     }
   });
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Linha do tempo das metas">${axis}${rows}</svg>`;
 }
-/* barra comparativa simples */
-function compareSvg(a,b,corA,corB){
-  const max=Math.max(a,b)||1,W=260,H=46,bh=15;
-  const wA=(a/max)*W, wB=(b/max)*W;
-  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:46px">
-    <rect x="0" y="2" width="${Math.max(3,wA).toFixed(1)}" height="${bh}" rx="4" fill="${corA}"/>
-    <rect x="0" y="${bh+8}" width="${Math.max(3,wB).toFixed(1)}" height="${bh}" rx="4" fill="${corB}"/></svg>`;
+/* duas linhas: parado x aplicado */
+function duasLinhasSvg(a,b,corA,corB){
+  const all=a.concat(b), W=720,H=250,padT=16,padB=26,padL=8,padR=8;
+  const min=Math.min(...all),max=Math.max(...all),range=(max-min)||1;
+  const x=i=>padL+i*(W-padL-padR)/(a.length-1), y=v=>padT+(max-v)/range*(H-padT-padB);
+  const grid=cssv("--border"),tick=cssv("--muted");
+  let g="";
+  for(let k=0;k<=3;k++){ const gy=padT+k*(H-padT-padB)/3, gv=max-k*range/3;
+    g+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="${grid}" stroke-width="1"/><text x="${padL+2}" y="${(gy-5).toFixed(1)}" fill="${tick}" font-size="11" font-family="Segoe UI,sans-serif">${fmtK(gv)}</text>`; }
+  let xl="";
+  for(let i=0;i<a.length;i+=6){ const px=x(i); xl+=`<text x="${px.toFixed(1)}" y="${H-7}" fill="${tick}" font-size="10.5" text-anchor="${txtAnchor(px,W)}" font-family="Segoe UI,sans-serif">${labelMes(i)}</text>`; }
+  const pa=a.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const pb=b.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Comparação entre guardar parado e aplicado">
+    ${g}${xl}
+    <polyline points="${pa}" fill="none" stroke="${corA}" stroke-width="2.6" stroke-dasharray="4 5" stroke-linecap="round"/>
+    <polyline points="${pb}" fill="none" stroke="${corB}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
 /* ================= NAVEGAÇÃO ================= */
 const PAGES=[
-  {id:"inicio",label:"Início",icon:"home",render:renderInicio},
-  {id:"metas",label:"Metas",icon:"target",render:renderMetas},
-  {id:"projecao",label:"Projeção",icon:"trend",render:renderProjecao},
-  {id:"perfil",label:"Perfil",icon:"user",render:renderPerfil},
+  {id:"inicio",label:"Início",titulo:"Início",icon:"home",render:renderInicio},
+  {id:"metas",label:"Metas",titulo:"Suas metas",icon:"target",render:renderMetas},
+  {id:"projecao",label:"Projeção",titulo:"Projeção",icon:"trend",render:renderProjecao},
+  {id:"investir",label:"Investir",titulo:"Seus investimentos",icon:"coins",render:renderInvestir},
 ];
 function renderNav(){
   document.getElementById("nav").innerHTML=PAGES.map(p=>
@@ -585,10 +687,10 @@ function renderNav(){
 function setPage(id){
   currentPage=id;
   const pg=PAGES.find(p=>p.id===id)||PAGES[0];
-  document.getElementById("pageTitle").textContent=pg.label;
+  document.getElementById("pageTitle").textContent=pg.titulo;
   renderNav();
   if(F.renda!=null){ metas.forEach(m=>m.cor=cssv(m.corVar)); pg.render(); }
-  window.scrollTo({top:0,behavior:"instant"});
+  window.scrollTo({top:0});
 }
 
 /* ================= PÁGINA: INÍCIO ================= */
@@ -599,22 +701,23 @@ function renderInicio(){
   else if(score>=45){ht="Boa, com um ponto de atenção";hd="A base está firme, mas a reserva de emergência ainda precisa crescer para trazer mais segurança.";}
   else{ht="Precisa de atenção";hd="Vamos organizar as prioridades juntos para virar esse jogo mês a mês.";}
   const pil=[{l:"Poupança",v:Math.round(F.taxa*100)+"%",ok:pPoup},{l:"Dívidas",v:Math.round(F.divida*100)+"%",ok:pDiv},{l:"Reserva",v:F.mesesReserva.toLocaleString("pt-BR",{maximumFractionDigits:1})+"m",ok:pRes}];
-  const pilH=pil.map(p=>{const c=p.ok>=0.7?"#8fe6c3":(p.ok>=0.45?"#ffe08a":"#ffb3b6");return `<div class="pillar"><div class="p-lbl"><span class="p-dot" style="background:${c}"></span>${p.l}</div><div class="p-val">${p.v}</div></div>`;}).join("");
+  const pilH=pil.map(p=>{const c=p.ok>=.7?"#8fe6c3":(p.ok>=.45?"#ffe08a":"#ffb3b6");
+    return `<div class="pillar"><div class="p-lbl"><span class="p-dot" style="background:${c}"></span>${p.l}</div><div class="p-val">${p.v}</div></div>`;}).join("");
   const tp=Math.round(F.taxa*100),cd=Math.round(F.divida*100),mr=F.mesesReserva;
   const tiles=[
-    {chip:"green",ic:"card",label:"Sobra por mês",value:fmt(F.sobra),badge:{cls:tp>=15?"g":(tp>=5?"y":"r"),txt:tp+"% da renda"},spark:[F.sobra*0.6,F.sobra*0.78,F.sobra*0.52,F.sobra*0.9,F.sobra*0.82,F.sobra],sc:cssv("--green")},
+    {chip:"green",ic:"card",label:"Sobra por mês",value:fmt(F.sobra),badge:{cls:tp>=15?"g":(tp>=5?"y":"r"),txt:tp+"% da renda"},spark:[F.sobra*.6,F.sobra*.78,F.sobra*.52,F.sobra*.9,F.sobra*.82,F.sobra],sc:cssv("--green")},
     {chip:"blue",ic:"trend",label:"Taxa de poupança",value:tp+"%",badge:{cls:tp>=15?"g":(tp>=5?"y":"r"),txt:tp>=15?"ótimo ritmo":"pode melhorar"}},
     {chip:"teal",ic:"shield",label:"Reserva",value:mr.toLocaleString("pt-BR",{maximumFractionDigits:1})+" meses",badge:{cls:mr>=6?"g":(mr>=3?"y":"r"),txt:"meta: 6 meses"}},
     {chip:"amber",ic:"alert",label:"Dívidas",value:cd+"%",badge:{cls:cd<10?"g":(cd<30?"y":"r"),txt:cd<10?"sob controle":"atenção"}},
   ];
   const tilesH=tiles.map(t=>`<div class="tile"><div class="chip ${t.chip}">${svgIcon(t.ic)}</div><div class="t-label">${t.label}</div><div class="t-value">${t.value}</div><div class="t-foot"><span class="badge ${t.badge.cls}">${t.badge.txt}</span></div>${t.spark?sparkSvg(t.spark,t.sc):""}</div>`).join("");
   const fi=focoInfo();
-  const goalsH=metas.map(m=>{const pct=m.alvo>0?Math.min(100,Math.round(m.atual/m.alvo*100)):0;
-    return `<div class="goal"><div class="ring-wrap">${ringSvg(pct,m.cor)}<div class="ring-pct" style="color:${m.cor}">${pct}%</div></div>
+  const goalsH=metas.map(m=>{const p=m.alvo>0?Math.min(100,Math.round(m.atual/m.alvo*100)):0;
+    return `<div class="goal"><div class="ring-wrap">${ringSvg(p,m.cor)}<div class="ring-pct" style="color:${m.cor}">${p}%</div></div>
       <div class="g-body"><div class="g-name"><span class="mini-ic" style="color:${m.cor}">${svgIcon(m.ic,"mini-ic")}</span>${esc(m.nome)}</div>
       <div class="g-vals"><b>${fmtK(m.atual)}</b> de ${fmtK(m.alvo)}</div>${m.quando?`<span class="g-when">◔ ${m.quando}</span>`:""}</div></div>`;}).join("")
-    || `<div style="color:var(--muted);font-size:13px">Nenhuma meta cadastrada.</div>`;
-  const proj=projetar(24,0), fim=proj[proj.length-1].saldo;
+    || `<div class="empty">Nenhuma meta cadastrada.</div>`;
+  const proj=projetar(24,0), fim=proj[24].saldo;
   document.getElementById("pageContent").innerHTML=`
     <div class="hero"><div class="gauge-wrap">${gaugeSvg(score)}<div class="gauge-center"><div class="gauge-score">${score}</div><div class="gauge-of">de 100</div></div></div>
       <div class="hero-info"><div class="hero-tag">Índice de saúde financeira</div><div class="hero-title">${ht}</div><div class="hero-desc">${hd}</div><div class="pillars">${pilH}</div></div></div>
@@ -633,54 +736,53 @@ function renderMetas(){
   const box=document.getElementById("pageContent");
   if(!metas.length){ box.innerHTML=`<div class="state"><div class="big">🎯</div>Nenhuma meta cadastrada ainda.<br>Fale com seu consultor para definir seus objetivos.</div>`; return; }
   const totAlvo=metas.reduce((s,m)=>s+m.alvo,0), totAtual=metas.reduce((s,m)=>s+m.atual,0);
-  const pctGeral=totAlvo>0?Math.round(totAtual/totAlvo*100):0;
+  const pg=totAlvo>0?Math.round(totAtual/totAlvo*100):0;
   const plano=planoAlocacao(0);
   const concl=plano.filter(p=>p.mes!==null).length;
 
-  const resumo=`
-    <div class="card"><div class="donut-row">
-      <div class="ring-wrap" style="width:104px;height:104px">${ringSvg(pctGeral,cssv("--brand"),8)}<div class="ring-pct" style="color:${cssv("--brand")};font-size:20px">${pctGeral}%</div></div>
+  const resumo=`<div class="card"><div class="donut-row">
+      <div class="ring-wrap" style="width:104px;height:104px">${ringSvg(pg,cssv("--brand"),8)}<div class="ring-pct" style="color:${cssv("--brand")};font-size:20px">${pg}%</div></div>
       <div style="flex:1;min-width:200px">
         <div style="font-size:12.5px;color:var(--text2)">Progresso geral das metas</div>
         <div style="font-size:26px;font-weight:790;letter-spacing:-.6px;margin-top:2px">${fmt(totAtual)}</div>
         <div style="font-size:13px;color:var(--muted)">de ${fmt(totAlvo)} · faltam <b style="color:var(--text)">${fmt(Math.max(0,totAlvo-totAtual))}</b></div>
-        <div class="track" style="margin-top:11px"><div class="fill" style="width:${pctGeral}%;background:${cssv("--brand")}"></div></div>
+        <div class="track" style="margin-top:11px"><div class="fill" style="width:${pg}%;background:${cssv("--brand")}"></div></div>
       </div>
-      <div style="min-width:150px">
+      <div style="min-width:148px">
         <div class="mini" style="margin-bottom:8px"><div class="m-l">Metas ativas</div><div class="m-v">${metas.length}</div></div>
         <div class="mini"><div class="m-l">Alcançáveis em 10 anos</div><div class="m-v">${concl} de ${metas.length}</div></div>
-      </div>
-    </div></div>`;
+      </div></div></div>`;
 
-  const linha=`
-    <div class="eyebrow">Quando cada meta é alcançada</div>
+  const linha=`<div class="eyebrow">Quando cada meta é alcançada</div>
     <div class="card"><div class="card-h"><div><div class="ct">Linha do tempo</div><div class="cs">no ritmo atual de ${fmt(F.sobra)}/mês, seguindo a ordem de prioridade</div></div></div>
+      <div class="legend"><span><span class="sw" style="background:${cssv("--card2")};border:1px solid ${cssv("--border-strong")}"></span> caminho até a meta</span><span><span class="sw" style="background:${cssv("--brand")}"></span> tempo até ser alcançada</span></div>
       ${timelineSvg(plano)}
-      <div class="cap">A sobra é destinada primeiro à meta de maior prioridade; quando ela é concluída, o valor passa para a seguinte.</div></div>`;
+      <div class="cap">A barra colorida mostra <b>quanto tempo</b> falta para cada meta. A sobra vai primeiro para a meta de maior prioridade; quando ela é concluída, o valor passa para a seguinte.</div></div>`;
 
   const cards=metas.map((m,i)=>{
-    const pct=m.alvo>0?Math.min(100,Math.round(m.atual/m.alvo*100)):0;
-    const falta=Math.max(0,m.alvo-m.atual);
-    const pl=plano[i];
-    const mesesPrazo = m.dataAlvo ? (()=>{ const n=new Date(), dt=new Date(m.dataAlvo+"T00:00:00"); return Math.max(1,(dt.getFullYear()-n.getFullYear())*12+(dt.getMonth()-n.getMonth())); })() : null;
+    const p=m.alvo>0?Math.min(100,Math.round(m.atual/m.alvo*100)):0;
+    const falta=Math.max(0,m.alvo-m.atual), pl=plano[i];
+    const mesesPrazo = m.dataAlvo ? (()=>{ const n=new Date(),dt=new Date(m.dataAlvo+"T00:00:00");
+      return Math.max(1,(dt.getFullYear()-n.getFullYear())*12+(dt.getMonth()-n.getMonth())); })() : null;
     const porMes = mesesPrazo ? falta/mesesPrazo : null;
-    let via;
-    if(porMes==null) via=`<span class="badge n">sem prazo</span>`;
-    else if(porMes<=F.sobra) via=`<span class="badge g">✓ cabe na sua sobra</span>`;
-    else via=`<span class="badge y">acima da sua sobra</span>`;
-    const cmp = porMes!=null ? `<div style="margin-top:6px">${compareSvg(porMes,F.sobra,m.cor,cssv("--slate"))}
-      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:-4px">
-        <span style="color:${m.cor};font-weight:650">precisa ${fmt(porMes)}/mês</span><span>sua sobra ${fmt(F.sobra)}</span></div></div>` : "";
+    let via = porMes==null ? `<span class="badge n">sem prazo</span>`
+            : (porMes<=F.sobra ? `<span class="badge g">✓ cabe na sua sobra</span>` : `<span class="badge y">acima da sua sobra</span>`);
+    const mx=Math.max(porMes||0,F.sobra)||1;
+    const cmp = porMes!=null ? `
+      <div class="cmp"><div class="cmp-t">Esforço mensal para cumprir o prazo</div>
+        <div class="cmp-row"><span class="cr-l">Precisa guardar</span><div class="cr-bar"><div class="cr-f" style="width:${(porMes/mx*100).toFixed(1)}%;background:${m.cor}"></div></div><span class="cr-v" style="color:${m.cor}">${fmt(porMes)}</span></div>
+        <div class="cmp-row"><span class="cr-l">Sua sobra hoje</span><div class="cr-bar"><div class="cr-f" style="width:${(F.sobra/mx*100).toFixed(1)}%;background:${cssv("--slate")}"></div></div><span class="cr-v">${fmt(F.sobra)}</span></div>
+      </div>` : "";
     return `<div class="goal-full">
       <div class="gf-top">
-        <div class="ring-wrap" style="width:84px;height:84px">${ringSvg(pct,m.cor,8)}<div class="ring-pct" style="color:${m.cor};font-size:18px">${pct}%</div></div>
+        <div class="ring-wrap" style="width:84px;height:84px">${ringSvg(p,m.cor,8)}<div class="ring-pct" style="color:${m.cor};font-size:18px">${p}%</div></div>
         <div class="gf-body">
           <div class="gf-name"><span class="ic" style="color:${m.cor}">${svgIcon(m.ic)}</span>${esc(m.nome)} ${via}</div>
-          <div class="gf-vals"><b>${fmt(m.atual)}</b> de ${fmt(m.alvo)} · faltam <b>${fmt(falta)}</b></div>
-          <div class="track"><div class="fill" style="width:${pct}%;background:${m.cor}"></div></div>
-          ${cmp}
+          <div class="gf-vals">Já guardado: <b>${fmt(m.atual)}</b> de ${fmt(m.alvo)} · faltam <b>${fmt(falta)}</b></div>
+          <div class="track"><div class="fill" style="width:${p}%;background:${m.cor}"></div></div>
         </div>
       </div>
+      ${cmp}
       <div class="gf-grid">
         <div class="mini"><div class="m-l">Prazo desejado</div><div class="m-v">${m.dataAlvo?mesAno(m.dataAlvo):"—"}</div></div>
         <div class="mini"><div class="m-l">Guardar por mês</div><div class="m-v">${porMes!=null?fmt(porMes):"—"}</div></div>
@@ -690,16 +792,19 @@ function renderMetas(){
   }).join("");
 
   box.innerHTML = resumo + linha + `<div class="eyebrow">Detalhe de cada meta</div>` + cards +
-    `<div class="note">"Guardar por mês" é o quanto seria necessário para cumprir o prazo desejado. "Previsão no ritmo atual" considera que a sobra é dividida seguindo a ordem de prioridade das metas.</div>`;
+    `<div class="note"><b>Guardar por mês</b> é o quanto seria necessário para cumprir o prazo desejado. <b>Previsão no ritmo atual</b> considera que a sobra é dividida seguindo a ordem de prioridade das metas.</div>`;
 }
 
 /* ================= PÁGINA: PROJEÇÃO ================= */
+function metasCenarioHTML(){
+  const ps=planoAlocacao(extraPoupanca), pb=planoAlocacao(0);
+  return ps.map((p,i)=>{ const b=pb[i], g=(b.mes!==null&&p.mes!==null)?b.mes-p.mes:0;
+    return `<div class="dleg-row"><span class="sw" style="background:${p.cor}"></span><span class="dl-n">${esc(p.nome)}</span>
+      <span class="dl-v">${p.mes!==null?labelMes(p.mes):"+10 anos"}</span>
+      <span class="dl-p" style="color:${g>0?cssv("--green"):"var(--muted)"}">${g>0?"−"+g+"m":""}</span></div>`; }).join("");
+}
 function renderProjecao(){
-  const box=document.getElementById("pageContent");
-  const proj=projetar(24,extraPoupanca);
-  const fim=proj[proj.length-1].saldo;
-  const base=projetar(24,0)[24].saldo;
-
+  const proj=projetar(24,extraPoupanca), fim=proj[24].saldo, base=projetar(24,0)[24].saldo;
   const linhas=[
     {l:"Renda mensal",v:fmt(F.renda),s:"+",cor:cssv("--green")},
     {l:"Gastos fixos",v:fmt(F.fixos),s:"−",cor:cssv("--rose")},
@@ -708,41 +813,36 @@ function renderProjecao(){
   ];
   const statsH=linhas.map(x=>`<div class="stat"><div class="s-l"><span class="sign" style="background:color-mix(in srgb, ${x.cor} 16%, transparent);color:${x.cor}">${x.s}</span>${x.l}</div><div class="s-v">${x.v}</div></div>`).join("");
 
-  /* composição das despesas */
-  const desp=compsData.filter(c=>c.tipo==="despesa").map(c=>({nome:c.descricao||"Outros",valor:Number(c.valor)||0,divida:!!c.eh_divida})).sort((a,b)=>b.valor-a.valor);
+  const desp=compsData.filter(c=>c.tipo==="despesa").map(c=>({nome:c.descricao||"Outros",valor:num(c.valor)})).sort((a,b)=>b.valor-a.valor);
   const itens=[]; let outros=0;
   desp.forEach((d,i)=>{ if(i<4) itens.push({nome:d.nome,valor:d.valor}); else outros+=d.valor; });
   if(F.variaveis>0) itens.push({nome:"Gastos variáveis",valor:F.variaveis});
   if(outros>0) itens.push({nome:"Outros fixos",valor:outros});
   itens.sort((a,b)=>b.valor-a.valor);
   itens.forEach((it,i)=>it.cor=cssv(CAT_VARS[i%CAT_VARS.length]));
-  const totalDesp=itens.reduce((s,i)=>s+i.valor,0);
-  const legH=itens.map(it=>`<div class="dleg-row"><span class="sw" style="background:${it.cor}"></span><span class="dl-n">${esc(it.nome)}</span><span class="dl-v">${fmt(it.valor)}</span><span class="dl-p">${Math.round(it.valor/(totalDesp||1)*100)}%</span></div>`).join("");
+  const totD=itens.reduce((s,i)=>s+i.valor,0);
+  const legH=itens.map(it=>`<div class="dleg-row"><span class="sw" style="background:${it.cor}"></span><span class="dl-n">${esc(it.nome)}</span><span class="dl-v">${fmt(it.valor)}</span><span class="dl-p">${Math.round(it.valor/(totD||1)*100)}%</span></div>`).join("");
 
-  /* metas com o cenário */
-  const planoSim=planoAlocacao(extraPoupanca);
-  const planoBase=planoAlocacao(0);
-  const metasH=planoSim.map((p,i)=>{
-    const b=planoBase[i];
-    const ganho=(b.mes!==null&&p.mes!==null)?b.mes-p.mes:0;
-    return `<div class="dleg-row"><span class="sw" style="background:${p.cor}"></span><span class="dl-n">${esc(p.nome)}</span>
-      <span class="dl-v">${p.mes!==null?labelMes(p.mes):"+10 anos"}</span>
-      <span class="dl-p" style="color:${ganho>0?cssv("--green"):"var(--muted)"}">${ganho>0?"−"+ganho+"m":""}</span></div>`;
-  }).join("");
-
-  box.innerHTML=`
+  document.getElementById("pageContent").innerHTML=`
     <div class="card"><div class="card-h"><div><div class="ct">Saldo acumulado</div><div class="cs">próximos 24 meses</div></div>
       <div class="c-end"><div class="lbl">projeção em 2 anos</div><div class="val" id="simFim">${fmt(fim)}</div></div></div>
       <div class="legend"><span><span class="ln d"></span> Projeção (a partir de hoje)</span></div>
       <div id="simChart">${saldoSvg(proj)}</div>
-      <div class="cap" id="simCap">Guardando ${fmt(F.sobra+extraPoupanca)} por mês, em 2 anos seu saldo acumulado chega a cerca de ${fmt(fim)}. Quando você importar seus extratos, a parte já realizada aparecerá aqui.</div></div>
+      <div class="cap" id="simCap">Guardando ${fmt(F.sobra+extraPoupanca)} por mês, em 2 anos seu saldo acumulado chega a cerca de ${fmt(fim)}.</div></div>
 
     <div class="eyebrow">E se eu guardasse um pouco mais?</div>
     <div class="card">
       <div class="sim">
         <span style="font-size:13px;color:var(--text2)">Guardar a mais por mês</span>
-        <input type="range" id="simRange" min="0" max="1000" step="50" value="${extraPoupanca}" oninput="aplicarCenario(this.value)">
-        <span class="sim-val" id="simVal">+ ${fmt(extraPoupanca)}</span>
+        <input type="range" id="simRange" min="0" max="2000" step="50" value="${Math.min(2000,extraPoupanca)}" oninput="aplicarCenario(this.value,'range')">
+        <input type="number" class="num-in" id="simInput" min="0" step="50" value="${extraPoupanca}" oninput="aplicarCenario(this.value,'input')" aria-label="Valor a guardar a mais por mês">
+      </div>
+      <div class="quick">
+        <button onclick="aplicarCenario(0,'quick')">zerar</button>
+        <button onclick="aplicarCenario(100,'quick')">+100</button>
+        <button onclick="aplicarCenario(250,'quick')">+250</button>
+        <button onclick="aplicarCenario(500,'quick')">+500</button>
+        <button onclick="aplicarCenario(1000,'quick')">+1.000</button>
       </div>
       <div class="sim-out">
         <div class="mini"><div class="m-l">Saldo em 2 anos</div><div class="m-v" id="simSaldo">${fmt(fim)}</div></div>
@@ -751,91 +851,151 @@ function renderProjecao(){
       </div>
       <div style="margin-top:15px;padding-top:13px;border-top:1px solid var(--border)">
         <div style="font-size:12.5px;font-weight:680;margin-bottom:4px">Quando cada meta seria alcançada</div>
-        <div id="simMetas">${metasH}</div>
+        <div id="simMetas">${metasCenarioHTML()}</div>
       </div>
-      <div class="cap">Arraste para simular. A coluna verde mostra quantos meses você antecipa cada meta.</div>
+      <div class="cap">Arraste a barra, digite um valor ou use os atalhos. A coluna verde mostra quantos meses você antecipa cada meta.</div>
     </div>
 
-    <div class="eyebrow">Receita e despesa mês a mês</div>
-    <div class="card"><div class="card-h"><div><div class="ct">Entradas e saídas</div><div class="cs">próximos 12 meses · projetado</div></div></div>
-      <div class="legend"><span><span class="sw" style="background:${cssv("--green")}"></span> Receita</span><span><span class="sw" style="background:${cssv("--rose")}"></span> Despesa</span></div>
-      ${barsSvg(proj,12)}
-      <div class="cap">As barras de despesa diminuem quando uma parcela ou financiamento termina — por isso a sobra tende a crescer com o tempo.</div></div>
+    <div class="eyebrow">Entradas, saídas e saldo</div>
+    <div class="card"><div class="card-h"><div><div class="ct">Mês a mês</div><div class="cs">próximos 12 meses · projetado</div></div></div>
+      <div class="legend">
+        <span><span class="sw" style="background:${cssv("--green")}"></span> Entradas (acima do eixo)</span>
+        <span><span class="sw" style="background:${cssv("--rose")}"></span> Saídas (abaixo do eixo)</span>
+        <span><span class="ln" style="background:${cssv("--text")}"></span> Saldo do mês</span></div>
+      ${fluxoSvg(proj,12)}
+      ${fluxoTabela(proj,12)}
+      <div class="cap">As saídas diminuem quando uma parcela ou financiamento termina — por isso o saldo tende a crescer com o tempo.</div></div>
 
     <div class="eyebrow">Como sua sobra é formada</div><div class="grid2">${statsH}</div>
 
     <div class="eyebrow">Para onde vai o seu dinheiro</div>
     <div class="card"><div class="donut-row">
-      <div class="donut-box">${donutSvg(itens)}<div class="donut-center"><div class="dc-v">${fmt(totalDesp)}</div><div class="dc-l">por mês</div></div></div>
-      <div class="dleg">${legH}</div>
-    </div><div class="cap">Os "gastos variáveis" são uma estimativa até seus extratos serem importados — depois disso, viram valores reais.</div></div>
+      <div class="donut-box">${donutSvg(itens)}<div class="donut-center"><div class="dc-v">${fmt(totD)}</div><div class="dc-l">por mês</div></div></div>
+      <div class="dleg">${legH}</div></div>
+      <div class="cap">Os "gastos variáveis" são uma estimativa até seus extratos serem importados — depois disso, viram valores reais.</div></div>
 
     <div class="note">A sobra segue a "escada do foco": primeiro completa a reserva de emergência, depois abastece seus objetivos por prioridade.</div>`;
 }
-function aplicarCenario(v){
-  extraPoupanca=Number(v)||0;
+function aplicarCenario(v,origem){
+  extraPoupanca=Math.max(0,Number(v)||0);
+  const r=document.getElementById("simRange"), n=document.getElementById("simInput");
+  if(r && origem!=="range") r.value=Math.min(2000,extraPoupanca);
+  if(n && origem!=="input") n.value=extraPoupanca;
   const proj=projetar(24,extraPoupanca), fim=proj[24].saldo, base=projetar(24,0)[24].saldo;
-  document.getElementById("simVal").textContent="+ "+fmt(extraPoupanca);
   document.getElementById("simChart").innerHTML=saldoSvg(proj);
   document.getElementById("simFim").textContent=fmt(fim);
   document.getElementById("simSaldo").textContent=fmt(fim);
   document.getElementById("simDelta").textContent="+ "+fmt(fim-base);
   document.getElementById("simSobra").textContent=fmt(F.sobra+extraPoupanca);
   document.getElementById("simCap").textContent=`Guardando ${fmt(F.sobra+extraPoupanca)} por mês, em 2 anos seu saldo acumulado chega a cerca de ${fmt(fim)}.`;
-  const ps=planoAlocacao(extraPoupanca), pb=planoAlocacao(0);
-  document.getElementById("simMetas").innerHTML=ps.map((p,i)=>{
-    const b=pb[i], ganho=(b.mes!==null&&p.mes!==null)?b.mes-p.mes:0;
-    return `<div class="dleg-row"><span class="sw" style="background:${p.cor}"></span><span class="dl-n">${esc(p.nome)}</span>
-      <span class="dl-v">${p.mes!==null?labelMes(p.mes):"+10 anos"}</span>
-      <span class="dl-p" style="color:${ganho>0?cssv("--green"):"var(--muted)"}">${ganho>0?"−"+ganho+"m":""}</span></div>`;
-  }).join("");
+  document.getElementById("simMetas").innerHTML=metasCenarioHTML();
 }
 
-/* ================= PÁGINA: PERFIL ================= */
-function renderPerfil(){
+/* ================= PÁGINA: INVESTIR ================= */
+const PERFIL_INV={
+  conservador:{l:"Conservador",d:"Prioriza segurança e liquidez. Aceita render menos para não correr risco de perder."},
+  moderado:{l:"Moderado",d:"Aceita alguma oscilação em parte do dinheiro em troca de um retorno maior no longo prazo."},
+  arrojado:{l:"Arrojado",d:"Tolera oscilações relevantes buscando retorno maior, com horizonte de longo prazo."},
+};
+function perfilInvestidor(){
   const p=perfilData||{};
-  const anos=idade(p.data_nascimento);
-  const tags=[];
+  if(p.perfil_investidor) return {chave:p.perfil_investidor, declarado:true};
+  const ci=Number(p.conforto_investimentos)||0;
+  return { chave: ci>=4?"arrojado":(ci>=3?"moderado":"conservador"), declarado:false };
+}
+function renderInvestir(){
+  const p=perfilData||{};
+  const pi=perfilInvestidor(), inf=PERFIL_INV[pi.chave]||PERFIL_INV.conservador;
+
+  /* --- cartão de identidade / perfil --- */
+  const tags=[`Perfil ${inf.l.toLowerCase()}`];
+  if(idade(p.data_nascimento)!=null) tags.push(idade(p.data_nascimento)+" anos");
   if(p.tipo_renda) tags.push(esc(p.tipo_renda));
-  if(p.estado_civil) tags.push(esc(p.estado_civil));
-  if(p.dependentes!=null) tags.push(p.dependentes+" dependente"+(p.dependentes===1?"":"s"));
-  const idCard=`
-    <div class="id-card">
-      <div class="id-av">${F.inicial}</div>
-      <div class="id-info">
-        <div class="id-name">${esc(p.nome_completo||F.nome)}</div>
-        <div class="id-sub">${anos!=null?anos+" anos":""}${anos!=null&&p.email?" · ":""}${esc(p.email||"")}</div>
-        ${tags.length?`<div class="id-tags">${tags.map(t=>`<span class="id-tag">${t}</span>`).join("")}</div>`:""}
-      </div>
-    </div>`;
+  const idCard=`<div class="id-card"><div class="id-av">${F.inicial}</div>
+    <div class="id-info"><div class="id-name">${esc(p.nome_completo||F.nome)}</div>
+      <div class="id-sub">${inf.d}</div>
+      <div class="id-tags">${tags.map(t=>`<span class="id-tag">${t}</span>`).join("")}</div></div></div>
+    ${pi.declarado?"":`<div class="note">Perfil sugerido a partir do seu questionário. Seu consultor pode ajustar.</div>`}`;
 
-  const cf=p.conforto_financas, ci=p.conforto_investimentos;
-  const nivel=n=>["","iniciante","aprendendo","intermediário","confortável","avançado"][Number(n)||0]||"—";
-  const corN=n=>{ n=Number(n)||0; return n>=4?cssv("--green"):(n>=3?cssv("--teal"):cssv("--amber")); };
-  const arcs=`
-    <div class="arc-row">
-      <div class="arc-card">
-        <div class="arc-box">${arcSvg(cf!=null?cf/5:0, corN(cf))}<div class="arc-center"><div class="ac-v">${cf!=null?cf:"–"}</div><div class="ac-of">de 5</div></div></div>
-        <div class="ac-l">Finanças do dia a dia</div><div class="ac-d">${cf!=null?nivel(cf):"não informado"}</div>
-      </div>
-      <div class="arc-card">
-        <div class="arc-box">${arcSvg(ci!=null?ci/5:0, corN(ci))}<div class="arc-center"><div class="ac-v">${ci!=null?ci:"–"}</div><div class="ac-of">de 5</div></div></div>
-        <div class="ac-l">Investimentos</div><div class="ac-d">${ci!=null?nivel(ci):"não informado"}</div>
-      </div>
-      <div class="arc-card" style="display:flex;flex-direction:column;justify-content:center;text-align:left">
-        <div class="ic-b" style="width:38px;height:38px;border-radius:11px;background:var(--green-bg);color:var(--green);margin-bottom:9px">${svgIcon("piggy")}</div>
-        <div class="ac-l">Já investe hoje?</div>
-        <div class="ac-d" style="font-size:13px;color:var(--text2);margin-top:3px">${p.ja_investe?esc(p.ja_investe):"não informado"}</div>
-      </div>
-    </div>`;
+  /* --- onde está o dinheiro --- */
+  let alocacao="";
+  if(apsData.length){
+    const porClasse={};
+    apsData.forEach(a=>{ const k=a.classe||"outro"; porClasse[k]=(porClasse[k]||0)+num(a.valor_atual); });
+    const itens=Object.entries(porClasse).map(([k,v])=>({chave:k,nome:(CLASSES[k]||CLASSES.outro).l,valor:v,cor:cssv((CLASSES[k]||CLASSES.outro).cor)})).sort((a,b)=>b.valor-a.valor);
+    const tot=itens.reduce((s,i)=>s+i.valor,0);
+    const reservaV=apsData.filter(a=>a.eh_reserva).reduce((s,a)=>s+num(a.valor_atual),0);
+    const legH=itens.map(it=>`<div class="dleg-row"><span class="sw" style="background:${it.cor}"></span><span class="dl-n">${esc(it.nome)}</span><span class="dl-v">${fmt(it.valor)}</span><span class="dl-p">${Math.round(it.valor/(tot||1)*100)}%</span></div>`).join("");
+    alocacao=`<div class="eyebrow">Onde está seu dinheiro</div>
+      <div class="card"><div class="donut-row">
+        <div class="donut-box">${donutSvg(itens)}<div class="donut-center"><div class="dc-v">${fmt(tot)}</div><div class="dc-l">total investido</div></div></div>
+        <div class="dleg">${legH}</div></div>
+        <div class="grid2" style="margin-top:15px">
+          <div class="mini"><div class="m-l">Reserva de emergência</div><div class="m-v" style="color:${cssv("--teal")}">${fmt(reservaV)}</div></div>
+          <div class="mini"><div class="m-l">Para crescer</div><div class="m-v" style="color:${cssv("--green")}">${fmt(tot-reservaV)}</div></div>
+          <div class="mini"><div class="m-l">Classes diferentes</div><div class="m-v">${itens.length}</div></div>
+        </div></div>`;
+  }
 
-  const dif = p.maior_dificuldade ? `
-    <div class="eyebrow">O ponto a trabalhar</div>
-    <div class="diff-card"><div class="d-ic">${svgIcon("target")}</div>
-      <div><div class="d-l">Maior dificuldade hoje</div><div class="d-v">${esc(p.maior_dificuldade)}</div></div></div>` : "";
+  /* --- lista detalhada + formulário --- */
+  const grupos={};
+  apsData.forEach(a=>{ const k=a.classe||"outro"; (grupos[k]=grupos[k]||[]).push(a); });
+  const listaH=Object.keys(grupos).length ? Object.entries(grupos).map(([k,arr])=>{
+    const c=CLASSES[k]||CLASSES.outro, cor=cssv(c.cor);
+    const sub=arr.reduce((s,a)=>s+num(a.valor_atual),0);
+    return `<div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">
+        <span class="sw" style="background:${cor}"></span><b style="font-size:13.5px">${c.l}</b>
+        <span style="margin-left:auto;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums">${fmt(sub)}</span></div>
+      ${arr.map(a=>`<div class="ap-row">
+        <div class="ap-ic" style="background:color-mix(in srgb, ${cor} 15%, transparent);color:${cor}">${svgIcon(c.ic)}</div>
+        <div class="ap-b"><div class="ap-n">${esc(a.descricao||c.l)}${a.eh_reserva?' <span class="badge b" style="font-size:9.5px">reserva</span>':""}</div>
+          <div class="ap-s">${esc(a.instituicao||"")}${a.instituicao&&a.rentabilidade_ref?" · ":""}${esc(a.rentabilidade_ref||"")}</div></div>
+        <div class="ap-v">${fmt(num(a.valor_atual))}</div>
+        ${isHost?`<button class="ap-del" onclick="removerAplicacao('${a.id}')" title="Remover">×</button>`:""}
+      </div>`).join("")}</div>`;
+  }).join("") : `<div class="empty">Nenhuma aplicação cadastrada ainda.${isHost?" Use o formulário abaixo para adicionar.":" Fale com seu consultor."}</div>`;
+
+  const form = isHost ? `
+    <form class="ap-form" onsubmit="adicionarAplicacao(event)">
+      <div><label>Classe</label><select id="apClasse">${Object.entries(CLASSES).map(([k,v])=>`<option value="${k}">${v.l}</option>`).join("")}</select></div>
+      <div><label>Descrição</label><input id="apDesc" placeholder="Tesouro Selic"></div>
+      <div><label>Onde está</label><input id="apInst" placeholder="Banco / corretora"></div>
+      <div><label>Rentabilidade</label><input id="apRent" placeholder="100% do CDI"></div>
+      <div><label>Valor</label><input id="apValor" type="number" step="0.01" min="0" placeholder="0,00" required></div>
+      <label class="chk"><input type="checkbox" id="apReserva"> é reserva</label>
+      <button class="btn-p" type="submit">Adicionar</button>
+    </form><div id="apMsg" class="note"></div>` : "";
+
+  /* --- projeção de rendimento --- */
+  const i=taxaMensal(), n=24;
+  const p0=F.investido||F.reserva, pmt=F.sobra;
+  const parado=[], aplicado=[];
+  for(let k=0;k<=n;k++){ parado.push(p0+pmt*k); aplicado.push(montante(p0,pmt,i,k)); }
+  const marcos=[12,24,60,120].map(m=>{
+    const a=p0+pmt*m, b=montante(p0,pmt,i,m);
+    return `<tr><td>${m/12} ano${m>12?"s":""}</td><td>${fmt(a)}</td><td class="pos"><b>${fmt(b)}</b></td><td class="pos">${fmt(b-a)}</td></tr>`;
+  }).join("");
+  const rend=`<div class="eyebrow">Quanto sua sobra pode render</div>
+    <div class="card">
+      <div class="card-h"><div><div class="ct">Guardar parado × aplicado</div><div class="cs">aportando ${fmt(pmt)}/mês, a partir de ${fmt(p0)}</div></div>
+        <div class="c-end"><div class="lbl">em 2 anos, aplicado</div><div class="val">${fmt(aplicado[n])}</div></div></div>
+      <div class="legend"><span><span class="ln" style="background:repeating-linear-gradient(90deg,${cssv("--slate")} 0 4px,transparent 4px 9px)"></span> Parado (sem render)</span><span><span class="ln" style="background:${cssv("--green")}"></span> Aplicado</span></div>
+      ${duasLinhasSvg(parado,aplicado,cssv("--slate"),cssv("--green"))}
+      <div class="prem" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+        <div><label>CDI ao ano (premissa)</label><input class="num-in" style="width:100%" id="cdiIn" type="number" step="0.1" value="${(F.cdi*100).toFixed(2)}" ${isHost?"":"disabled"} oninput="atualizarPremissa()"></div>
+        <div><label>Rende quanto do CDI</label><input class="num-in" style="width:100%" id="pctIn" type="number" step="1" value="${(F.pctCdi*100).toFixed(0)}" ${isHost?"":"disabled"} oninput="atualizarPremissa()"></div>
+        <div><label>Taxa equivalente ao mês</label><div class="num-in" style="width:100%;display:flex;align-items:center;justify-content:flex-end;background:var(--card)" id="taxaMes">${pct1(i)}</div></div>
+      </div>
+      ${isHost?`<div class="note" id="premMsg">Você pode ajustar a premissa. <button class="btn-p" style="height:32px;font-size:12.5px;margin-left:6px" onclick="salvarPremissas()">Salvar</button></div>`:""}
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Prazo</th><th>Parado</th><th>Aplicado</th><th>Diferença</th></tr></thead>
+        <tbody id="marcosBody">${marcos}</tbody></table></div>
+      <div class="disclaimer"><b>Importante:</b> esta é uma <b>simulação educativa</b> com base numa premissa de rendimento, para ajudar no planejamento. Não é recomendação de investimento nem promessa de retorno. Os valores são <b>brutos</b> (antes de impostos e taxas) e o rendimento real varia conforme o produto escolhido.</div>
+    </div>`;
 
   const dados=[
-    {ic:"user",l:"Nome completo",v:p.nome_completo||p.nome||null},
+    {ic:"user",l:"Nome completo",v:p.nome_completo||p.nome},
     {ic:"mail",l:"E-mail",v:p.email},
     {ic:"phone",l:"Telefone",v:p.telefone},
     {ic:"cake",l:"Nascimento",v:dataBR(p.data_nascimento)},
@@ -844,22 +1004,59 @@ function renderPerfil(){
     {ic:"brief",l:"Tipo de renda",v:p.tipo_renda},
   ].map(d=>`<div class="info-c"><div class="ic-b">${svgIcon(d.ic)}</div><div style="min-width:0"><div class="i-l">${d.l}</div><div class="i-v">${d.v?esc(d.v):ND}</div></div></div>`).join("");
 
-  const resumoFin=`
-    <div class="eyebrow">Seu retrato financeiro</div>
-    <div class="grid2">
-      <div class="stat"><div class="s-l"><span class="sign" style="background:color-mix(in srgb, ${cssv("--green")} 16%, transparent);color:${cssv("--green")}">+</span>Renda mensal</div><div class="s-v">${fmt(F.renda)}</div></div>
-      <div class="stat"><div class="s-l"><span class="sign" style="background:color-mix(in srgb, ${cssv("--rose")} 16%, transparent);color:${cssv("--rose")}">−</span>Gastos fixos</div><div class="s-v">${fmt(F.fixos)}</div></div>
-      <div class="stat"><div class="s-l"><span class="sign" style="background:color-mix(in srgb, ${cssv("--brand")} 16%, transparent);color:${cssv("--brand")}">=</span>Sobra por mês</div><div class="s-v">${fmt(F.sobra)}</div></div>
-      <div class="stat"><div class="s-l"><span class="sign" style="background:color-mix(in srgb, ${cssv("--teal")} 16%, transparent);color:${cssv("--teal")}">◈</span>Guardado hoje</div><div class="s-v">${fmt(F.reserva)}</div></div>
-    </div>`;
-
   document.getElementById("pageContent").innerHTML =
-    idCard +
-    `<div class="eyebrow">Sua relação com o dinheiro</div>` + arcs +
-    dif +
-    resumoFin +
-    `<div class="eyebrow">Dados cadastrais</div><div class="info-grid">${dados}</div>` +
-    `<div class="note">Para atualizar estes dados, fale com seu consultor.</div>`;
+    idCard + alocacao +
+    `<div class="eyebrow">Suas aplicações</div><div class="card">${listaH}${form}</div>` +
+    rend +
+    `<details><summary>Meus dados cadastrais</summary><div class="info-grid">${dados}</div>
+      <div class="note">Para atualizar estes dados, fale com seu consultor.</div></details>`;
+}
+function atualizarPremissa(){
+  const c=Number(document.getElementById("cdiIn").value)/100;
+  const q=Number(document.getElementById("pctIn").value)/100;
+  if(!isFinite(c)||!isFinite(q)) return;
+  F.cdi=Math.max(0,c); F.pctCdi=Math.max(0,q);
+  const i=taxaMensal(), p0=F.investido||F.reserva, pmt=F.sobra;
+  document.getElementById("taxaMes").textContent=pct1(i);
+  document.getElementById("marcosBody").innerHTML=[12,24,60,120].map(m=>{
+    const a=p0+pmt*m, b=montante(p0,pmt,i,m);
+    return `<tr><td>${m/12} ano${m>12?"s":""}</td><td>${fmt(a)}</td><td class="pos"><b>${fmt(b)}</b></td><td class="pos">${fmt(b-a)}</td></tr>`;
+  }).join("");
+}
+async function salvarPremissas(){
+  const msg=document.getElementById("premMsg");
+  const { error }=await sb.from("perfis").update({cdi_anual:F.cdi, pct_cdi:F.pctCdi}).eq("id",perfilData.id);
+  if(msg) msg.innerHTML = error ? `<span style="color:var(--rose)">Não consegui salvar: ${esc(error.message)}</span>` : `<span style="color:var(--green)">Premissa salva ✓</span>`;
+  if(!error){ perfilData.cdi_anual=F.cdi; perfilData.pct_cdi=F.pctCdi; }
+}
+async function adicionarAplicacao(ev){
+  ev.preventDefault();
+  const msg=document.getElementById("apMsg");
+  const reg={
+    cliente_id: perfilData.cliente_id, perfil_id: perfilData.id,
+    classe: document.getElementById("apClasse").value,
+    descricao: document.getElementById("apDesc").value.trim()||null,
+    instituicao: document.getElementById("apInst").value.trim()||null,
+    rentabilidade_ref: document.getElementById("apRent").value.trim()||null,
+    valor_atual: Number(document.getElementById("apValor").value)||0,
+    eh_reserva: document.getElementById("apReserva").checked,
+    atualizado_em: new Date().toISOString().slice(0,10),
+  };
+  const { error }=await sb.from("aplicacoes").insert(reg);
+  if(error){ if(msg) msg.innerHTML=`<span style="color:var(--rose)">Não consegui adicionar: ${esc(error.message)}</span>`; return; }
+  const { data }=await sb.from("aplicacoes").select("*");
+  apsData=data||[]; recalcularInvestido(); renderInvestir();
+}
+async function removerAplicacao(id){
+  const { error }=await sb.from("aplicacoes").delete().eq("id",id);
+  if(error){ alert("Não consegui remover: "+error.message); return; }
+  const { data }=await sb.from("aplicacoes").select("*");
+  apsData=data||[]; recalcularInvestido(); renderInvestir();
+}
+function recalcularInvestido(){
+  F.investido=apsData.reduce((s,a)=>s+num(a.valor_atual),0);
+  const rv=apsData.filter(a=>a.eh_reserva).reduce((s,a)=>s+num(a.valor_atual),0);
+  if(rv>0){ F.reserva=rv; F.mesesReserva=F.fixos>0?rv/F.fixos:0; }
 }
 
 /* ================= TEMA ================= */
@@ -867,8 +1064,10 @@ document.getElementById("themeBtn").addEventListener("click",()=>{
   const next=document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark";
   document.documentElement.setAttribute("data-theme",next);
   document.getElementById("themeBtn").textContent=next==="dark"?"☀":"☾";
+  try{ localStorage.setItem("tema",next); }catch(e){}
   if(F.renda!=null) setPage(currentPage);
 });
+try{ const t=localStorage.getItem("tema"); if(t){ document.documentElement.setAttribute("data-theme",t); document.getElementById("themeBtn").textContent=t==="dark"?"☀":"☾"; } }catch(e){}
 
 /* ================= INÍCIO ================= */
 renderNav();
