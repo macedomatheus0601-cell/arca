@@ -783,21 +783,22 @@ const txtAnchor=(x,W,pad=34)=> x<pad ? "start" : (x>W-pad ? "end" : "middle");
 /* saldo acumulado (com meta opcional) */
 function saldoChart(proj, alvoTotal){
   const v=proj.map(p=>p.saldo);
-  const W=720,H=280,padT=18,padB=26,padL=8,padR=8;
+  /* padL grande = calha à esquerda: o eixo Y fica FORA da área de plotagem */
+  const W=760,H=290,padT=18,padB=28,padL=66,padR=12;
   const vals=alvoTotal>0?v.concat([alvoTotal]):v;
   const min=Math.min(...vals),max=Math.max(...vals),range=(max-min)||1;
   const x=i=>padL+i*(W-padL-padR)/(v.length-1), y=t=>padT+(max-t)/range*(H-padT-padB);
   const brand=cssv("--brand"),grid=cssv("--border"),tick=cssv("--muted"),card=cssv("--card"),amber=cssv("--amber");
-  let g="";
+  let g=`<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}" stroke="${grid}" stroke-width="1"/>`;
   for(let k=0;k<=3;k++){ const gy=padT+k*(H-padT-padB)/3, gv=max-k*range/3;
-    g+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="${grid}" stroke-width="1"/><text x="${padL+2}" y="${(gy-5).toFixed(1)}" fill="${tick}" font-size="11" font-family="Segoe UI,sans-serif">${fmtK(gv)}</text>`; }
+    g+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="${grid}" stroke-width="1"/><text x="${(padL-8).toFixed(1)}" y="${(gy+4).toFixed(1)}" fill="${tick}" font-size="11" text-anchor="end" font-family="Segoe UI,sans-serif">${fmtK(gv)}</text>`; }
   const passo = v.length>36?12 : v.length>18?6 : v.length>12?3 : 2;
   let xl="";
-  for(let i=0;i<v.length;i+=passo){ const px=x(i); xl+=`<text x="${px.toFixed(1)}" y="${H-7}" fill="${tick}" font-size="10.5" text-anchor="${txtAnchor(px,W)}" font-family="Segoe UI,sans-serif">${labelMes(i)}</text>`; }
+  for(let i=0;i<v.length;i+=passo){ const px=x(i); xl+=`<text x="${px.toFixed(1)}" y="${H-8}" fill="${tick}" font-size="10.5" text-anchor="${px>W-40?"end":"middle"}" font-family="Segoe UI,sans-serif">${labelMes(i)}</text>`; }
   let alvoL="";
   if(alvoTotal>0){ const ay=y(alvoTotal);
     alvoL=`<line x1="${padL}" y1="${ay.toFixed(1)}" x2="${W-padR}" y2="${ay.toFixed(1)}" stroke="${amber}" stroke-width="1.8" stroke-dasharray="6 5"/>
-      <text x="${W-padR-2}" y="${(ay-6).toFixed(1)}" fill="${amber}" font-size="10.5" text-anchor="end" font-weight="600" font-family="Segoe UI,sans-serif">total das metas ${fmtK(alvoTotal)}</text>`; }
+      <text x="${W-padR-2}" y="${(ay-7).toFixed(1)}" fill="${amber}" font-size="10.5" text-anchor="end" font-weight="600" font-family="Segoe UI,sans-serif">total das metas ${fmtK(alvoTotal)}</text>`; }
   const xs=v.map((_,i)=>x(i)), ys=v.map(t=>y(t));
   const pts=v.map((t,i)=>`${x(i).toFixed(1)},${y(t).toFixed(1)}`).join(" ");
   const id="ar"+Math.random().toString(36).slice(2,7);
@@ -815,29 +816,34 @@ function saldoChart(proj, alvoTotal){
 /* fluxo: entradas acima, saídas abaixo, saldo em linha, com valores */
 function fluxoChart(proj,n){
   const d=proj.slice(1,n+1);
-  const W=720,H=330,padT=26,padB=44,padL=10,padR=10;
-  const maxAbs=Math.max(...d.map(p=>Math.max(p.receita,p.despesa)))*1.2||1;
+  /* calha à esquerda: eixo Y fora da área de plotagem; área maior p/ caber os rótulos */
+  const W=760,H=372,padT=30,padB=48,padL=66,padR=14;
+  const maxAbs=Math.max(...d.map(p=>Math.max(p.receita,p.despesa)))*1.22||1;
   const plotH=H-padT-padB, zero=padT+plotH/2, half=plotH/2;
   const y=v=>zero-(v/maxAbs)*half;
   const gw=(W-padL-padR)/d.length, bw=Math.min(15,gw*0.30);
   const green=cssv("--green"),rose=cssv("--rose"),tick=cssv("--muted"),grid=cssv("--border"),text=cssv("--text"),card=cssv("--card");
-  const mostrarValor = d.length<=12, fs = d.length<=6?10 : d.length<=12?8.6 : 0;
-  let g="";
-  [0.5,1].forEach(f=>{ [1,-1].forEach(s=>{ const gy=zero-s*f*half;
-    g+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="${grid}" stroke-width="1"/>`; }); });
+  const mostrarValor = d.length<=12, fs = d.length<=6?10 : d.length<=12?8.8 : 0;
+  let g=`<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}" stroke="${grid}" stroke-width="1"/>`;
+  [1,0.5,0,-0.5,-1].forEach(f=>{ const gy=zero-f*half;
+    if(f!==0) g+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="${grid}" stroke-width="1"/>`;
+    const rot = f===0 ? "0" : (f<0?"-":"")+fmtK(Math.abs(f)*maxAbs);
+    g+=`<text x="${(padL-8).toFixed(1)}" y="${(gy+4).toFixed(1)}" fill="${tick}" font-size="10.5" text-anchor="end" font-family="Segoe UI,sans-serif">${rot}</text>`; });
   let bars="",lin=[],xs=[];
   d.forEach((p,i)=>{
     const cx=padL+gw*i+gw/2; xs.push(cx);
+    const xr=cx-bw-1.5, xd=cx+1.5;                 /* cantos esquerdos das barras */
+    const crx=xr+bw/2, cdx=xd+bw/2;                /* centro de cada barra: o rótulo acompanha a barra */
     const hr=Math.max(2,zero-y(p.receita)), hd=Math.max(2,y(-p.despesa)-zero);
-    bars+=`<rect x="${(cx-bw-1.5).toFixed(1)}" y="${y(p.receita).toFixed(1)}" width="${bw.toFixed(1)}" height="${hr.toFixed(1)}" rx="3.5" fill="${green}"/>`;
-    bars+=`<rect x="${(cx+1.5).toFixed(1)}" y="${zero.toFixed(1)}" width="${bw.toFixed(1)}" height="${hd.toFixed(1)}" rx="3.5" fill="${rose}"/>`;
+    bars+=`<rect x="${xr.toFixed(1)}" y="${y(p.receita).toFixed(1)}" width="${bw.toFixed(1)}" height="${hr.toFixed(1)}" rx="3.5" fill="${green}"/>`;
+    bars+=`<rect x="${xd.toFixed(1)}" y="${zero.toFixed(1)}" width="${bw.toFixed(1)}" height="${hd.toFixed(1)}" rx="3.5" fill="${rose}"/>`;
     if(mostrarValor){
-      bars+=`<text x="${cx.toFixed(1)}" y="${(y(p.receita)-5).toFixed(1)}" fill="${green}" font-size="${fs}" font-weight="700" text-anchor="middle" font-family="Segoe UI,sans-serif">${curto(p.receita)}</text>`;
-      bars+=`<text x="${cx.toFixed(1)}" y="${(y(-p.despesa)+fs+2).toFixed(1)}" fill="${rose}" font-size="${fs}" font-weight="700" text-anchor="middle" font-family="Segoe UI,sans-serif">${curto(p.despesa)}</text>`;
-      bars+=`<text x="${cx.toFixed(1)}" y="${(y(p.sobra)-9).toFixed(1)}" fill="${text}" font-size="${fs}" font-weight="800" text-anchor="${txtAnchor(cx,W,24)}" font-family="Segoe UI,sans-serif">${curto(p.sobra)}</text>`;
+      bars+=`<text x="${crx.toFixed(1)}" y="${(y(p.receita)-6).toFixed(1)}" fill="${green}" font-size="${fs}" font-weight="700" text-anchor="middle" font-family="Segoe UI,sans-serif">${curto(p.receita)}</text>`;
+      bars+=`<text x="${cdx.toFixed(1)}" y="${(y(-p.despesa)+fs+5).toFixed(1)}" fill="${rose}" font-size="${fs}" font-weight="700" text-anchor="middle" font-family="Segoe UI,sans-serif">${curto(p.despesa)}</text>`;
+      bars+=`<text x="${cx.toFixed(1)}" y="${(y(p.sobra)-10).toFixed(1)}" fill="${text}" font-size="${fs}" font-weight="800" text-anchor="middle" font-family="Segoe UI,sans-serif">${curto(p.sobra)}</text>`;
     }
     lin.push([cx,y(p.sobra)]);
-    bars+=`<text x="${cx.toFixed(1)}" y="${H-22}" fill="${tick}" font-size="10.5" text-anchor="${txtAnchor(cx,W,26)}" font-family="Segoe UI,sans-serif">${labelMes(p.off)}</text>`;
+    bars+=`<text x="${cx.toFixed(1)}" y="${H-26}" fill="${tick}" font-size="10.5" text-anchor="middle" font-family="Segoe UI,sans-serif">${labelMes(p.off)}</text>`;
   });
   const lp=lin.map(p=>`${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
   const dots=lin.map(p=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.6" fill="${text}" stroke="${card}" stroke-width="1.8"/>`).join("");
@@ -902,16 +908,16 @@ function timelineSvg(plano){
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Linha do tempo das metas">${axis}${rows}</svg>`;
 }
 function duasLinhasChart(a,b,corA,corB,nomeA,nomeB){
-  const all=a.concat(b), W=720,H=260,padT=16,padB=26,padL=8,padR=8;
+  const all=a.concat(b), W=760,H=270,padT=16,padB=28,padL=66,padR=14;
   const min=Math.min(...all),max=Math.max(...all),range=(max-min)||1;
   const x=i=>padL+i*(W-padL-padR)/(a.length-1), y=v=>padT+(max-v)/range*(H-padT-padB);
   const grid=cssv("--border"),tick=cssv("--muted");
-  let g="";
+  let g=`<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}" stroke="${grid}" stroke-width="1"/>`;
   for(let k=0;k<=3;k++){ const gy=padT+k*(H-padT-padB)/3, gv=max-k*range/3;
-    g+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="${grid}" stroke-width="1"/><text x="${padL+2}" y="${(gy-5).toFixed(1)}" fill="${tick}" font-size="11" font-family="Segoe UI,sans-serif">${fmtK(gv)}</text>`; }
+    g+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="${grid}" stroke-width="1"/><text x="${(padL-8).toFixed(1)}" y="${(gy+4).toFixed(1)}" fill="${tick}" font-size="11" text-anchor="end" font-family="Segoe UI,sans-serif">${fmtK(gv)}</text>`; }
   const passo=a.length>18?6:3;
   let xl="";
-  for(let i=0;i<a.length;i+=passo){ const px=x(i); xl+=`<text x="${px.toFixed(1)}" y="${H-7}" fill="${tick}" font-size="10.5" text-anchor="${txtAnchor(px,W)}" font-family="Segoe UI,sans-serif">${labelMes(i)}</text>`; }
+  for(let i=0;i<a.length;i+=passo){ const px=x(i); xl+=`<text x="${px.toFixed(1)}" y="${H-8}" fill="${tick}" font-size="10.5" text-anchor="${px>W-40?"end":"middle"}" font-family="Segoe UI,sans-serif">${labelMes(i)}</text>`; }
   const pa=a.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
   const pb=b.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
   const svg=`<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Comparação entre guardar parado e aplicado">
