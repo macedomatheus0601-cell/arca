@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Área do Cliente — Consultoria Financeira</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #eef0f4; --bg2: #e7eaf0;
+    --card: #ffffff; --card2: #f5f6f9;
+    --border: #e6e8ee; --border-strong: #d7dae2;
+    --text: #141821; --text2: #565d6b; --muted: #9198a5;
+    --brand: #2560c8; --brand2: #1c4fa6; --brand-ink: #ffffff;
+    --green: #0f9d6b; --green-bg: #e4f6ee;
+    --amber: #d1810a; --amber-bg: #fbeed6;
+    --teal: #0a97b0; --teal-bg: #dff3f6;
+    --rose: #dc4b52; --rose-bg: #fce7e8;
+    --grad-hero: linear-gradient(140deg, #2f6bd6 0%, #163f8f 100%);
+    --grad-foco: linear-gradient(135deg, #109c7e 0%, #0b8ea4 100%);
+    --shadow: 0 4px 18px rgba(30,40,70,0.08);
+    --shadow-lg: 0 12px 34px rgba(30,40,70,0.14);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0c0e13; --bg2: #101319;
+    --card: #171a21; --card2: #1f232c;
+    --border: #262b35; --border-strong: #333a46;
+    --text: #f0f1f4; --text2: #aab2c0; --muted: #727a89;
+    --brand: #5b8bf5; --brand2: #3a6ad8; --brand-ink: #0b1020;
+    --green: #35c98e; --green-bg: #10281f;
+    --amber: #e0a13c; --amber-bg: #2c2210;
+    --teal: #3bb9cf; --teal-bg: #0e2429;
+    --rose: #ec6d73; --rose-bg: #2c1517;
+    --grad-hero: linear-gradient(140deg, #2a5cc0 0%, #143a80 100%);
+    --grad-foco: linear-gradient(135deg, #0e8a6e 0%, #0a7f95 100%);
+    --shadow: 0 4px 18px rgba(0,0,0,0.4);
+    --shadow-lg: 0 14px 36px rgba(0,0,0,0.5);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; min-height: 100vh; transition: background .3s, color .3s; }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; }
+  input { font-family: inherit; }
+
+  /* ---------- LOGIN ---------- */
+  .login-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 100; background: radial-gradient(900px 500px at 50% -10%, var(--bg2), var(--bg)); }
+  .login-card { background: var(--card); border: 1px solid var(--border); border-radius: 22px; padding: 30px 26px; width: 100%; max-width: 380px; box-shadow: var(--shadow-lg); }
+  .login-mark { width: 54px; height: 54px; border-radius: 16px; background: var(--grad-hero); color: #fff; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; box-shadow: var(--shadow); }
+  .login-mark svg { width: 28px; height: 28px; }
+  .login-card h1 { font-size: 20px; font-weight: 750; text-align: center; letter-spacing: -0.3px; }
+  .login-card .lsub { font-size: 13px; color: var(--muted); text-align: center; margin: 4px 0 22px; }
+  .field { margin-bottom: 13px; }
+  .field label { font-size: 12.5px; color: var(--text2); font-weight: 600; display: block; margin-bottom: 5px; }
+  .field input { width: 100%; height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--border-strong); background: var(--card2); color: var(--text); font-size: 15px; outline: none; transition: border-color .15s; }
+  .field input:focus { border-color: var(--brand); }
+  .login-btn { width: 100%; height: 47px; border-radius: 12px; background: var(--grad-hero); color: #fff; font-size: 15px; font-weight: 700; margin-top: 8px; transition: transform .1s, opacity .2s; }
+  .login-btn:active { transform: scale(0.98); }
+  .login-btn:disabled { opacity: 0.6; cursor: default; }
+  .login-err { background: var(--rose-bg); color: var(--rose); font-size: 12.5px; font-weight: 600; padding: 9px 12px; border-radius: 10px; margin-bottom: 14px; display: none; }
+  .login-err.show { display: block; }
+
+  /* ---------- SHELL (menu + conteúdo) ---------- */
+  .shell { display: none; min-height: 100vh; }
+  .shell.show { display: grid; grid-template-columns: 232px 1fr; }
+  .sidebar { background: var(--card); border-right: 1px solid var(--border); padding: 18px 14px; display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 4px 6px 18px; }
+  .brand .mark { width: 38px; height: 38px; border-radius: 11px; background: var(--grad-hero); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .brand .mark svg { width: 20px; height: 20px; }
+  .brand .bname { font-weight: 750; font-size: 15px; letter-spacing: -0.3px; }
+  .brand .bsub { font-size: 10.5px; color: var(--muted); }
+  .nav { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+  .nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 11px; color: var(--text2); font-size: 14px; font-weight: 600; width: 100%; text-align: left; transition: background .15s, color .15s; }
+  .nav-item svg { width: 19px; height: 19px; flex-shrink: 0; }
+  .nav-item:hover { background: var(--card2); color: var(--text); }
+  .nav-item.active { background: color-mix(in srgb, var(--brand) 13%, transparent); color: var(--brand); }
+  .side-foot { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 8px; display: flex; align-items: center; gap: 10px; }
+  .side-foot .avatar { width: 34px; height: 34px; border-radius: 10px; font-size: 13px; }
+  .side-foot .u-name { font-size: 12.5px; font-weight: 700; }
+  .side-foot .u-role { font-size: 10.5px; color: var(--muted); }
+
+  .main { padding: 22px 26px 60px; max-width: 1000px; width: 100%; }
+  .main-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+  .page-title { font-size: 22px; font-weight: 780; letter-spacing: -0.4px; }
+  .top-actions { display: flex; gap: 9px; }
+  .top-btn { width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--border-strong); background: var(--card); color: var(--text2); display: flex; align-items: center; justify-content: center; font-size: 18px; transition: transform .1s, border-color .2s; }
+  .top-btn:active { transform: scale(0.92); }
+  .top-btn svg { width: 19px; height: 19px; }
+
+  .avatar { width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0; background: var(--grad-hero); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 17px; box-shadow: var(--shadow); }
+
+  @media (max-width: 820px) {
+    .shell.show { grid-template-columns: 1fr; }
+    .sidebar { position: fixed; bottom: 0; left: 0; right: 0; top: auto; height: auto; flex-direction: row; border-right: none; border-top: 1px solid var(--border); padding: 7px 8px; z-index: 50; box-shadow: 0 -4px 18px rgba(0,0,0,0.07); }
+    .brand, .side-foot { display: none; }
+    .nav { flex-direction: row; gap: 2px; }
+    .nav-item { flex-direction: column; gap: 3px; padding: 7px 4px; font-size: 10px; border-radius: 10px; justify-content: center; }
+    .nav-item svg { width: 21px; height: 21px; }
+    .main { padding: 18px 15px 92px; }
+  }
+
+  .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 800; margin: 26px 2px 12px; }
+  .eyebrow:first-child { margin-top: 4px; }
+
+  .hero { background: var(--grad-hero); border-radius: 22px; color: #fff; padding: 22px; box-shadow: var(--shadow-lg); position: relative; overflow: hidden; display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+  .hero::after { content: ""; position: absolute; right: -60px; top: -60px; width: 220px; height: 220px; border-radius: 50%; background: rgba(255,255,255,0.10); }
+  .hero::before { content: ""; position: absolute; right: 40px; bottom: -80px; width: 160px; height: 160px; border-radius: 50%; background: rgba(255,255,255,0.07); }
+  .gauge-wrap { position: relative; width: 168px; height: 168px; flex-shrink: 0; z-index: 1; }
+  .gauge-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .gauge-score { font-size: 46px; font-weight: 800; line-height: 1; letter-spacing: -1px; }
+  .gauge-of { font-size: 12px; opacity: 0.8; margin-top: 3px; }
+  .hero-info { flex: 1; min-width: 180px; z-index: 1; }
+  .hero-tag { font-size: 11.5px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.82; font-weight: 700; }
+  .hero-title { font-size: 22px; font-weight: 750; margin: 5px 0 3px; letter-spacing: -0.4px; }
+  .hero-desc { font-size: 13.5px; opacity: 0.9; line-height: 1.5; margin-bottom: 14px; }
+  .pillars { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pillar { background: rgba(255,255,255,0.14); border-radius: 12px; padding: 8px 11px; flex: 1; min-width: 96px; }
+  .pillar .p-lbl { font-size: 10.5px; opacity: 0.82; display: flex; align-items: center; gap: 5px; }
+  .pillar .p-val { font-size: 16px; font-weight: 700; margin-top: 3px; }
+  .p-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr)); gap: 13px; }
+  .tile { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); transition: transform .15s, box-shadow .15s; }
+  .tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+  .chip { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+  .chip svg { width: 20px; height: 20px; }
+  .chip.blue { background: color-mix(in srgb, var(--brand) 15%, transparent); color: var(--brand); }
+  .chip.green { background: var(--green-bg); color: var(--green); }
+  .chip.amber { background: var(--amber-bg); color: var(--amber); }
+  .chip.teal { background: var(--teal-bg); color: var(--teal); }
+  .t-label { font-size: 12.5px; color: var(--text2); }
+  .t-value { font-size: 25px; font-weight: 780; letter-spacing: -0.6px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .t-foot { display: flex; align-items: center; gap: 6px; margin-top: 7px; font-size: 11.5px; font-weight: 600; }
+  .badge { padding: 2px 8px; border-radius: 20px; font-size: 10.5px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+  .badge.g { background: var(--green-bg); color: var(--green); }
+  .badge.y { background: var(--amber-bg); color: var(--amber); }
+  .badge.r { background: var(--rose-bg); color: var(--rose); }
+  .spark { margin-top: 10px; }
+
+  .foco { background: var(--grad-foco); color: #fff; border-radius: 20px; padding: 20px 22px; box-shadow: var(--shadow-lg); position: relative; overflow: hidden; display: flex; align-items: center; gap: 16px; }
+  .foco .f-ic { width: 52px; height: 52px; border-radius: 15px; flex-shrink: 0; background: rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; }
+  .foco .f-ic svg { width: 26px; height: 26px; }
+  .foco .f-tag { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; opacity: 0.85; font-weight: 700; }
+  .foco .f-title { font-size: 18px; font-weight: 750; margin: 3px 0 4px; letter-spacing: -0.3px; }
+  .foco .f-desc { font-size: 13px; opacity: 0.92; line-height: 1.45; }
+
+  .goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 13px; }
+  .goal { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); display: flex; gap: 14px; align-items: center; }
+  .ring-wrap { position: relative; width: 68px; height: 68px; flex-shrink: 0; }
+  .ring-pct { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 750; }
+  .goal .g-body { flex: 1; min-width: 0; }
+  .goal .g-name { font-size: 15px; font-weight: 720; display: flex; align-items: center; gap: 7px; }
+  .goal .g-name .mini-ic { width: 15px; height: 15px; }
+  .goal .g-vals { font-size: 12.5px; color: var(--text2); margin: 5px 0 6px; font-variant-numeric: tabular-nums; }
+  .goal .g-vals b { color: var(--text); }
+  .goal .g-when { font-size: 11px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; background: var(--card2); padding: 3px 9px; border-radius: 20px; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 18px; box-shadow: var(--shadow); }
+  .chart-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 4px; flex-wrap: wrap; }
+  .chart-head .c-end { text-align: right; }
+  .chart-head .c-end .lbl { font-size: 11px; color: var(--muted); }
+  .chart-head .c-end .val { font-size: 20px; font-weight: 780; color: var(--brand); letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
+  .legend { display: flex; gap: 15px; font-size: 11.5px; color: var(--text2); margin: 4px 0 8px; flex-wrap: wrap; }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .ln { width: 20px; height: 3px; border-radius: 2px; display: inline-block; background: var(--brand); }
+  .ln.d { background: repeating-linear-gradient(90deg, var(--brand) 0 3px, transparent 3px 7px); }
+  svg.chart { width: 100%; height: auto; display: block; }
+  .cap { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+
+  /* páginas Metas / Projeção / Perfil */
+  .goal-full { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 18px; box-shadow: var(--shadow); margin-bottom: 13px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .goal-full .gf-body { flex: 1; min-width: 200px; }
+  .goal-full .gf-name { font-size: 16px; font-weight: 730; display: flex; align-items: center; gap: 8px; }
+  .goal-full .gf-vals { font-size: 13px; color: var(--text2); margin: 6px 0 10px; font-variant-numeric: tabular-nums; }
+  .goal-full .gf-vals b { color: var(--text); }
+  .goal-full .gf-plan { font-size: 12.5px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .track { height: 8px; background: var(--card2); border-radius: 5px; overflow: hidden; margin: 4px 0 0; }
+  .fill { height: 100%; border-radius: 5px; }
+
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 13px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 15px; box-shadow: var(--shadow); }
+  .stat .s-l { font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
+  .stat .s-v { font-size: 21px; font-weight: 770; margin-top: 5px; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
+  .sign { width: 20px; height: 20px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; }
+
+  .info-row { display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; border-top: 1px solid var(--border); font-size: 14px; }
+  .info-row:first-child { border-top: none; }
+  .info-row .k { color: var(--text2); }
+  .info-row .v { font-weight: 650; text-align: right; }
+  .dots5 { display: inline-flex; gap: 4px; }
+  .dots5 i { width: 9px; height: 9px; border-radius: 50%; background: var(--border-strong); }
+  .dots5 i.on { background: var(--brand); }
+
+  .state { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .state .big { font-size: 40px; margin-bottom: 10px; }
+  .note { font-size: 12px; color: var(--muted); margin-top: 14px; }
+</style>
+</head>
+<body data-palette="#2560c8,#0f9d6b,#0a97b0,#d1810a">
+
+<!-- ===================== LOGIN ===================== -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <div class="login-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3 6-8"/><path d="M18 6h3v3"/></svg></div>
+    <h1>Sua visão financeira</h1>
+    <div class="lsub">Entre para acompanhar suas metas</div>
+    <div class="login-err" id="loginErr"></div>
+    <form id="loginForm">
+      <div class="field"><label>E-mail</label><input type="email" id="email" autocomplete="email" required></div>
+      <div class="field"><label>Senha</label><input type="password" id="senha" autocomplete="current-password" required></div>
+      <button class="login-btn" id="loginBtn" type="submit">Entrar</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div class="shell" id="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3 6-8"/><path d="M18 6h3v3"/></svg></div>
+      <div><div class="bname">Consultoria</div><div class="bsub">Gestão financeira</div></div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot"><div class="avatar" id="sideAvatar" style="width:34px;height:34px;border-radius:10px;font-size:13px">–</div><div><div class="u-name" id="sideName"></div><div class="u-role">cliente</div></div></div>
+  </aside>
+  <main class="main">
+    <div class="main-top">
+      <div class="page-title" id="pageTitle">Início</div>
+      <div class="top-actions">
+        <button class="top-btn" id="themeBtn" aria-label="Alternar tema">☾</button>
+        <button class="top-btn" id="logoutBtn" aria-label="Sair" title="Sair"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+      </div>
+    </div>
+    <div id="pageContent"></div>
+  </main>
+</div>
+
+<script>
+/* ================= ÍCONES ================= */
+const ICONS = {
+  home:  '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/>',
+  user:  '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 4-6.5 8-6.5s8 2.3 8 6.5"/>',
+  card:  '<rect x="1.5" y="4" width="21" height="16" rx="2.5"/><line x1="1.5" y1="9.5" x2="22.5" y2="9.5"/>',
+  trend: '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  alert: '<path d="M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13.5"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  target:'<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
+  pin:   '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="2.8"/>',
+  flag:  '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+  piggy: '<path d="M19 10c1 0 2 1 2 2s-1 2-2 2M4 13c0-3 3-6 8-6s8 2.5 8 5.5S17 18 12 18a10 10 0 0 1-3-.5L6 19v-3c-1.2-.8-2-1.8-2-3z"/>',
+};
+const svgIcon = (name, cls="") => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||ICONS.target}</svg>`;
+
+/* ================= SUPABASE ================= */
+const SUPABASE_URL = "https://famyaxiruknwzbdktghf.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_QPIF7Y1cNmBUMIg7rjIVSg_4wybh6CH";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ================= ESTADO ================= */
+let F = {}, metas = [], perfilData = null, compsData = [], objsData = [];
+let currentPage = "inicio";
+
+/* ================= HELPERS ================= */
+const fmt  = v => "R$ " + Math.round(v).toLocaleString("pt-BR");
+const fmtK = v => v >= 1000 ? "R$ " + (v/1000).toLocaleString("pt-BR",{maximumFractionDigits:1}) + "k" : fmt(v);
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+function mesAno(d){ if(!d) return ""; const dt=new Date(d+"T00:00:00"); return MESES[dt.getMonth()]+"/"+dt.getFullYear(); }
+function mesesAte(d){ if(!d) return null; const n=new Date(); const dt=new Date(d+"T00:00:00"); return Math.max(1,(dt.getFullYear()-n.getFullYear())*12+(dt.getMonth()-n.getMonth())); }
+function dataBR(d){ if(!d) return null; const dt=new Date(d+"T00:00:00"); return String(dt.getDate()).padStart(2,'0')+"/"+String(dt.getMonth()+1).padStart(2,'0')+"/"+dt.getFullYear(); }
+const ND = "<span style='color:var(--muted)'>não informado</span>";
+
+const GOAL_STYLE = {
+  reserva_emergencia:{ic:"shield",cor:"var(--teal)"}, viagem:{ic:"pin",cor:"var(--amber)"},
+  compra_bem:{ic:"flag",cor:"var(--green)"}, quitar_dividas:{ic:"alert",cor:"var(--rose)"},
+  aposentadoria:{ic:"trend",cor:"var(--brand)"}, economia_mensal:{ic:"piggy",cor:"var(--green)"},
+  educacao:{ic:"target",cor:"var(--teal)"}, outro:{ic:"target",cor:"var(--brand)"},
+};
+
+/* ================= LOGIN ================= */
+const overlay = document.getElementById("loginOverlay");
+const shell = document.getElementById("shell");
+function showApp(){ overlay.style.display="none"; shell.classList.add("show"); }
+function showLogin(){ overlay.style.display="flex"; shell.classList.remove("show"); }
+
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn=document.getElementById("loginBtn"), err=document.getElementById("loginErr");
+  err.classList.remove("show"); btn.disabled=true; btn.textContent="Entrando...";
+  const { error } = await sb.auth.signInWithPassword({ email:document.getElementById("email").value.trim(), password:document.getElementById("senha").value });
+  btn.disabled=false; btn.textContent="Entrar";
+  if(error){ err.textContent="E-mail ou senha incorretos. Tente novamente."; err.classList.add("show"); return; }
+  showApp(); loadData();
+});
+document.getElementById("logoutBtn").addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
+
+/* ================= CARREGAR DADOS ================= */
+async function loadData(attempt=1){
+  const body = document.getElementById("pageContent");
+  body.innerHTML = `<div class="state"><div class="big">⏳</div>Carregando seus dados...</div>`;
+  try {
+    const [pr, cr, or] = await Promise.all([
+      sb.from("perfis").select("*").eq("ativo", true).limit(1),
+      sb.from("compromissos_recorrentes").select("*").eq("ativo", true),
+      sb.from("objetivos").select("*").eq("status","ativo").order("prioridade",{ascending:true}),
+    ]);
+    if(pr.error) throw pr.error; if(cr.error) throw cr.error; if(or.error) throw or.error;
+    const perfil=(pr.data||[])[0];
+    if(!perfil){ body.innerHTML=`<div class="state"><div class="big">📋</div>Ainda não há dados cadastrados para o seu perfil.<br>Fale com seu consultor.</div>`; return; }
+    perfilData=perfil; compsData=cr.data||[]; objsData=or.data||[];
+    const num=v=>Number(v)||0;
+    const renda=compsData.filter(c=>c.tipo==="receita").reduce((s,c)=>s+num(c.valor),0);
+    const fixos=compsData.filter(c=>c.tipo==="despesa").reduce((s,c)=>s+num(c.valor),0);
+    const parcelaDivida=compsData.filter(c=>c.tipo==="despesa"&&c.eh_divida).reduce((s,c)=>s+num(c.valor),0);
+    const reserva=num(perfil.reserva_atual);
+    const sobra=perfil.poupanca_mensal_atual!=null?num(perfil.poupanca_mensal_atual):(renda-fixos);
+    F={ nome:perfil.nome||"você", inicial:(perfil.iniciais||(perfil.nome||"?")[0]||"?").toUpperCase(),
+        renda, fixos, reserva, parcelaDivida, sobra, variaveis:Math.max(0,renda-fixos-sobra),
+        taxa:renda>0?sobra/renda:0, mesesReserva:fixos>0?reserva/fixos:0, divida:renda>0?parcelaDivida/renda:0 };
+    metas=objsData.map(o=>{ const st=GOAL_STYLE[o.tipo]||GOAL_STYLE.outro;
+      return { nome:o.descricao||o.tipo, ic:st.ic, cor:st.cor, atual:num(o.valor_atual), alvo:num(o.valor_alvo), dataAlvo:o.data_alvo, quando:o.data_alvo?"meta "+mesAno(o.data_alvo):"" }; });
+    document.getElementById("sideAvatar").textContent=F.inicial;
+    document.getElementById("sideName").textContent=F.nome;
+    setPage(currentPage);
+  } catch(e){
+    const msg=(e&&e.message)?e.message:String(e);
+    if(/future|iat|issued|JWT/i.test(msg) && attempt<4){
+      body.innerHTML=`<div class="state"><div class="big">⏳</div>Sincronizando com o servidor... (${attempt}/3)</div>`;
+      await new Promise(r=>setTimeout(r,2000)); return loadData(attempt+1);
+    }
+    body.innerHTML=`<div class="state"><div class="big">⚠️</div>Não consegui carregar os dados.<br><span style="font-size:12px">${msg}</span></div>`;
+  }
+}
+
+/* ================= NAVEGAÇÃO ================= */
+const PAGES = [
+  { id:"inicio",   label:"Início",   icon:"home",   render:renderInicio },
+  { id:"metas",    label:"Metas",    icon:"target", render:renderMetas },
+  { id:"projecao", label:"Projeção", icon:"trend",  render:renderProjecao },
+  { id:"perfil",   label:"Perfil",   icon:"user",   render:renderPerfil },
+];
+function renderNav(){
+  document.getElementById("nav").innerHTML = PAGES.map(p=>
+    `<button class="nav-item ${p.id===currentPage?"active":""}" onclick="setPage('${p.id}')">${svgIcon(p.icon)}<span>${p.label}</span></button>`).join("");
+}
+function setPage(id){
+  currentPage=id;
+  const pg=PAGES.find(p=>p.id===id)||PAGES[0];
+  document.getElementById("pageTitle").textContent=pg.label;
+  renderNav();
+  if(F.renda!=null) pg.render();
+}
+
+/* ================= COMPONENTES ================= */
+function calcScore(){
+  const pPoup=Math.max(0,Math.min(1,F.taxa/0.20)), pDiv=Math.max(0,Math.min(1,1-F.divida/0.30)), pRes=Math.max(0,Math.min(1,F.mesesReserva/6));
+  return { score:Math.round((pPoup*0.34+pDiv*0.30+pRes*0.36)*100), pPoup, pDiv, pRes };
+}
+function gaugeSvg(score){
+  const cx=90,cy=90,r=72,C=2*Math.PI*r,arc=(C*0.75)*(score/100);
+  return `<svg viewBox="0 0 180 180" style="width:100%;height:100%">
+    <defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="0.5" stop-color="#8fe6c3"/><stop offset="1" stop-color="#ffffff"/></linearGradient></defs>
+    <g transform="rotate(135 ${cx} ${cy})">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="14" stroke-linecap="round" stroke-dasharray="${(C*0.75).toFixed(1)} ${(C*0.25).toFixed(1)}"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#gg)" stroke-width="14" stroke-linecap="round" stroke-dasharray="${arc.toFixed(1)} ${(C-arc).toFixed(1)}"/></g></svg>`;
+}
+function ringSvg(pct,color){ const r=28,C=2*Math.PI*r,arc=C*pct/100;
+  return `<svg viewBox="0 0 68 68" style="width:100%;height:100%"><circle cx="34" cy="34" r="${r}" fill="none" stroke="var(--card2)" stroke-width="7"/><circle cx="34" cy="34" r="${r}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${arc.toFixed(1)} ${(C-arc).toFixed(1)}" transform="rotate(-90 34 34)"/></svg>`; }
+function sparkSvg(vals,color){ const W=140,H=34,min=Math.min(...vals),max=Math.max(...vals),x=i=>i*W/(vals.length-1),y=v=>H-2-((v-min)/(max-min||1))*(H-6);
+  const pts=vals.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:34px"><defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity="0.28"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs><polygon points="0,${H} ${pts} ${W},${H}" fill="url(#sg)"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`; }
+function chartSvg(){
+  const start=F.reserva,sobra=F.sobra,values=[start]; let v=start;
+  for(let i=0;i<24;i++){ v+=sobra; values.push(Math.round(v)); }
+  const W=720,H=280,padT=16,padB=22,padL=6,padR=6,min=Math.min(...values),max=Math.max(...values),range=(max-min)||1;
+  const x=i=>padL+i*(W-padL-padR)/(values.length-1),y=val=>padT+(max-val)/range*(H-padT-padB);
+  const brand=cssv("--brand"),grid=cssv("--border"),tick=cssv("--muted");
+  let grd=""; for(let g=0;g<=3;g++){ const gy=padT+g*(H-padT-padB)/3,gv=max-g*range/3;
+    grd+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="${grid}" stroke-width="1"/><text x="${padL+2}" y="${(gy-5).toFixed(1)}" fill="${tick}" font-size="11" font-family="Segoe UI,sans-serif">${fmtK(gv)}</text>`; }
+  const pts=values.map((val,i)=>`${x(i).toFixed(1)},${y(val).toFixed(1)}`).join(" ");
+  const hx=x(0).toFixed(1),hy=y(values[0]).toFixed(1);
+  const svg=`<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"><defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${brand}" stop-opacity="0.26"/><stop offset="1" stop-color="${brand}" stop-opacity="0"/></linearGradient></defs>${grd}<polygon points="${padL},${H-padB} ${pts} ${(W-padR)},${H-padB}" fill="url(#area)"/><polyline points="${pts}" fill="none" stroke="${brand}" stroke-width="3.2" stroke-dasharray="1.5 7" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/><circle cx="${hx}" cy="${hy}" r="6" fill="${brand}" stroke="var(--card)" stroke-width="3"/><text x="${hx}" y="${(+hy-13)}" fill="${tick}" font-size="11" text-anchor="start" font-family="Segoe UI,sans-serif">hoje</text></svg>`;
+  return { svg, fim:values[values.length-1] };
+}
+function focoInfo(){
+  if(F.divida>=0.30) return {t:"Reduzir as dívidas caras", d:"Suas dívidas consomem uma fatia grande da renda. O primeiro passo é aliviar isso — é o que destrava o resto."};
+  if(F.mesesReserva<3) return {t:"Completar sua reserva de emergência", d:`Você tem hoje ${F.mesesReserva.toLocaleString("pt-BR",{maximumFractionDigits:1})} meses de gastos guardados. O primeiro passo é chegar a 6 meses — é o que traz segurança antes de mirar os outros objetivos.`};
+  if(F.taxa<0.10) return {t:"Organizar e sobrar mais", d:"Sobra pouco no fim do mês. Vamos mapear os gastos e liberar mais espaço para as suas metas."};
+  return {t:"Acelerar seus objetivos", d:"Sua base está saudável! Agora é hora de dar velocidade às suas metas e fazer o dinheiro render mais."};
+}
+
+/* ================= PÁGINA: INÍCIO ================= */
+function renderInicio(){
+  const { score, pPoup, pDiv, pRes } = calcScore();
+  let ht,hd;
+  if(score>=70){ht="Saúde financeira boa";hd="Você está no caminho certo. Vamos manter o ritmo e acelerar suas metas.";}
+  else if(score>=45){ht="Boa, com um ponto de atenção";hd="A base está firme, mas a reserva de emergência ainda precisa crescer para trazer mais segurança.";}
+  else{ht="Precisa de atenção";hd="Vamos organizar as prioridades juntos para virar esse jogo mês a mês.";}
+  const pil=[{l:"Poupança",v:Math.round(F.taxa*100)+"%",ok:pPoup},{l:"Dívidas",v:Math.round(F.divida*100)+"%",ok:pDiv},{l:"Reserva",v:F.mesesReserva.toLocaleString("pt-BR",{maximumFractionDigits:1})+"m",ok:pRes}];
+  const pilH=pil.map(p=>{const c=p.ok>=0.7?"#8fe6c3":(p.ok>=0.45?"#ffe08a":"#ffb3b6");return `<div class="pillar"><div class="p-lbl"><span class="p-dot" style="background:${c}"></span>${p.l}</div><div class="p-val">${p.v}</div></div>`;}).join("");
+  const tp=Math.round(F.taxa*100),cd=Math.round(F.divida*100),mr=F.mesesReserva;
+  const tiles=[
+    {chip:"green",ic:"card",label:"Sobra por mês",value:fmt(F.sobra),badge:{cls:tp>=15?"g":(tp>=5?"y":"r"),txt:tp+"% da renda"},spark:[F.sobra*0.6,F.sobra*0.75,F.sobra*0.5,F.sobra*0.9,F.sobra*0.8,F.sobra],sc:cssv("--green")},
+    {chip:"blue",ic:"trend",label:"Taxa de poupança",value:tp+"%",badge:{cls:tp>=15?"g":(tp>=5?"y":"r"),txt:tp>=15?"ótimo ritmo":"pode melhorar"}},
+    {chip:"teal",ic:"shield",label:"Reserva",value:mr.toLocaleString("pt-BR",{maximumFractionDigits:1})+" meses",badge:{cls:mr>=6?"g":(mr>=3?"y":"r"),txt:"meta: 6 meses"}},
+    {chip:"amber",ic:"alert",label:"Dívidas",value:cd+"%",badge:{cls:cd<10?"g":(cd<30?"y":"r"),txt:cd<10?"sob controle":"atenção"}},
+  ];
+  const tilesH=tiles.map(t=>`<div class="tile"><div class="chip ${t.chip}">${svgIcon(t.ic)}</div><div class="t-label">${t.label}</div><div class="t-value">${t.value}</div><div class="t-foot"><span class="badge ${t.badge.cls}">${t.badge.txt}</span></div>${t.spark?sparkSvg(t.spark,t.sc):""}</div>`).join("");
+  const fi=focoInfo();
+  const goalsH=metas.map(m=>{const pct=m.alvo>0?Math.min(100,Math.round(m.atual/m.alvo*100)):0;return `<div class="goal"><div class="ring-wrap">${ringSvg(pct,m.cor)}<div class="ring-pct" style="color:${m.cor}">${pct}%</div></div><div class="g-body"><div class="g-name"><span class="mini-ic" style="color:${m.cor}">${svgIcon(m.ic,"mini-ic")}</span>${m.nome}</div><div class="g-vals"><b>${fmtK(m.atual)}</b> de ${fmtK(m.alvo)}</div>${m.quando?`<span class="g-when">◔ ${m.quando}</span>`:""}</div></div>`;}).join("") || `<div style="color:var(--muted);font-size:13px">Nenhuma meta cadastrada.</div>`;
+  const ch=chartSvg();
+
+  document.getElementById("pageContent").innerHTML = `
+    <div class="hero"><div class="gauge-wrap">${gaugeSvg(score)}<div class="gauge-center"><div class="gauge-score">${score}</div><div class="gauge-of">de 100</div></div></div>
+      <div class="hero-info"><div class="hero-tag">Índice de saúde financeira</div><div class="hero-title">${ht}</div><div class="hero-desc">${hd}</div><div class="pillars">${pilH}</div></div></div>
+    <div class="eyebrow">Seus números do mês</div><div class="tiles">${tilesH}</div>
+    <div class="eyebrow">Seu foco agora</div>
+    <div class="foco"><div class="f-ic">${svgIcon("target")}</div><div><div class="f-tag">Prioridade do momento</div><div class="f-title">${fi.t}</div><div class="f-desc">${fi.d}</div></div></div>
+    <div class="eyebrow">Suas metas</div><div class="goals">${goalsH}</div>
+    <div class="eyebrow">Para onde você está indo</div>
+    <div class="card"><div class="chart-head"><div><div style="font-size:15px;font-weight:720">Saldo acumulado</div><div style="font-size:12px;color:var(--muted)">projeção · 24 meses</div></div><div class="c-end"><div class="lbl">em 2 anos</div><div class="val">${fmt(ch.fim)}</div></div></div>
+      <div class="legend"><span><span class="ln d"></span> Projeção (a partir de hoje)</span></div>${ch.svg}
+      <div class="cap">Guardando ${fmt(F.sobra)} por mês, em 2 anos seu saldo chega a cerca de ${fmt(ch.fim)}.</div></div>`;
+}
+
+/* ================= PÁGINA: METAS ================= */
+function renderMetas(){
+  if(!metas.length){ document.getElementById("pageContent").innerHTML=`<div class="state"><div class="big">🎯</div>Nenhuma meta cadastrada ainda.<br>Fale com seu consultor para definir seus objetivos.</div>`; return; }
+  const totAlvo=metas.reduce((s,m)=>s+m.alvo,0), totAtual=metas.reduce((s,m)=>s+m.atual,0);
+  const pctGeral=totAlvo>0?Math.round(totAtual/totAlvo*100):0;
+  const cards=metas.map(m=>{
+    const pct=m.alvo>0?Math.min(100,Math.round(m.atual/m.alvo*100)):0;
+    const falta=Math.max(0,m.alvo-m.atual);
+    const meses=mesesAte(m.dataAlvo);
+    const porMes=meses?falta/meses:null;
+    let plano;
+    if(porMes==null){ plano=`<span style="color:var(--muted)">sem prazo definido</span>`; }
+    else if(porMes<=F.sobra){ plano=`<span class="badge g">cabe na sua sobra</span> guardar <b>${fmt(porMes)}/mês</b> até ${mesAno(m.dataAlvo)}`; }
+    else { plano=`<span class="badge y">acima da sua sobra</span> precisaria de <b>${fmt(porMes)}/mês</b> até ${mesAno(m.dataAlvo)}`; }
+    return `<div class="goal-full"><div class="ring-wrap" style="width:82px;height:82px">${ringSvg(pct,m.cor)}<div class="ring-pct" style="color:${m.cor};font-size:17px">${pct}%</div></div>
+      <div class="gf-body"><div class="gf-name"><span style="color:${m.cor};width:18px;height:18px;display:inline-flex">${svgIcon(m.ic)}</span>${m.nome}</div>
+        <div class="gf-vals"><b>${fmt(m.atual)}</b> de ${fmt(m.alvo)} · faltam <b>${fmt(falta)}</b></div>
+        <div class="track"><div class="fill" style="width:${pct}%;background:${m.cor}"></div></div>
+        <div class="gf-plan" style="margin-top:11px">${plano}</div></div></div>`;
+  }).join("");
+  document.getElementById("pageContent").innerHTML = `
+    <div class="card" style="margin-bottom:18px;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+      <div class="ring-wrap" style="width:76px;height:76px">${ringSvg(pctGeral,"var(--brand)")}<div class="ring-pct" style="color:var(--brand);font-size:16px">${pctGeral}%</div></div>
+      <div><div style="font-size:13px;color:var(--text2)">Progresso geral das metas</div><div style="font-size:22px;font-weight:770;letter-spacing:-.4px">${fmt(totAtual)} <span style="font-size:14px;color:var(--muted);font-weight:600">de ${fmt(totAlvo)}</span></div></div></div>
+    ${cards}
+    <div class="note">A viabilidade compara quanto você precisaria guardar por mês com a sua sobra atual (${fmt(F.sobra)}).</div>`;
+}
+
+/* ================= PÁGINA: PROJEÇÃO ================= */
+function renderProjecao(){
+  const ch=chartSvg();
+  const linhas=[
+    {l:"Renda mensal",v:fmt(F.renda),s:"+",cor:"var(--green)"},
+    {l:"Gastos fixos",v:fmt(F.fixos),s:"−",cor:"var(--rose)"},
+    {l:"Variáveis estimados",v:fmt(F.variaveis),s:"−",cor:"var(--amber)"},
+    {l:"Sobra por mês",v:fmt(F.sobra),s:"=",cor:"var(--brand)"},
+  ];
+  const statsH=linhas.map(x=>`<div class="stat"><div class="s-l"><span class="sign" style="background:color-mix(in srgb, ${x.cor} 16%, transparent);color:${x.cor}">${x.s}</span>${x.l}</div><div class="s-v">${x.v}</div></div>`).join("");
+  const fixos=compsData.filter(c=>c.tipo==="despesa").sort((a,b)=>b.valor-a.valor);
+  const fixosH=fixos.map(c=>`<div class="info-row"><span class="k">${c.descricao}${c.eh_divida?' <span class="badge r" style="font-size:9px">dívida</span>':''}</span><span class="v">${fmt(c.valor)}</span></div>`).join("");
+  document.getElementById("pageContent").innerHTML = `
+    <div class="card" style="margin-bottom:16px"><div class="chart-head"><div><div style="font-size:15px;font-weight:720">Saldo acumulado</div><div style="font-size:12px;color:var(--muted)">próximos 24 meses</div></div><div class="c-end"><div class="lbl">projeção em 2 anos</div><div class="val">${fmt(ch.fim)}</div></div></div>
+      <div class="legend"><span><span class="ln d"></span> Projeção (a partir de hoje)</span></div>${ch.svg}
+      <div class="cap">Guardando ${fmt(F.sobra)} por mês, em 2 anos seu saldo acumulado chega a cerca de ${fmt(ch.fim)}. Quando você importar seus extratos, a parte já realizada aparecerá aqui.</div></div>
+    <div class="eyebrow">Como sua sobra é formada</div><div class="grid2" style="margin-bottom:16px">${statsH}</div>
+    <div class="eyebrow">Seus gastos fixos</div><div class="card">${fixosH || '<span style="color:var(--muted)">Nenhum gasto fixo cadastrado.</span>'}</div>
+    <div class="note">A sobra segue a "escada do foco": primeiro completa a reserva de emergência, depois abastece seus objetivos por prioridade.</div>`;
+}
+
+/* ================= PÁGINA: PERFIL ================= */
+function dots5(n){ n=Number(n)||0; let h=""; for(let i=1;i<=5;i++) h+=`<i class="${i<=n?'on':''}"></i>`; return `<span class="dots5">${h}</span>`; }
+function renderPerfil(){
+  const p=perfilData||{};
+  const pessoais=[
+    ["Nome completo", p.nome_completo||p.nome||ND],
+    ["E-mail", p.email||ND],
+    ["Telefone", p.telefone||ND],
+    ["Nascimento", dataBR(p.data_nascimento)||ND],
+    ["Estado civil", p.estado_civil||ND],
+    ["Dependentes", p.dependentes!=null?String(p.dependentes):ND],
+    ["Tipo de renda", p.tipo_renda||ND],
+  ].map(r=>`<div class="info-row"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
+  const relacao=[
+    ["Conforto com finanças", p.conforto_financas!=null?dots5(p.conforto_financas):ND],
+    ["Conforto com investimentos", p.conforto_investimentos!=null?dots5(p.conforto_investimentos):ND],
+    ["Já investe?", p.ja_investe||ND],
+    ["Maior dificuldade", p.maior_dificuldade||ND],
+  ].map(r=>`<div class="info-row"><span class="k">${r[0]}</span><span class="v">${r[1]}</span></div>`).join("");
+  document.getElementById("pageContent").innerHTML = `
+    <div style="display:flex;align-items:center;gap:15px;margin-bottom:20px">
+      <div class="avatar" style="width:60px;height:60px;border-radius:18px;font-size:22px">${F.inicial}</div>
+      <div><div style="font-size:19px;font-weight:750">${p.nome_completo||F.nome}</div><div style="font-size:13px;color:var(--muted)">${p.email||"cliente"}</div></div></div>
+    <div class="eyebrow">Dados pessoais</div><div class="card" style="margin-bottom:16px">${pessoais}</div>
+    <div class="eyebrow">Sua relação com o dinheiro</div><div class="card">${relacao}</div>
+    <div class="note">Para atualizar estes dados, fale com seu consultor.</div>`;
+}
+
+/* ================= TEMA ================= */
+document.getElementById("themeBtn").addEventListener("click", () => {
+  const next=document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark";
+  document.documentElement.setAttribute("data-theme",next);
+  document.getElementById("themeBtn").textContent=next==="dark"?"☀":"☾";
+  if(F.renda!=null) setPage(currentPage);
+});
+
+/* ================= INÍCIO ================= */
+renderNav();
+(async function init(){
+  try{ const { data:{ session } }=await sb.auth.getSession(); if(session){ showApp(); loadData(); } else showLogin(); }
+  catch(e){ showLogin(); }
+})();
+</script>
+</body>
+</html>
