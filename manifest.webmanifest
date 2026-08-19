@@ -1,0 +1,15 @@
+{
+  "name": "Consultoria Financeira",
+  "short_name": "Consultoria",
+  "description": "Acompanhe sua saúde financeira, suas metas e seus investimentos.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#eef0f4",
+  "theme_color": "#1c4fa6",
+  "icons": [
+    { "src": "icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

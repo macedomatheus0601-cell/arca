@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Área do Cliente — Consultoria Financeira</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='b' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%233b78e0'/%3E%3Cstop offset='1' stop-color='%2314337d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='23' fill='url(%23b)'/%3E%3Cg transform='rotate(135 50 53)'%3E%3Ccircle cx='50' cy='53' r='33' fill='none' stroke='%23ffffff' stroke-opacity='.26' stroke-width='9.5' stroke-linecap='round' stroke-dasharray='155.5 51.9'/%3E%3Ccircle cx='50' cy='53' r='33' fill='none' stroke='%23a9eed2' stroke-width='9.5' stroke-linecap='round' stroke-dasharray='108.9 98.5'/%3E%3C/g%3E%3Cpolyline points='35,63 47,50 66,37' fill='none' stroke='%23ffffff' stroke-width='7.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='66' cy='37' r='6' fill='%237fe6bd'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1c4fa6">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
@@ -56,6 +61,13 @@
   .login-btn:disabled { opacity:.6; cursor:default; }
   .login-err { background:var(--rose-bg); color:var(--rose); font-size:12.5px; font-weight:600; padding:9px 12px; border-radius:10px; margin-bottom:14px; display:none; }
   .login-err.show { display:block; }
+  .login-ok { background:var(--green-bg); color:var(--green); font-size:12.5px; font-weight:600; padding:9px 12px; border-radius:10px; margin-bottom:14px; display:none; }
+  .login-ok.show { display:block; }
+  .login-opts { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:2px 0 4px; }
+  .chk-lembrar { display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--text2); cursor:pointer; }
+  .chk-lembrar input { width:16px; height:16px; accent-color:var(--brand); cursor:pointer; }
+  .link-btn { font-size:12.5px; color:var(--brand); font-weight:600; padding:0; }
+  .link-btn:hover { text-decoration:underline; }
 
   /* ---------- SHELL ---------- */
   .shell { display:none; min-height:100vh; }
@@ -75,8 +87,11 @@
   .nav-item:hover { background:var(--card2); color:var(--text); }
   .nav-item.active { background:color-mix(in srgb,var(--brand) 13%,transparent); color:var(--brand); }
   .side-foot { border-top:1px solid var(--border); padding-top:12px; margin-top:8px; display:flex; align-items:center; gap:10px; }
-  .side-foot .u-name { font-size:12.5px; font-weight:700; white-space:nowrap; }
+  .side-foot .u-name { font-size:12.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .side-foot .u-role { font-size:10.5px; color:var(--muted); }
+  .sair-btn { width:32px; height:32px; border-radius:9px; color:var(--muted); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .sair-btn svg { width:17px; height:17px; }
+  .sair-btn:hover { background:var(--rose-bg); color:var(--rose); }
 
   .main { padding:22px 26px 60px; max-width:1000px; width:100%; }
   .main-top { display:flex; align-items:center; gap:11px; margin-bottom:20px; }
@@ -294,9 +309,14 @@
     <h1>Sua visão financeira</h1>
     <div class="lsub">Entre para acompanhar suas metas</div>
     <div class="login-err" id="loginErr"></div>
+    <div class="login-ok" id="loginOk"></div>
     <form id="loginForm">
       <div class="field"><label>E-mail</label><input type="email" id="email" autocomplete="email" required></div>
       <div class="field"><label>Senha</label><input type="password" id="senha" autocomplete="current-password" required></div>
+      <div class="login-opts">
+        <label class="chk-lembrar"><input type="checkbox" id="lembrar" checked> Continuar conectado</label>
+        <button type="button" class="link-btn" id="esqueciBtn">Esqueci minha senha</button>
+      </div>
       <button class="login-btn" id="loginBtn" type="submit">Entrar</button>
     </form>
   </div>
@@ -310,7 +330,11 @@
       <div><div class="bname">Consultoria</div><div class="bsub">Gestão financeira</div></div>
     </div>
     <nav class="nav" id="nav"></nav>
-    <div class="side-foot"><div class="avatar" id="sideAvatar" style="width:34px;height:34px;border-radius:10px;font-size:13px">–</div><div><div class="u-name" id="sideName"></div><div class="u-role" id="sideRole">cliente</div></div></div>
+    <div class="side-foot">
+      <div class="avatar" id="sideAvatar" style="width:34px;height:34px;border-radius:10px;font-size:13px">–</div>
+      <div style="flex:1;min-width:0"><div class="u-name" id="sideName"></div><div class="u-role" id="sideRole">cliente</div></div>
+      <button class="sair-btn" id="sairBtn" title="Sair da conta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+    </div>
   </aside>
   <main class="main">
     <div class="main-top">
@@ -352,7 +376,18 @@ const svgIcon=(n,c="")=>`<svg class="${c}" viewBox="0 0 24 24" fill="none" strok
 /* ================= SUPABASE ================= */
 const SUPABASE_URL="https://famyaxiruknwzbdktghf.supabase.co";
 const SUPABASE_ANON_KEY="sb_publishable_QPIF7Y1cNmBUMIg7rjIVSg_4wybh6CH";
-const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+/* "Continuar conectado": guarda a sessão no armazenamento permanente (localStorage);
+   se desmarcado, guarda só na sessão do navegador (sai ao fechar). */
+let LEMBRAR=true;
+try{ LEMBRAR = localStorage.getItem("lembrar")!=="0"; }catch(e){}
+const authStorage={
+  getItem:k=>{ try{ return (LEMBRAR?localStorage:sessionStorage).getItem(k); }catch(e){ return null; } },
+  setItem:(k,v)=>{ try{ (LEMBRAR?localStorage:sessionStorage).setItem(k,v); }catch(e){} },
+  removeItem:k=>{ try{ localStorage.removeItem(k); sessionStorage.removeItem(k); }catch(e){} },
+};
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{
+  auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true, storage:authStorage }
+});
 
 /* ================= ESTADO ================= */
 let F={}, metas=[], perfilData=null, compsData=[], objsData=[], apsData=[];
@@ -396,16 +431,47 @@ const CAT_VARS=["--brand","--teal","--green","--amber","--rose","--slate"];
 const overlay=document.getElementById("loginOverlay"), shell=document.getElementById("shell");
 function showApp(){ overlay.style.display="none"; shell.classList.add("show"); }
 function showLogin(){ overlay.style.display="flex"; shell.classList.remove("show"); }
+/* pré-preenche o e-mail e a preferência de "continuar conectado" */
+try{
+  const em=localStorage.getItem("ultimoEmail"); if(em) document.getElementById("email").value=em;
+  document.getElementById("lembrar").checked=LEMBRAR;
+}catch(e){}
+document.getElementById("lembrar").addEventListener("change", e=>{
+  LEMBRAR=e.target.checked;
+  try{ localStorage.setItem("lembrar", LEMBRAR?"1":"0"); }catch(e){}
+});
+
 document.getElementById("loginForm").addEventListener("submit", async e=>{
   e.preventDefault();
-  const btn=document.getElementById("loginBtn"), err=document.getElementById("loginErr");
-  err.classList.remove("show"); btn.disabled=true; btn.textContent="Entrando...";
-  const { error }=await sb.auth.signInWithPassword({ email:document.getElementById("email").value.trim(), password:document.getElementById("senha").value });
+  const btn=document.getElementById("loginBtn"), err=document.getElementById("loginErr"), ok=document.getElementById("loginOk");
+  err.classList.remove("show"); ok.classList.remove("show");
+  btn.disabled=true; btn.textContent="Entrando...";
+  const email=document.getElementById("email").value.trim();
+  const { error }=await sb.auth.signInWithPassword({ email, password:document.getElementById("senha").value });
   btn.disabled=false; btn.textContent="Entrar";
   if(error){ err.textContent="E-mail ou senha incorretos. Tente novamente."; err.classList.add("show"); return; }
+  try{ if(LEMBRAR) localStorage.setItem("ultimoEmail",email); else localStorage.removeItem("ultimoEmail"); }catch(e){}
   showApp(); loadData();
 });
-document.getElementById("logoutBtn").addEventListener("click", async ()=>{ await sb.auth.signOut(); location.reload(); });
+
+document.getElementById("esqueciBtn").addEventListener("click", async ()=>{
+  const err=document.getElementById("loginErr"), ok=document.getElementById("loginOk");
+  err.classList.remove("show"); ok.classList.remove("show");
+  const email=document.getElementById("email").value.trim();
+  if(!email){ err.textContent="Digite seu e-mail acima para receber o link de redefinição."; err.classList.add("show"); return; }
+  const { error }=await sb.auth.resetPasswordForEmail(email,{ redirectTo: location.href.split("#")[0] });
+  if(error){ err.textContent="Não consegui enviar o e-mail: "+error.message; err.classList.add("show"); return; }
+  ok.textContent="Enviamos um link de redefinição para "+email+". Confira sua caixa de entrada.";
+  ok.classList.add("show");
+});
+
+async function sair(){
+  await sb.auth.signOut();
+  try{ sessionStorage.clear(); }catch(e){}
+  location.reload();
+}
+document.getElementById("logoutBtn").addEventListener("click", sair);
+document.getElementById("sairBtn").addEventListener("click", sair);
 
 /* ================= MENU RETRÁTIL ================= */
 document.getElementById("menuBtn").addEventListener("click", ()=>{
@@ -441,9 +507,16 @@ async function loadData(attempt=1){
     const reservaAps=apsData.filter(a=>a.eh_reserva).reduce((s,a)=>s+num(a.valor_atual),0);
     const reserva = reservaAps>0 ? reservaAps : num(perfil.reserva_atual);
     const sobra = perfil.poupanca_mensal_atual!=null ? num(perfil.poupanca_mensal_atual) : (renda-fixos);
+    const variaveis = Math.max(0, renda-fixos-sobra);
+    /* A reserva cobre o CUSTO DE VIDA MENSAL (fixos + variáveis), não só os fixos.
+       Renda instável (autônomo/PJ) pede reserva maior — prática de mercado. */
+    const gastoMensal = fixos + variaveis;
+    const rendaInstavel = /aut[oô]nomo|pj|empres|liberal|comiss/i.test(perfil.tipo_renda||"");
+    const mesesIdeal = rendaInstavel ? 9 : 6;
     F={ nome:perfil.nome||"você", inicial:(perfil.iniciais||(perfil.nome||"?")[0]||"?").toUpperCase(),
-        renda, fixos, reserva, investido, parcelaDivida, sobra, variaveis:Math.max(0,renda-fixos-sobra),
-        taxa:renda>0?sobra/renda:0, mesesReserva:fixos>0?reserva/fixos:0, divida:renda>0?parcelaDivida/renda:0,
+        renda, fixos, reserva, investido, parcelaDivida, sobra, variaveis, gastoMensal, mesesIdeal, rendaInstavel,
+        reservaIdeal: gastoMensal*mesesIdeal,
+        taxa:renda>0?sobra/renda:0, mesesReserva:gastoMensal>0?reserva/gastoMensal:0, divida:renda>0?parcelaDivida/renda:0,
         cdi: perfil.cdi_anual!=null?num(perfil.cdi_anual):CDI_PADRAO,
         pctCdi: perfil.pct_cdi!=null?num(perfil.pct_cdi):PCT_CDI_PADRAO };
     metas=objsData.map(o=>{ const st=GOAL_STYLE[o.tipo]||GOAL_STYLE.outro;
@@ -502,12 +575,14 @@ function planoAlocacao(extra=0, horizonte=120){
   return itens;
 }
 function calcScore(){
-  const pPoup=Math.max(0,Math.min(1,F.taxa/0.20)), pDiv=Math.max(0,Math.min(1,1-F.divida/0.30)), pRes=Math.max(0,Math.min(1,F.mesesReserva/6));
+  const pPoup=Math.max(0,Math.min(1,F.taxa/0.20)), pDiv=Math.max(0,Math.min(1,1-F.divida/0.30)),
+        pRes=Math.max(0,Math.min(1,F.mesesReserva/(F.mesesIdeal||6)));
   return { score:Math.round((pPoup*0.34+pDiv*0.30+pRes*0.36)*100), pPoup, pDiv, pRes };
 }
 function focoInfo(){
+  const mi=F.mesesIdeal||6;
   if(F.divida>=0.30) return {t:"Reduzir as dívidas caras",d:"Suas dívidas consomem uma fatia grande da renda. O primeiro passo é aliviar isso — é o que destrava o resto."};
-  if(F.mesesReserva<3) return {t:"Completar sua reserva de emergência",d:`Você tem hoje ${F.mesesReserva.toLocaleString("pt-BR",{maximumFractionDigits:1})} meses de gastos guardados. O primeiro passo é chegar a 6 meses — é o que traz segurança antes de mirar os outros objetivos.`};
+  if(F.mesesReserva<mi/2) return {t:"Completar sua reserva de emergência",d:`Você tem hoje ${F.mesesReserva.toLocaleString("pt-BR",{maximumFractionDigits:1})} meses de custo de vida guardados. O primeiro passo é chegar a ${mi} meses (${fmt(F.reservaIdeal)})${F.rendaInstavel?", que é o recomendado para quem tem renda variável":""} — é o que traz segurança antes de mirar os outros objetivos.`};
   if(F.taxa<0.10) return {t:"Organizar e sobrar mais",d:"Sobra pouco no fim do mês. Vamos mapear os gastos e liberar mais espaço para as suas metas."};
   return {t:"Acelerar seus objetivos",d:"Sua base está saudável! Agora é hora de dar velocidade às suas metas e fazer o dinheiro render mais."};
 }
@@ -517,6 +592,20 @@ function montante(p0, pmt, taxaMes, n){
   return p0*Math.pow(1+taxaMes,n) + pmt*((Math.pow(1+taxaMes,n)-1)/taxaMes);
 }
 const taxaMensal = () => Math.pow(1+F.cdi*F.pctCdi, 1/12)-1;
+/* Projeção de aplicação usando a sobra REAL de cada mês (cresce quando parcelas acabam) */
+function projetarAplicado(n){
+  const proj=projetar(n,0), i=taxaMensal();
+  let parado=F.investido||F.reserva, aplic=parado;
+  const A=[parado], B=[aplic];
+  for(let k=1;k<=n;k++){
+    const s=Math.max(0,proj[k].sobra);
+    parado+=s; aplic=aplic*(1+i)+s;
+    A.push(parado); B.push(aplic);
+  }
+  return {A,B};
+}
+/* IR regressivo da renda fixa, aplicado só sobre o ganho */
+const aliquotaIR = meses => meses<=6 ? 0.225 : meses<=12 ? 0.20 : meses<=24 ? 0.175 : 0.15;
 
 /* ================= GRÁFICOS ================= */
 function gaugeSvg(score){
@@ -698,7 +787,7 @@ function renderInicio(){
   const {score,pPoup,pDiv,pRes}=calcScore();
   let ht,hd;
   if(score>=70){ht="Saúde financeira boa";hd="Você está no caminho certo. Vamos manter o ritmo e acelerar suas metas.";}
-  else if(score>=45){ht="Boa, com um ponto de atenção";hd="A base está firme, mas a reserva de emergência ainda precisa crescer para trazer mais segurança.";}
+  else if(score>=45){ht="Boa, com um ponto de atenção";hd=focoInfo().d;}
   else{ht="Precisa de atenção";hd="Vamos organizar as prioridades juntos para virar esse jogo mês a mês.";}
   const pil=[{l:"Poupança",v:Math.round(F.taxa*100)+"%",ok:pPoup},{l:"Dívidas",v:Math.round(F.divida*100)+"%",ok:pDiv},{l:"Reserva",v:F.mesesReserva.toLocaleString("pt-BR",{maximumFractionDigits:1})+"m",ok:pRes}];
   const pilH=pil.map(p=>{const c=p.ok>=.7?"#8fe6c3":(p.ok>=.45?"#ffe08a":"#ffb3b6");
@@ -707,7 +796,7 @@ function renderInicio(){
   const tiles=[
     {chip:"green",ic:"card",label:"Sobra por mês",value:fmt(F.sobra),badge:{cls:tp>=15?"g":(tp>=5?"y":"r"),txt:tp+"% da renda"},spark:[F.sobra*.6,F.sobra*.78,F.sobra*.52,F.sobra*.9,F.sobra*.82,F.sobra],sc:cssv("--green")},
     {chip:"blue",ic:"trend",label:"Taxa de poupança",value:tp+"%",badge:{cls:tp>=15?"g":(tp>=5?"y":"r"),txt:tp>=15?"ótimo ritmo":"pode melhorar"}},
-    {chip:"teal",ic:"shield",label:"Reserva",value:mr.toLocaleString("pt-BR",{maximumFractionDigits:1})+" meses",badge:{cls:mr>=6?"g":(mr>=3?"y":"r"),txt:"meta: 6 meses"}},
+    {chip:"teal",ic:"shield",label:"Reserva",value:mr.toLocaleString("pt-BR",{maximumFractionDigits:1})+" meses",badge:{cls:mr>=F.mesesIdeal?"g":(mr>=F.mesesIdeal/2?"y":"r"),txt:"meta: "+F.mesesIdeal+" meses"}},
     {chip:"amber",ic:"alert",label:"Dívidas",value:cd+"%",badge:{cls:cd<10?"g":(cd<30?"y":"r"),txt:cd<10?"sob controle":"atenção"}},
   ];
   const tilesH=tiles.map(t=>`<div class="tile"><div class="chip ${t.chip}">${svgIcon(t.ic)}</div><div class="t-label">${t.label}</div><div class="t-value">${t.value}</div><div class="t-foot"><span class="badge ${t.badge.cls}">${t.badge.txt}</span></div>${t.spark?sparkSvg(t.spark,t.sc):""}</div>`).join("");
@@ -765,11 +854,16 @@ function renderMetas(){
     const mesesPrazo = m.dataAlvo ? (()=>{ const n=new Date(),dt=new Date(m.dataAlvo+"T00:00:00");
       return Math.max(1,(dt.getFullYear()-n.getFullYear())*12+(dt.getMonth()-n.getMonth())); })() : null;
     const porMes = mesesPrazo ? falta/mesesPrazo : null;
-    let via = porMes==null ? `<span class="badge n">sem prazo</span>`
-            : (porMes<=F.sobra ? `<span class="badge g">✓ cabe na sua sobra</span>` : `<span class="badge y">acima da sua sobra</span>`);
+    /* Viabilidade real: compara a PREVISÃO (sobra dividida por prioridade) com o prazo desejado.
+       Comparar só com a sobra cheia enganaria — as metas disputam o mesmo dinheiro. */
+    let via;
+    if(mesesPrazo==null) via=`<span class="badge n">sem prazo definido</span>`;
+    else if(pl.mes===null) via=`<span class="badge r">não alcançável no ritmo atual</span>`;
+    else if(pl.mes<=mesesPrazo) via=`<span class="badge g">✓ chega no prazo</span>`;
+    else via=`<span class="badge y">atrasa ${pl.mes-mesesPrazo} ${pl.mes-mesesPrazo===1?"mês":"meses"}</span>`;
     const mx=Math.max(porMes||0,F.sobra)||1;
     const cmp = porMes!=null ? `
-      <div class="cmp"><div class="cmp-t">Esforço mensal para cumprir o prazo</div>
+      <div class="cmp"><div class="cmp-t">Esforço mensal para cumprir o prazo — se esta fosse a única meta</div>
         <div class="cmp-row"><span class="cr-l">Precisa guardar</span><div class="cr-bar"><div class="cr-f" style="width:${(porMes/mx*100).toFixed(1)}%;background:${m.cor}"></div></div><span class="cr-v" style="color:${m.cor}">${fmt(porMes)}</span></div>
         <div class="cmp-row"><span class="cr-l">Sua sobra hoje</span><div class="cr-bar"><div class="cr-f" style="width:${(F.sobra/mx*100).toFixed(1)}%;background:${cssv("--slate")}"></div></div><span class="cr-v">${fmt(F.sobra)}</span></div>
       </div>` : "";
@@ -931,9 +1025,12 @@ function renderInvestir(){
         <div class="donut-box">${donutSvg(itens)}<div class="donut-center"><div class="dc-v">${fmt(tot)}</div><div class="dc-l">total investido</div></div></div>
         <div class="dleg">${legH}</div></div>
         <div class="grid2" style="margin-top:15px">
-          <div class="mini"><div class="m-l">Reserva de emergência</div><div class="m-v" style="color:${cssv("--teal")}">${fmt(reservaV)}</div></div>
-          <div class="mini"><div class="m-l">Para crescer</div><div class="m-v" style="color:${cssv("--green")}">${fmt(tot-reservaV)}</div></div>
-          <div class="mini"><div class="m-l">Classes diferentes</div><div class="m-v">${itens.length}</div></div>
+          <div class="mini"><div class="m-l">Reserva de emergência</div><div class="m-v" style="color:${cssv("--teal")}">${fmt(reservaV)}</div>
+            <div style="font-size:10.5px;color:var(--muted);margin-top:2px">ideal: ${fmt(F.reservaIdeal)} (${F.mesesIdeal} meses)</div></div>
+          <div class="mini"><div class="m-l">Para crescer</div><div class="m-v" style="color:${cssv("--green")}">${fmt(tot-reservaV)}</div>
+            <div style="font-size:10.5px;color:var(--muted);margin-top:2px">${tot>0?Math.round((tot-reservaV)/tot*100):0}% da carteira</div></div>
+          <div class="mini"><div class="m-l">Classes diferentes</div><div class="m-v">${itens.length}</div>
+            <div style="font-size:10.5px;color:var(--muted);margin-top:2px">${itens.length>=3?"boa diversificação":"pouca diversificação"}</div></div>
         </div></div>`;
   }
 
@@ -970,15 +1067,11 @@ function renderInvestir(){
   /* --- projeção de rendimento --- */
   const i=taxaMensal(), n=24;
   const p0=F.investido||F.reserva, pmt=F.sobra;
-  const parado=[], aplicado=[];
-  for(let k=0;k<=n;k++){ parado.push(p0+pmt*k); aplicado.push(montante(p0,pmt,i,k)); }
-  const marcos=[12,24,60,120].map(m=>{
-    const a=p0+pmt*m, b=montante(p0,pmt,i,m);
-    return `<tr><td>${m/12} ano${m>12?"s":""}</td><td>${fmt(a)}</td><td class="pos"><b>${fmt(b)}</b></td><td class="pos">${fmt(b-a)}</td></tr>`;
-  }).join("");
+  const s24=projetarAplicado(n), parado=s24.A, aplicado=s24.B;
+  const marcos=marcosHTML();
   const rend=`<div class="eyebrow">Quanto sua sobra pode render</div>
     <div class="card">
-      <div class="card-h"><div><div class="ct">Guardar parado × aplicado</div><div class="cs">aportando ${fmt(pmt)}/mês, a partir de ${fmt(p0)}</div></div>
+      <div class="card-h"><div><div class="ct">Guardar parado × aplicado</div><div class="cs">a partir de ${fmt(p0)}, aportando sua sobra (${fmt(pmt)}/mês hoje, e mais quando parcelas terminarem)</div></div>
         <div class="c-end"><div class="lbl">em 2 anos, aplicado</div><div class="val">${fmt(aplicado[n])}</div></div></div>
       <div class="legend"><span><span class="ln" style="background:repeating-linear-gradient(90deg,${cssv("--slate")} 0 4px,transparent 4px 9px)"></span> Parado (sem render)</span><span><span class="ln" style="background:${cssv("--green")}"></span> Aplicado</span></div>
       ${duasLinhasSvg(parado,aplicado,cssv("--slate"),cssv("--green"))}
@@ -989,9 +1082,11 @@ function renderInvestir(){
       </div>
       ${isHost?`<div class="note" id="premMsg">Você pode ajustar a premissa. <button class="btn-p" style="height:32px;font-size:12.5px;margin-left:6px" onclick="salvarPremissas()">Salvar</button></div>`:""}
       <div class="tbl-wrap"><table>
-        <thead><tr><th>Prazo</th><th>Parado</th><th>Aplicado</th><th>Diferença</th></tr></thead>
+        <thead><tr><th>Prazo</th><th>Parado</th><th>Aplicado</th><th>Já com IR</th><th>Ganho real</th></tr></thead>
         <tbody id="marcosBody">${marcos}</tbody></table></div>
-      <div class="disclaimer"><b>Importante:</b> esta é uma <b>simulação educativa</b> com base numa premissa de rendimento, para ajudar no planejamento. Não é recomendação de investimento nem promessa de retorno. Os valores são <b>brutos</b> (antes de impostos e taxas) e o rendimento real varia conforme o produto escolhido.</div>
+      <div class="disclaimer"><b>Importante:</b> esta é uma <b>simulação educativa</b> para ajudar no planejamento — não é recomendação de investimento nem promessa de retorno.
+        A coluna <b>"Já com IR"</b> desconta o imposto de renda regressivo da renda fixa (22,5% até 6 meses, caindo a 15% acima de 2 anos), cobrado só sobre o ganho; poupança é isenta e ações seguem outra regra.
+        Os valores são <b>nominais</b> — não descontam a inflação, então o poder de compra futuro é menor do que o número mostra.</div>
     </div>`;
 
   const dados=[
@@ -1011,17 +1106,20 @@ function renderInvestir(){
     `<details><summary>Meus dados cadastrais</summary><div class="info-grid">${dados}</div>
       <div class="note">Para atualizar estes dados, fale com seu consultor.</div></details>`;
 }
+function marcosHTML(){
+  const s=projetarAplicado(120);
+  return [12,24,60,120].map(m=>{
+    const a=s.A[m], b=s.B[m], liq=b-(b-a)*aliquotaIR(m);
+    return `<tr><td>${m/12} ano${m>12?"s":""}</td><td>${fmt(a)}</td><td class="pos"><b>${fmt(b)}</b></td><td>${fmt(liq)}</td><td class="pos">${fmt(liq-a)}</td></tr>`;
+  }).join("");
+}
 function atualizarPremissa(){
   const c=Number(document.getElementById("cdiIn").value)/100;
   const q=Number(document.getElementById("pctIn").value)/100;
   if(!isFinite(c)||!isFinite(q)) return;
   F.cdi=Math.max(0,c); F.pctCdi=Math.max(0,q);
-  const i=taxaMensal(), p0=F.investido||F.reserva, pmt=F.sobra;
-  document.getElementById("taxaMes").textContent=pct1(i);
-  document.getElementById("marcosBody").innerHTML=[12,24,60,120].map(m=>{
-    const a=p0+pmt*m, b=montante(p0,pmt,i,m);
-    return `<tr><td>${m/12} ano${m>12?"s":""}</td><td>${fmt(a)}</td><td class="pos"><b>${fmt(b)}</b></td><td class="pos">${fmt(b-a)}</td></tr>`;
-  }).join("");
+  document.getElementById("taxaMes").textContent=pct1(taxaMensal());
+  document.getElementById("marcosBody").innerHTML=marcosHTML();
 }
 async function salvarPremissas(){
   const msg=document.getElementById("premMsg");
