@@ -734,9 +734,30 @@ function montarEstado(){
   const parcelaDivida=compsData.filter(c=>c.tipo==="despesa"&&c.eh_divida).reduce((s,c)=>s+num(c.valor),0);
   const investido=apsData.reduce((s,a)=>s+num(a.valor_atual),0);
   const reservaAps=apsData.filter(a=>a.eh_reserva).reduce((s,a)=>s+num(a.valor_atual),0);
-  const reserva = reservaAps>0 ? reservaAps : num(perfil.reserva_atual);
-  const sobra = perfil.poupanca_mensal_atual!=null ? num(perfil.poupanca_mensal_atual) : (renda-fixos);
-  const variaveis = Math.max(0, renda-fixos-sobra);
+  /* Reserva: se há aplicações cadastradas, vale o que está MARCADO como reserva
+     — inclusive zero. Só cai no valor declarado quando não há aplicação alguma. */
+  const reserva = apsData.length ? reservaAps : num(perfil.reserva_atual);
+
+  /* SOBRA é RESULTADO, não entrada:  sobra = renda − fixos − variáveis.
+     Antes o cliente declarava a sobra e o gasto variável era deduzido dela
+     — o chute dele virava a base da reserva ideal, da projeção e do índice.
+     Ordem de confiança do gasto variável:
+       1) extrato importado (ainda por ligar — aba Extratos)
+       2) total declarado no formulário
+       3) na falta dos dois, deduz da sobra declarada e AVISA que é estimativa */
+  const sobraDeclarada = perfil.poupanca_mensal_atual!=null ? num(perfil.poupanca_mensal_atual) : null;
+  let variaveis, sobra, sobraOrigem;
+  if(perfil.variavel_total!=null){
+    variaveis = Math.max(0, num(perfil.variavel_total));
+    sobra = renda - fixos - variaveis;
+    sobraOrigem = "calculada";
+  } else if(sobraDeclarada!=null){
+    sobra = sobraDeclarada;
+    variaveis = Math.max(0, renda-fixos-sobra);
+    sobraOrigem = "declarada";
+  } else {
+    variaveis = 0; sobra = renda-fixos; sobraOrigem = "semvariavel";
+  }
   const gastoMensal = fixos + variaveis;
   /* gasto ESSENCIAL: o que realmente não dá para cortar numa emergência.
      É a base correta da reserva — cobrir o supérfluo inflaria a meta sem necessidade. */
@@ -751,13 +772,14 @@ function montarEstado(){
       renda, fixos, reserva, investido, parcelaDivida, sobra, variaveis, gastoMensal, gastoEssencial, mesesIdeal, rendaInstavel,
       reservaIdeal: gastoEssencial*mesesIdeal, saldoDividas, taxaMaxDivida,
       taxa:renda>0?sobra/renda:0, mesesReserva:gastoEssencial>0?reserva/gastoEssencial:0, divida:renda>0?parcelaDivida/renda:0,
+      sobraDeclarada, sobraOrigem,
       /* do sistema, iguais para todo mundo */
       cdi: num(premissas.cdi_anual),
       inflacao: num(premissas.inflacao_anual),
       /* deste cliente: descreve onde o dinheiro DELE está */
       pctCdi: perfil.pct_cdi!=null?num(perfil.pct_cdi):PCT_CDI_PADRAO };
   metas=objsData.map(o=>{ const st=GOAL_STYLE[o.tipo]||GOAL_STYLE.outro;
-    return { nome:o.descricao||o.tipo, tipo:o.tipo, ic:st.ic, corVar:st.cor, cor:cssv(st.cor),
+    return { id:o.id, nome:o.descricao||o.tipo, tipo:o.tipo, ic:st.ic, corVar:st.cor, cor:cssv(st.cor),
              atual:num(o.valor_atual), alvo:num(o.valor_alvo), dataAlvo:o.data_alvo,
              quando:o.data_alvo?"meta "+mesAno(o.data_alvo):"" }; });
   document.getElementById("sideAvatar").textContent=F.inicial;
@@ -1298,14 +1320,16 @@ function renderInicio(){
     return `<div class="pillar"><div class="p-lbl"><span class="p-dot" style="background:${c}"></span>${p.l}</div><div class="p-val">${p.v}</div></div>`;}).join("");
   const tp=Math.round(F.taxa*100),cd=Math.round(F.divida*100),mr=F.mesesReserva;
   const tiles=[
-    {chip:"green",ic:"card",label:"Sobra por mês",value:fmt(F.sobra),tip:T.sobra,badge:{cls:tp>=15?"g":(tp>=5?"y":"r"),txt:tp+"% da renda"},spark:[F.sobra*.6,F.sobra*.78,F.sobra*.52,F.sobra*.9,F.sobra*.82,F.sobra],sc:cssv("--green")},
+    {chip:"green",ic:"card",label:"Sobra por mês",value:fmt(F.sobra),tip:T.sobra,badge:{cls:tp>=15?"g":(tp>=5?"y":"r"),txt:tp+"% da renda"},
+     nota:notaSobra(),spark:[F.sobra*.6,F.sobra*.78,F.sobra*.52,F.sobra*.9,F.sobra*.82,F.sobra],sc:cssv("--green")},
     {chip:"blue",ic:"trend",label:"Taxa de poupança",value:tp+"%",tip:T.taxa,badge:{cls:tp>=15?"g":(tp>=5?"y":"r"),txt:tp>=15?"ótimo ritmo":"pode melhorar"}},
     {chip:"teal",ic:"shield",label:"Reserva",value:mr.toLocaleString("pt-BR",{maximumFractionDigits:1})+" meses",tip:T.reserva,badge:{cls:mr>=F.mesesIdeal?"g":(mr>=F.mesesIdeal/2?"y":"r"),txt:"meta: "+F.mesesIdeal+" meses"}},
     {chip:"amber",ic:"alert",label:"Dívidas",value:cd+"%",tip:T.divida,badge:{cls:cd<10?"g":(cd<30?"y":"r"),txt:cd<10?"sob controle":"atenção"}},
   ];
   const tilesH=tiles.map(t=>`<div class="tile"><div class="card-top"><div class="chip ${t.chip}">${svgIcon(t.ic)}</div>${help(t.tip)}</div>
     <div class="t-label">${t.label}</div><div class="t-value">${t.value}</div>
-    <div class="t-foot"><span class="badge ${t.badge.cls}">${t.badge.txt}</span></div>${t.spark?sparkSvg(t.spark,t.sc):""}</div>`).join("");
+    <div class="t-foot"><span class="badge ${t.badge.cls}">${t.badge.txt}</span></div>
+    ${t.nota?`<div class="cap" style="margin-top:6px">${t.nota}</div>`:""}${t.spark?sparkSvg(t.spark,t.sc):""}</div>`).join("");
   const fi=focoInfo();
   const goalsH=metas.map(m=>{const p=m.alvo>0?Math.min(100,Math.round(m.atual/m.alvo*100)):0;
     return `<div class="goal"><div class="ring-wrap">${ringSvg(p,m.cor)}<div class="ring-pct" style="color:${m.cor}">${p}%</div></div>
@@ -1456,6 +1480,20 @@ function renderDividas(){
   pagina(principal, lateral);
 }
 
+/* De onde saiu a sobra — e, quando dá, o quanto o cliente errou o próprio chute.
+   Essa divergência é informação de consultoria, não ruído. */
+function notaSobra(){
+  if(F.sobraOrigem==="calculada"){
+    const base=`renda − fixos − variáveis (${fmt(F.variaveis)}/mês)`;
+    if(F.sobraDeclarada!=null && Math.abs(F.sobraDeclarada-F.sobra)>=Math.max(50,F.sobra*0.15))
+      return `${base}. Você achava que sobrava <b>${fmt(F.sobraDeclarada)}</b>.`;
+    return base+".";
+  }
+  if(F.sobraOrigem==="declarada")
+    return `Valor <b>declarado</b>, ainda não conferido. Lance seu gasto variável no cadastro (ou importe o extrato) para virar conta.`;
+  return `Sem gasto variável informado — este número ignora mercado, transporte e lazer.`;
+}
+
 /* ================= PÁGINA: METAS ================= */
 function renderMetas(){
   if(!metas.length){ pagina(`<div class="state"><div class="big">🎯</div>Nenhuma meta cadastrada ainda.<br>Fale com seu consultor para definir seus objetivos.</div>`,""); return; }
@@ -1506,6 +1544,12 @@ function renderMetas(){
         <div class="mini"><div class="m-l">Prazo desejado</div><div class="m-v">${m.dataAlvo?mesAno(m.dataAlvo):"—"}</div></div>
         <div class="mini"><div class="m-l">Guardar por mês</div><div class="m-v">${porMes!=null?fmt(porMes):"—"}</div></div>
         <div class="mini"><div class="m-l">Previsão no ritmo atual</div><div class="m-v" style="color:${pl.mes!==null?m.cor:"var(--muted)"}">${pl.mes!==null?labelMes(pl.mes):"+10 anos"}</div></div>
+        ${isHost?`<div class="mini" style="grid-column:1/-1">
+             <div class="m-l">Já guardado nesta meta ${help("Atualize conforme você for guardando. O número aparece na hora aqui, no anel de progresso e na página Início.")}</div>
+             <form class="cli-edit" style="margin-top:6px" onsubmit="salvarProgressoMeta(event,'${m.id}')">
+               <input id="mtAtual-${m.id}" type="number" step="0.01" min="0" value="${m.atual}" aria-label="Quanto já foi guardado nesta meta">
+               <button class="btn-sec" type="submit" ${offline?"disabled":""}>Atualizar</button>
+             </form></div>`:""}
         ${mesesPrazo>=24 ? `<div class="mini"><div class="m-l">Custo corrigido ${help("Preços sobem com o tempo. Este é o valor que a meta provavelmente custará na data desejada, corrigido por uma inflação de "+pct1(F.inflacao)+" ao ano — é a quantia que realmente compra o que você quer.")}</div>
              <div class="m-v" style="color:${cssv("--amber")}">${fmt(m.alvo*Math.pow(1+F.inflacao,mesesPrazo/12))}</div>
              <div style="font-size:10.5px;color:var(--muted);margin-top:2px">em ${mesAno(m.dataAlvo)}</div></div>`
@@ -1520,6 +1564,21 @@ function renderMetas(){
       +`<div class="cap" style="margin-top:8px">Data prevista no ritmo atual.</div>`)
     + railResumo();
   pagina(principal + rodapePremissas(), lateral);
+}
+
+/* O cliente com papel 'host' atualiza o quanto já guardou. Como Início e Metas
+   leem o mesmo array, o anel de progresso das duas telas muda junto. */
+async function salvarProgressoMeta(ev,id){
+  ev.preventDefault();
+  if(offline||!navigator.onLine){ alert("Sem internet: não é possível atualizar agora."); return; }
+  const v=numOuNulo(document.getElementById("mtAtual-"+id).value);
+  if(v==null||v<0){ alert("Informe um valor válido."); return; }
+  const { error }=await sb.from("objetivos").update({valor_atual:v}).eq("id",id);
+  if(error){ alert("Não consegui atualizar: "+error.message); return; }
+  const o=objsData.find(x=>x.id===id); if(o) o.valor_atual=v;
+  montarEstado(); salvarRetrato();
+  metas.forEach(m=>m.cor=cssv(m.corVar));
+  renderMetas();
 }
 
 /* ================= PÁGINA: PROJEÇÃO ================= */
@@ -1655,6 +1714,15 @@ function marcosHTML(){
       <td>${fmt(liq)}</td><td class="pos">${fmt(liq-a)}</td></tr>`;
   }).join("");
 }
+/* Marca ou desmarca uma aplicação como reserva de emergência.
+   A soma das marcadas é o que o app trata como reserva em todas as telas. */
+async function alternarReserva(id, virar){
+  if(offline||!navigator.onLine){ alert("Sem internet."); return; }
+  const { error }=await sb.from("aplicacoes").update({eh_reserva:virar}).eq("id",id);
+  if(error){ alert("Não consegui alterar: "+error.message); return; }
+  const a=apsData.find(x=>x.id===id); if(a) a.eh_reserva=virar;
+  montarEstado(); salvarRetrato(); renderInvestir();
+}
 function renderInvestir(){
   const p=perfilData||{};
   const pi=perfilInvestidor(), inf=PERFIL_INV[pi.chave]||PERFIL_INV.conservador;
@@ -1704,7 +1772,11 @@ function renderInvestir(){
         <div class="ap-b"><div class="ap-n">${esc(a.descricao||c.l)}${a.eh_reserva?' <span class="badge b" style="font-size:9.5px">reserva</span>':""}</div>
           <div class="ap-s">${esc(a.instituicao||"")}${a.instituicao&&a.rentabilidade_ref?" · ":""}${esc(a.rentabilidade_ref||"")}</div></div>
         <div class="ap-v">${fmt(num(a.valor_atual))}</div>
-        ${isHost?`<button class="ap-del" onclick="removerAplicacao('${a.id}')" title="Remover"${offline?" disabled":""}>×</button>`:""}
+        ${isHost?`<button class="btn-sec" style="height:30px;font-size:11.5px;padding:0 10px;margin-right:6px"
+             onclick="alternarReserva('${a.id}',${a.eh_reserva?"false":"true"})" ${offline?"disabled":""}
+             title="${a.eh_reserva?"Deixa de contar como reserva de emergência":"Passa a contar como reserva de emergência"}"
+           >${a.eh_reserva?"tirar da reserva":"marcar como reserva"}</button>
+          <button class="ap-del" onclick="removerAplicacao('${a.id}')" title="Remover"${offline?" disabled":""}>×</button>`:""}
       </div>`).join("")}</div>`;
   }).join("") : `<div class="empty">Nenhuma aplicação cadastrada ainda.${isHost?" Use o formulário abaixo para adicionar.":" Fale com seu consultor."}</div>`;
 
@@ -2490,7 +2562,8 @@ async function converterResposta(id){
       iniciais:nome.split(" ").map(x=>x[0]).slice(0,2).join("").toUpperCase(),
       email:p.email||r.email, telefone:p.telefone||r.telefone, data_nascimento:p.nascimento||null,
       estado_civil:p.estado_civil||null, dependentes:n(p.dependentes), tipo_renda:p.tipo_renda||null,
-      poupanca_mensal_atual:sobra, reserva_atual:n(sit.guardado), variavel_essencial:n(vr.essencial),
+      poupanca_mensal_atual:sobra, reserva_atual:n(sit.guardado),
+      variavel_total:n(vr.total), variavel_essencial:n(vr.essencial),
       conforto_financas:n((R.perfil||{}).conforto_financas), conforto_investimentos:n((R.perfil||{}).conforto_investimentos),
       ja_investe:(R.perfil||{}).ja_investe||null, maior_dificuldade:(R.perfil||{}).maior_dificuldade||null,
       pct_cdi:PCT_CDI_PADRAO,   /* inflação e CDI vêm das premissas do sistema */
@@ -2732,7 +2805,8 @@ function abaNovo(){
       <div><label>Tipo de renda</label><select id="ncRenda"><option value="">—</option><option>CLT</option><option>Autônomo</option><option>Empresário / PJ</option><option>Aposentado</option><option>Outro</option></select></div>
       <div><label>Renda mensal líquida *</label><input id="ncSalario" type="number" step="0.01" min="0" required placeholder="0,00"></div>
       <div><label>Dia do recebimento</label><input id="ncDia" type="number" min="1" max="31" placeholder="5"></div>
-      <div><label>Sobra por mês (declarada)</label><input id="ncSobra" type="number" step="0.01" placeholder="0,00"></div>
+      <div><label>Gasto variável total (R$/mês)</label><input id="ncVarTot" type="number" step="0.01" min="0" placeholder="0,00"></div>
+      <div><label>Sobra que ele ACHA que sobra</label><input id="ncSobra" type="number" step="0.01" placeholder="0,00"></div>
       <div><label>Já guardado hoje</label><input id="ncReserva" type="number" step="0.01" min="0" placeholder="0,00"></div>
       <div><label>Conforto com finanças (1-5)</label><input id="ncCf" type="number" min="1" max="5" placeholder="3"></div>
       <div><label>Conforto com investimentos (1-5)</label><input id="ncCi" type="number" min="1" max="5" placeholder="2"></div>
@@ -2758,7 +2832,7 @@ async function criarCliente(ev){
       iniciais:nome.split(" ").map(x=>x[0]).slice(0,2).join("").toUpperCase(),
       email:v("ncEmail"), telefone:v("ncTel"), data_nascimento:v("ncNasc"), estado_civil:v("ncEC"),
       dependentes:n("ncDep"), tipo_renda:v("ncRenda"),
-      poupanca_mensal_atual:n("ncSobra"), reserva_atual:n("ncReserva"),
+      poupanca_mensal_atual:n("ncSobra"), reserva_atual:n("ncReserva"), variavel_total:n("ncVarTot"),
       conforto_financas:n("ncCf"), conforto_investimentos:n("ncCi"), maior_dificuldade:v("ncDif"),
       pct_cdi:PCT_CDI_PADRAO,   /* inflação e CDI vêm das premissas do sistema */
     }).select().single();
@@ -2785,9 +2859,10 @@ function abaDados(){
       <div><label>Estado civil</label><select id="edEC">${["","Solteiro(a)","Casado(a) / união estável","Divorciado(a)","Viúvo(a)"].map(o=>`<option ${o===(p.estado_civil||"")?"selected":""}>${o||"—"}</option>`).join("")}</select></div>
       ${campo("edDep","Dependentes",p.dependentes,"number","min=0")}
       <div><label>Tipo de renda</label><select id="edRenda">${["","CLT","Autônomo","Empresário / PJ","Aposentado","Outro"].map(o=>`<option ${o===(p.tipo_renda||"")?"selected":""}>${o||"—"}</option>`).join("")}</select></div>
-      ${campo("edSobra","Sobra declarada (R$/mês)",p.poupanca_mensal_atual,"number","step=0.01")}
+      ${campo("edVarTot","Gasto variável TOTAL (R$/mês)",p.variavel_total,"number","step=0.01")}
       ${campo("edReserva","Já guardado (R$)",p.reserva_atual,"number","step=0.01")}
-      ${campo("edVarEss","Gasto variável essencial (R$/mês)",p.variavel_essencial,"number","step=0.01")}
+      ${campo("edVarEss","Desse total, quanto é essencial (R$/mês)",p.variavel_essencial,"number","step=0.01")}
+      ${campo("edSobra","Sobra que o cliente ACHA que sobra",p.poupanca_mensal_atual,"number","step=0.01")}
       ${campo("edCf","Conforto finanças (1-5)",p.conforto_financas,"number","min=1 max=5")}
       ${campo("edCi","Conforto investimentos (1-5)",p.conforto_investimentos,"number","min=1 max=5")}
       <div><label>Perfil de investidor</label><select id="edPi">${["","conservador","moderado","arrojado"].map(o=>`<option value="${o}" ${o===(p.perfil_investidor||"")?"selected":""}>${o||"— sugerir automaticamente"}</option>`).join("")}</select></div>
@@ -2813,7 +2888,7 @@ async function salvarPerfil(ev){
   const upd={ nome_completo:v("edNome"), email:v("edEmail"), telefone:v("edTel"), data_nascimento:v("edNasc"),
     estado_civil:v("edEC")==="—"?null:v("edEC"), dependentes:n("edDep"),
     tipo_renda:v("edRenda")==="—"?null:v("edRenda"), poupanca_mensal_atual:n("edSobra"), reserva_atual:n("edReserva"),
-    variavel_essencial:n("edVarEss"), conforto_financas:n("edCf"), conforto_investimentos:n("edCi"),
+    variavel_total:n("edVarTot"), variavel_essencial:n("edVarEss"), conforto_financas:n("edCf"), conforto_investimentos:n("edCi"),
     perfil_investidor:v("edPi"), maior_dificuldade:v("edDif")==="—"?null:v("edDif") };
   if(upd.nome_completo){ upd.nome=upd.nome_completo.split(" ")[0];
     upd.iniciais=upd.nome_completo.split(" ").map(x=>x[0]).slice(0,2).join("").toUpperCase(); }
