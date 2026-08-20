@@ -770,8 +770,9 @@ async function loadData(attempt=1){
     montarSeletorClientes();
     if(isConsultor && !clienteAtivo){
       offline=false; perfilData=null;
+      carregarRespostas();
       body.innerHTML=`<div class="state"><div class="big">👥</div>Nenhum cliente cadastrado ainda.<br>
-        <button class="btn-p" style="margin-top:14px" onclick="setPage('clientes')">Cadastrar o primeiro cliente</button></div>`;
+        <button class="btn-p" style="margin-top:14px" onclick="setPage('clientes')">Ir para a área de clientes</button></div>`;
       renderNav(); return;
     }
 
@@ -803,7 +804,8 @@ async function loadData(attempt=1){
     contasData = ctr.error ? [] : (ctr.data||[]);
     offline=false; dadosDe=null;
     montarEstado(); salvarRetrato(); barraOffline(); setPage(currentPage);
-    carregarModelos();   /* moldes de extrato, em segundo plano */
+    carregarModelos();     /* moldes de extrato, em segundo plano */
+    carregarRespostas();   /* caixa de entrada do formulário */
   }catch(e){
     const msg=(e&&e.message)?e.message:String(e);
     if(/future|iat|issued|JWT/i.test(msg)&&attempt<4){
@@ -2062,7 +2064,7 @@ async function gravarImportacao(){
 }
 
 /* ================= PÁGINA: CLIENTES (consultor) ================= */
-let abaCliente="lista";
+let abaCliente="respostas", respostasData=[], respostaAberta=null;
 const CATS_PADRAO=[
   ["Moradia","Despesa","Fixa"],["Alimentação","Despesa","Variavel"],["Transporte","Despesa","Variavel"],
   ["Saúde","Despesa","Ambas"],["Educação","Despesa","Ambas"],["Lazer","Despesa","Variavel"],
@@ -2073,10 +2075,13 @@ const CATS_PADRAO=[
 function setAbaCliente(a){ abaCliente=a; renderClientes(); }
 function renderClientes(){
   if(!isConsultor){ pagina(`<div class="state">Área exclusiva do consultor.</div>`,""); return; }
-  const tabs=[["lista","Meus clientes"],["novo","Novo cliente"],["dados","Dados do cliente"],["financas","Renda e gastos"],["metas","Metas e dívidas"]];
+  const nNovas=respostasData.filter(r=>r.status==="nova").length;
+  const tabs=[["respostas","Respostas do formulário"+(nNovas?" ("+nNovas+")":"")],["lista","Meus clientes"],
+              ["novo","Novo cliente"],["dados","Dados do cliente"],["financas","Renda e gastos"],["metas","Metas e dívidas"]];
   const tabsH=`<div class="sub-tabs">${tabs.map(t=>`<button class="sub-tab ${abaCliente===t[0]?"active":""}" onclick="setAbaCliente('${t[0]}')">${t[1]}</button>`).join("")}</div>`;
   let corpo="";
-  if(abaCliente==="lista")     corpo=abaLista();
+  if(abaCliente==="respostas") corpo=abaRespostas();
+  else if(abaCliente==="lista")     corpo=abaLista();
   else if(abaCliente==="novo") corpo=abaNovo();
   else if(!perfilData)         corpo=`<div class="empty">Selecione um cliente com cadastro completo no seletor do topo.</div>`;
   else if(abaCliente==="dados")    corpo=abaDados();
@@ -2088,6 +2093,204 @@ function renderClientes(){
        <div class="rrow"><span class="rr-n">Cliente em foco</span><span class="rr-v">${esc((clientesLista.find(c=>c.id===clienteAtivo)||{}).nome||"—")}</span></div>
        <div class="cap" style="margin-top:8px">O que você edita aqui aparece imediatamente para o cliente quando ele entra.</div>`));
 }
+/* ---------- conferência de consistência das respostas ----------
+   O cliente declara a sobra E os gastos variáveis. Os dois podem se
+   contradizer. Em vez de escolher um em silêncio, o sistema aponta. */
+function conferirResposta(R){
+  const n=v=>{ const x=Number(v); return isFinite(x)?x:null; };
+  const avisos=[];
+  const rd=R.renda||{}, sit=R.situacao||{}, vr=R.variaveis||{};
+  const renda=(n(rd.salario)||0)+((rd.outras||[]).reduce((s,o)=>s+(n(o.valor)||0),0));
+  const fixos=(R.fixos||[]).reduce((s,f)=>s+(n(f.valor)||0),0);
+  const varTotal=n(vr.total);
+  const sobraDecl=n(sit.sobra);
+  if(!renda) avisos.push({t:"erro",m:"Nenhuma renda informada — o diagnóstico não funciona sem isso."});
+  if(renda&&fixos>=renda) avisos.push({t:"aviso",m:`Os gastos fixos (${fmt(fixos)}) já consomem toda a renda (${fmt(renda)}). Confirme os valores.`});
+  if(renda&&varTotal!=null&&sobraDecl!=null){
+    const deduzida=renda-fixos-varTotal;
+    const dif=Math.abs(deduzida-sobraDecl);
+    if(dif>Math.max(100, renda*0.05))
+      avisos.push({t:"aviso",m:`A sobra declarada (${fmt(sobraDecl)}) não bate com a conta renda − fixos − variáveis (${fmt(deduzida)}), diferença de ${fmt(dif)}. Vale confirmar com o cliente qual dos dois está certo — o sistema vai usar a <b>sobra declarada</b>.`});
+  }
+  const semTaxa=(R.dividas||[]).filter(d=>n(d.saldo)&&n(d.taxa)==null);
+  if(semTaxa.length) avisos.push({t:"aviso",m:`${semTaxa.length} dívida(s) sem a taxa de juros. Sem ela não dá para dizer se compensa quitar ou investir — peça a fatura.`});
+  const guardado=n(sit.guardado), invest=(R.investimentos||[]).reduce((s,i)=>s+(n(i.valor)||0),0);
+  if(guardado!=null&&invest>0&&Math.abs(guardado-invest)>Math.max(200,guardado*0.1))
+    avisos.push({t:"aviso",m:`O total guardado declarado (${fmt(guardado)}) difere da soma das aplicações listadas (${fmt(invest)}).`});
+  if(!(R.investimentos||[]).some(i=>i.reserva)&&invest>0)
+    avisos.push({t:"info",m:"Nenhuma aplicação foi marcada como reserva de emergência — confirme com o cliente qual delas é."});
+  if(!(R.metas||[]).length) avisos.push({t:"info",m:"Nenhum objetivo informado. Vale definir ao menos um na conversa."});
+  return avisos;
+}
+
+/* ---------- caixa de entrada do formulário ---------- */
+async function carregarRespostas(){
+  if(!isConsultor||offline||!navigator.onLine) return;
+  const { data }=await sb.from("respostas_onboarding").select("*").order("criado_em",{ascending:false}).limit(60);
+  respostasData=data||[];
+  if(currentPage==="clientes") renderClientes();
+}
+const linkFormulario = () => location.href.replace(/[^/]*$/,"") + "formulario.html";
+function abaRespostas(){
+  const link=linkFormulario();
+  const cabecalho=`<div class="card" style="margin-bottom:14px">
+    <div class="card-h"><div><div class="ct">Link do seu formulário</div>
+      <div class="cs">envie este endereço ao cliente depois da conversa inicial</div></div></div>
+    <div class="adm-form">
+      <div style="flex:3"><input id="linkForm" value="${esc(link)}" readonly style="background:var(--ro-bg)"></div>
+      <button class="btn-p" type="button" onclick="copiarLink()">Copiar link</button>
+      <button class="btn-sec" type="button" onclick="window.open('${esc(link)}','_blank')">Abrir</button>
+    </div><div id="linkMsg" class="msg"></div>
+    <div class="note">As respostas caem aqui automaticamente. Ninguém de fora consegue ler o que foi enviado — só você.</div></div>`;
+
+  if(!respostasData.length) return cabecalho+`<div class="empty">Nenhuma resposta recebida ainda.</div>`;
+
+  const cartao=r=>{
+    const R=r.respostas||{}, p=R.pessoa||{}, s=R.situacao||{}, rd=R.renda||{};
+    const aberta=respostaAberta===r.id;
+    const badge=r.status==="nova"?`<span class="badge b">nova</span>`
+              :r.status==="convertida"?`<span class="badge g">virou cliente</span>`
+              :`<span class="badge n">descartada</span>`;
+    const quando=new Date(r.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+    let detalhe="";
+    if(aberta){
+      const lst=(t,arr,fn)=>arr&&arr.length?`<div style="margin-top:11px"><div style="font-size:11.5px;font-weight:730;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">${t}</div>${arr.map(fn).join("")}</div>`:"";
+      const li=(a,b)=>`<div class="rrow" style="padding:6px 0"><span class="rr-n">${esc(a)}</span><span class="rr-v">${esc(b)}</span></div>`;
+      detalhe=`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <div class="grid2">
+          <div class="mini"><div class="m-l">Renda</div><div class="m-v">${rd.salario?fmt(rd.salario):"—"}</div></div>
+          <div class="mini"><div class="m-l">Gastos do dia a dia</div><div class="m-v">${(R.variaveis||{}).total?fmt(R.variaveis.total):"—"}</div></div>
+          <div class="mini"><div class="m-l">Sobra declarada</div><div class="m-v">${s.sobra!=null?fmt(s.sobra):"—"}</div></div>
+          <div class="mini"><div class="m-l">Guardado</div><div class="m-v">${s.guardado!=null?fmt(s.guardado):"—"}</div></div>
+        </div>
+        ${lst("Dados",[["Nascimento",p.nascimento?dataBR(p.nascimento):"—"],["Estado civil",p.estado_civil||"—"],
+             ["Dependentes",p.dependentes!=null?String(p.dependentes):"—"],["Tipo de renda",p.tipo_renda||"—"]],x=>li(x[0],x[1]))}
+        ${lst("Gastos fixos",R.fixos,f=>li((f.desc||"—")+(f.essencial?" · essencial":""),f.valor?fmt(f.valor):"—"))}
+        ${lst("Dívidas",R.dividas,d=>li((d.credor||d.tipo||"dívida")+(d.taxa?" · "+d.taxa+"% a.m.":" · sem taxa"),d.saldo?fmt(d.saldo):"—"))}
+        ${lst("Investimentos",R.investimentos,i=>li((i.classe||"—")+(i.reserva?" · reserva":""),i.valor?fmt(i.valor):"—"))}
+        ${lst("Objetivos",R.metas,m=>li((m.desc||m.tipo||"—")+(m.prazo?" · até "+m.prazo:""),m.valor?fmt(m.valor):"—"))}
+        ${R.observacao?`<div class="note"><b>Observação:</b> ${esc(R.observacao)}</div>`:""}
+        ${(()=>{ const av=conferirResposta(R); if(!av.length) return `<div class="aviso g" style="margin-top:12px;background:var(--green-bg);border:1px solid color-mix(in srgb,var(--green) 28%,transparent);border-radius:12px;padding:11px 13px;font-size:12.5px;display:flex;gap:10px"><span style="color:${cssv("--green")}">${svgIcon("check")}</span><div>Respostas consistentes — nada a confirmar.</div></div>`;
+          return `<div style="margin-top:12px">${av.map(a=>{
+            const cor = a.t==="erro"?cssv("--rose") : a.t==="aviso"?cssv("--amber") : cssv("--brand");
+            const bg  = a.t==="erro"?"--rose-bg" : a.t==="aviso"?"--amber-bg" : "--card2";
+            return `<div style="background:var(${bg});border:1px solid color-mix(in srgb,${cor} 26%,transparent);border-radius:11px;padding:10px 12px;font-size:12.5px;line-height:1.5;margin-bottom:7px;display:flex;gap:9px">
+              <span style="color:${cor};flex-shrink:0;width:16px;height:16px;display:inline-flex">${svgIcon(a.t==="info"?"book":"alert")}</span><div>${a.m}</div></div>`;
+          }).join("")}</div>`; })()}
+        ${r.status==="nova"?`<div style="display:flex;gap:9px;margin-top:16px;flex-wrap:wrap">
+          <button class="btn-p" onclick="converterResposta('${r.id}')" ${offline?"disabled":""}>${svgIcon("plus")} Converter em cliente</button>
+          <button class="btn-sec btn-del" onclick="descartarResposta('${r.id}')" ${offline?"disabled":""}>Descartar</button>
+        </div><div id="convMsg-${r.id}" class="msg"></div>`:""}
+      </div>`;
+    }
+    return `<div class="cli-card" style="flex-direction:column;align-items:stretch;gap:0">
+      <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="abrirResposta('${r.id}')">
+        <div class="cli-av">${esc((r.nome||"?")[0].toUpperCase())}</div>
+        <div class="cli-b"><div class="cli-n">${esc(r.nome||"(sem nome)")} ${badge}</div>
+          <div class="cli-s">${esc(r.email||"")} · ${quando}</div></div>
+        <span style="color:var(--muted);font-size:18px">${aberta?"▴":"▾"}</span>
+      </div>${detalhe}</div>`;
+  };
+  return cabecalho + respostasData.map(cartao).join("");
+}
+function abrirResposta(id){ respostaAberta = respostaAberta===id?null:id; renderClientes(); }
+function copiarLink(){
+  const el=document.getElementById("linkForm"); el.select();
+  const m=document.getElementById("linkMsg");
+  navigator.clipboard.writeText(el.value).then(()=>{ m.className="msg ok"; m.textContent="Link copiado ✓"; })
+    .catch(()=>{ m.className="msg"; m.textContent="Selecione o texto acima e copie com Ctrl+C."; });
+}
+async function descartarResposta(id){
+  if(offline||!navigator.onLine){ alert("Sem internet."); return; }
+  const { error }=await sb.from("respostas_onboarding").update({status:"descartada"}).eq("id",id);
+  if(error){ alert("Erro: "+error.message); return; }
+  await carregarRespostas();
+}
+/* converte uma resposta do formulário num cliente completo */
+async function converterResposta(id){
+  const msg=document.getElementById("convMsg-"+id);
+  const dizer=(t,cls)=>{ if(msg){ msg.className="msg "+(cls||""); msg.textContent=t; } };
+  if(offline||!navigator.onLine){ dizer("Sem internet: não é possível converter agora.","err"); return; }
+  const r=respostasData.find(x=>x.id===id); if(!r) return;
+  const R=r.respostas||{}, p=R.pessoa||{}, rd=R.renda||{}, sit=R.situacao||{}, vr=R.variaveis||{};
+  const n=v=>{ const x=Number(v); return isFinite(x)?x:null; };
+  dizer("Criando cliente...");
+  try{
+    const nome=(p.nome||r.nome||"Cliente").trim();
+    const { data:cli, error:e1 }=await sb.from("clientes").insert({nome}).select().single();
+    if(e1) throw e1;
+
+    /* sobra: usa a declarada; se faltar, deduz de renda − fixos − variáveis */
+    const totalFixos=(R.fixos||[]).reduce((s,f)=>s+(n(f.valor)||0),0);
+    const totalRenda=(n(rd.salario)||0)+(rd.outras||[]).reduce((s,o)=>s+(n(o.valor)||0),0);
+    const sobra = sit.sobra!=null ? n(sit.sobra) : Math.round((totalRenda-totalFixos-(n(vr.total)||0))*100)/100;
+
+    const { data:per, error:e2 }=await sb.from("perfis").insert({
+      cliente_id:cli.id, nome:nome.split(" ")[0], nome_completo:nome,
+      iniciais:nome.split(" ").map(x=>x[0]).slice(0,2).join("").toUpperCase(),
+      email:p.email||r.email, telefone:p.telefone||r.telefone, data_nascimento:p.nascimento||null,
+      estado_civil:p.estado_civil||null, dependentes:n(p.dependentes), tipo_renda:p.tipo_renda||null,
+      poupanca_mensal_atual:sobra, reserva_atual:n(sit.guardado), variavel_essencial:n(vr.essencial),
+      conforto_financas:n((R.perfil||{}).conforto_financas), conforto_investimentos:n((R.perfil||{}).conforto_investimentos),
+      ja_investe:(R.perfil||{}).ja_investe||null, maior_dificuldade:(R.perfil||{}).maior_dificuldade||null,
+      cdi_anual:CDI_PADRAO, pct_cdi:PCT_CDI_PADRAO, inflacao_anual:INFLACAO_PADRAO,
+    }).select().single();
+    if(e2) throw e2;
+
+    /* categorias padrão */
+    const { data:cats }=await sb.from("categorias")
+      .insert(CATS_PADRAO.map(c=>({cliente_id:cli.id,nome:c[0],tipo:c[1],natureza:c[2]}))).select();
+    const catId=nm=>((cats||[]).find(k=>k.nome===nm)||{}).id||null;
+    /* liga cada gasto do formulário a uma categoria pelo texto */
+    const adivinhar=t=>{ const s=normalizarDesc(t);
+      if(/MORADIA|ALUGUEL|CASA|CONDOMIN|LUZ|AGUA|GAS|INTERNET/.test(s)) return catId("Moradia");
+      if(/SAUDE|PLANO|REMEDIO|FARMAC/.test(s)) return catId("Saúde");
+      if(/TRANSPORTE|CARRO|COMBUST|UBER|ONIBUS/.test(s)) return catId("Transporte");
+      if(/EDUCA|ESCOLA|FACULD|CURSO/.test(s)) return catId("Educação");
+      if(/ASSINAT|STREAMING|ACADEMIA|APP/.test(s)) return catId("Assinaturas");
+      if(/ALIMENT|MERCADO|SUPERMERC/.test(s)) return catId("Alimentação");
+      return catId("Outros gastos"); };
+
+    /* entradas */
+    const comps=[];
+    if(n(rd.salario)) comps.push({cliente_id:cli.id,perfil_id:per.id,tipo:"receita",descricao:"Salário",
+      valor:n(rd.salario),dia_vencimento:n(rd.dia),categoria_id:catId("Salário"),essencial:true});
+    (rd.outras||[]).forEach(o=>{ if(n(o.valor)) comps.push({cliente_id:cli.id,perfil_id:per.id,tipo:"receita",
+      descricao:o.desc||"Outra renda",valor:n(o.valor),categoria_id:catId("Renda extra"),essencial:true}); });
+    /* gastos fixos */
+    (R.fixos||[]).forEach(f=>{ if(n(f.valor)) comps.push({cliente_id:cli.id,perfil_id:per.id,tipo:"despesa",
+      descricao:f.desc||"Gasto fixo",valor:n(f.valor),dia_vencimento:n(f.dia),
+      categoria_id:adivinhar(f.desc||""),essencial:f.essencial!==false}); });
+    if(comps.length) await sb.from("compromissos_recorrentes").insert(comps);
+
+    /* dívidas */
+    const divs=(R.dividas||[]).filter(d=>n(d.saldo)).map(d=>({cliente_id:cli.id,perfil_id:per.id,
+      tipo:d.tipo||"outro", descricao:d.credor?("Dívida — "+d.credor):null, credor:d.credor||null,
+      saldo_devedor:n(d.saldo), taxa_juros_mensal:n(d.taxa)!=null?n(d.taxa)/100:null,
+      parcela:n(d.parcela), parcelas_restantes:n(d.restantes), status:"ativa"}));
+    if(divs.length) await sb.from("dividas").insert(divs);
+
+    /* investimentos */
+    const invs=(R.investimentos||[]).filter(i=>n(i.valor)).map(i=>({cliente_id:cli.id,perfil_id:per.id,
+      classe:i.classe||"outro", descricao:i.instituicao||null, instituicao:i.instituicao||null,
+      valor_atual:n(i.valor), eh_reserva:!!i.reserva, atualizado_em:new Date().toISOString().slice(0,10)}));
+    if(invs.length) await sb.from("aplicacoes").insert(invs);
+
+    /* metas */
+    const mets=(R.metas||[]).filter(m=>n(m.valor)).map((m,i)=>({cliente_id:cli.id,perfil_id:per.id,
+      tipo:m.tipo||"outro", descricao:m.desc||null, valor_alvo:n(m.valor), valor_atual:0,
+      data_alvo:m.prazo?(m.prazo+"-01"):null, prioridade:i+1, status:"ativo"}));
+    if(mets.length) await sb.from("objetivos").insert(mets);
+
+    await sb.from("respostas_onboarding").update({status:"convertida",cliente_id:cli.id}).eq("id",id);
+    dizer("Cliente criado! Abrindo o cadastro dele...","ok");
+    clienteAtivo=cli.id; try{ localStorage.setItem("clienteAtivo",cli.id); }catch(e){}
+    respostaAberta=null; abaCliente="financas";
+    await carregarRespostas();
+    setTimeout(loadData,700);
+  }catch(e){ dizer("Não consegui converter: "+(e.message||e),"err"); }
+}
+
 function abaLista(){
   if(!clientesLista.length) return `<div class="empty">Nenhum cliente ainda. Use a aba <b>Novo cliente</b>.</div>`;
   return clientesLista.map(c=>`<div class="cli-card ${c.id===clienteAtivo?"sel":""}">

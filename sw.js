@@ -2,10 +2,11 @@
    Guarda os arquivos do site em cache; os DADOS ficam em localStorage (ver app).
    Chamadas ao Supabase nunca são cacheadas aqui: quando não há rede, o app usa
    o último retrato salvo e entra em modo somente-consulta. */
-const CACHE = "consultoria-v9";
+const CACHE = "consultoria-v10";
 const ARQUIVOS = [
   "./",
   "./index.html",
+  "./formulario.html",
   "./vendor/supabase.js",
   "./vendor/pdf.min.js",
   "./vendor/pdf.worker.min.js",
@@ -42,7 +43,8 @@ self.addEventListener("fetch", ev => {
   if (req.mode === "navigate") {
     ev.respondWith(
       fetch(req)
-        .then(r => { const c = r.clone(); caches.open(CACHE).then(k => k.put("./index.html", c)); return r; })
+        .then(r => { const c = r.clone(); caches.open(CACHE).then(k => k.put("./index.html",
+  "./formulario.html", c)); return r; })
         .catch(() => caches.match("./index.html").then(r => r || caches.match("./")))
     );
     return;
