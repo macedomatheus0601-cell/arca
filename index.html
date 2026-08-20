@@ -13,32 +13,35 @@
 <script>if(!window.supabase){document.write('<scr'+'ipt src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/scr'+'ipt>');}</script>
 <script src="vendor/pdf.min.js"></script>
 <style>
+  /* Paleta calibrada para contraste legível nos dois temas.
+     Cores de dado (verde/âmbar/teal/rosa) foram escurecidas no claro e
+     clareadas no escuro para ficarem legíveis como texto pequeno. */
   :root {
-    --bg:#eef0f4; --bg2:#e7eaf0; --card:#ffffff; --card2:#f5f6f9;
-    --ro-bg:#e6e9f1;                      /* campo calculado (não editável) */
-    --border:#e6e8ee; --border-strong:#d7dae2;
-    --text:#141821; --text2:#565d6b; --muted:#9198a5;
+    --bg:#eef0f4; --bg2:#e7eaf0; --card:#ffffff; --card2:#f5f7fa;
+    --ro-bg:#ebeef4;                      /* campo calculado (não editável) */
+    --border:#e4e7ee; --border-strong:#d3d7e0;
+    --text:#141821; --text2:#4f5764; --muted:#6b7280;
     --brand:#2560c8; --brand2:#1c4fa6;
-    --green:#0f9d6b; --green-bg:#e4f6ee;
-    --amber:#d1810a; --amber-bg:#fbeed6;
-    --teal:#0a97b0; --teal-bg:#dff3f6;
-    --rose:#dc4b52; --rose-bg:#fce7e8;
-    --slate:#6b7385; --slate-bg:#eceef3;
+    --green:#07734c; --green-bg:#e9f7f0;
+    --amber:#8a5508; --amber-bg:#fcf2e0;
+    --teal:#0a6b7e; --teal-bg:#e5f4f8;
+    --rose:#b92f36; --rose-bg:#fce9ea;
+    --slate:#5a6274; --slate-bg:#edeff4;
     --grad-hero:linear-gradient(140deg,#2f6bd6 0%,#163f8f 100%);
-    --grad-foco:linear-gradient(135deg,#109c7e 0%,#0b8ea4 100%);
+    --grad-foco:linear-gradient(135deg,#0f9276 0%,#0a8299 100%);
     --shadow:0 4px 18px rgba(30,40,70,.08); --shadow-lg:0 12px 34px rgba(30,40,70,.14);
   }
   :root[data-theme="dark"] {
-    --bg:#0c0e13; --bg2:#101319; --card:#171a21; --card2:#1f232c;
-    --ro-bg:#252a34;
-    --border:#262b35; --border-strong:#333a46;
-    --text:#f0f1f4; --text2:#aab2c0; --muted:#727a89;
-    --brand:#5b8bf5; --brand2:#3a6ad8;
-    --green:#35c98e; --green-bg:#10281f;
-    --amber:#e0a13c; --amber-bg:#2c2210;
-    --teal:#3bb9cf; --teal-bg:#0e2429;
-    --rose:#ec6d73; --rose-bg:#2c1517;
-    --slate:#8d94a5; --slate-bg:#1e222b;
+    --bg:#0c0e13; --bg2:#101319; --card:#171a21; --card2:#1f242e;
+    --ro-bg:#282e3a;
+    --border:#272c37; --border-strong:#3a4150;
+    --text:#f0f1f4; --text2:#b4bcc9; --muted:#8891a1;
+    --brand:#6b98f7; --brand2:#4a79e0;
+    --green:#3ed19a; --green-bg:#0f2b21;
+    --amber:#e8ae4d; --amber-bg:#2e2411;
+    --teal:#48c3d8; --teal-bg:#0d262c;
+    --rose:#f0787e; --rose-bg:#2e161a;
+    --slate:#9aa2b2; --slate-bg:#1f242e;
     --grad-hero:linear-gradient(140deg,#2a5cc0 0%,#143a80 100%);
     --grad-foco:linear-gradient(135deg,#0e8a6e 0%,#0a7f95 100%);
     --shadow:0 4px 18px rgba(0,0,0,.4); --shadow-lg:0 14px 36px rgba(0,0,0,.5);
@@ -233,7 +236,9 @@
   /* seletor de período */
   .segs { display:inline-flex; background:var(--card2); border-radius:11px; padding:3px; gap:2px; }
   .seg { padding:5px 12px; border-radius:9px; font-size:12px; font-weight:650; color:var(--text2); }
-  .seg.active { background:var(--card); color:var(--brand); box-shadow:var(--shadow); }
+  /* tinta da marca em vez de "card": no tema escuro o card é mais ESCURO que a trilha,
+     o que fazia o botão ativo parecer afundado em vez de destacado */
+  .seg.active { background:color-mix(in srgb,var(--brand) 17%,transparent); color:var(--brand); font-weight:730; }
 
   /* gráfico com leitura no hover */
   .chart-host { position:relative; }
@@ -313,14 +318,18 @@
   .id-sub { font-size:13px; opacity:.88; margin-top:3px; line-height:1.45; }
   .id-tags { display:flex; gap:7px; margin-top:11px; flex-wrap:wrap; }
   .id-tag { background:rgba(255,255,255,.18); border-radius:20px; padding:4px 12px; font-size:11.5px; font-weight:650; }
-  .ap-row { display:flex; align-items:center; gap:11px; padding:11px 0; border-top:1px solid var(--border); }
+  /* o valor fica alinhado com a LINHA DO NOME, não centralizado entre as duas linhas */
+  .ap-row { display:flex; align-items:flex-start; gap:11px; padding:11px 0; border-top:1px solid var(--border); }
   .ap-row:first-child { border-top:none; }
   .ap-ic { width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .ap-ic svg { width:17px; height:17px; }
-  .ap-b { flex:1; min-width:0; }
-  .ap-n { font-size:13.5px; font-weight:680; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .ap-s { font-size:11.5px; color:var(--muted); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .ap-v { font-size:14px; font-weight:730; font-variant-numeric:tabular-nums; text-align:right; flex-shrink:0; }
+  .ap-b { flex:1; min-width:0; padding-top:1px; }
+  .ap-n { font-size:13.5px; font-weight:650; line-height:1.35; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ap-s { font-size:11.5px; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ap-v { font-size:13.5px; font-weight:560; line-height:1.35; padding-top:1px; font-variant-numeric:tabular-nums; text-align:right; flex-shrink:0; }
+  .ap-grp { display:flex; align-items:center; gap:9px; margin-bottom:6px; }
+  .ap-grp b { font-size:13.5px; font-weight:730; }
+  .ap-grp .tot { margin-left:auto; font-size:14px; font-weight:780; font-variant-numeric:tabular-nums; }
   .ap-del { width:28px; height:28px; border-radius:8px; color:var(--muted); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:16px; }
   .ap-del:hover { background:var(--rose-bg); color:var(--rose); }
   .ap-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:9px; margin-top:14px; padding-top:14px; border-top:1px solid var(--border); align-items:end; }
@@ -784,6 +793,7 @@ async function loadData(attempt=1){
     contasData = ctr.error ? [] : (ctr.data||[]);
     offline=false; dadosDe=null;
     montarEstado(); salvarRetrato(); barraOffline(); setPage(currentPage);
+    carregarModelos();   /* moldes de extrato, em segundo plano */
   }catch(e){
     const msg=(e&&e.message)?e.message:String(e);
     if(/future|iat|issued|JWT/i.test(msg)&&attempt<4){
@@ -1055,9 +1065,12 @@ function donutSvg(items){
 function timelineSvg(plano){
   const ating=plano.filter(p=>p.mes!==null).map(p=>p.mes);
   const maxM=Math.max(6,...(ating.length?ating:[12]));
-  const W=720,padL=12,padR=12,rowH=48,padT=36;
+  /* calha à direita: a barra nunca chega à borda, então o rótulo do mês
+     sempre cabe DEPOIS dela — inclusive na meta mais longa */
+  const W=720,padL=12,padR=12,rowH=48,padT=36,labW=62;
   const H=padT+plano.length*rowH+8;
-  const x=m=>padL+(m/maxM)*(W-padL-padR);
+  const xMax=W-padR-labW;
+  const x=m=>padL+(m/maxM)*(xMax-padL);
   const tick=cssv("--muted"),grid=cssv("--border"),text=cssv("--text"),card=cssv("--card"),cardm=cssv("--card2");
   const step = maxM<=6?1 : maxM<=12?2 : maxM<=24?4 : maxM<=48?6 : 12;
   let axis="";
@@ -1066,17 +1079,16 @@ function timelineSvg(plano){
     axis+=`<text x="${px.toFixed(1)}" y="14" fill="${tick}" font-size="10.5" text-anchor="${txtAnchor(px,W,30)}" font-family="Segoe UI,sans-serif">${labelMes(m)}</text>`; }
   let rows="";
   plano.forEach((p,i)=>{
-    const yy=padT+i*rowH+14, end=p.mes!==null?x(p.mes):W-padR;
+    const yy=padT+i*rowH+14, end=p.mes!==null?x(p.mes):xMax;
     rows+=`<text x="${padL+1}" y="${yy-5}" fill="${text}" font-size="11.5" font-weight="600" font-family="Segoe UI,sans-serif">${esc(p.nome)}</text>`;
-    rows+=`<rect x="${padL}" y="${yy}" width="${(W-padR-padL).toFixed(1)}" height="13" rx="6.5" fill="${cardm}"/>`;
+    rows+=`<rect x="${padL}" y="${yy}" width="${(xMax-padL).toFixed(1)}" height="13" rx="6.5" fill="${cardm}"/>`;
     if(p.mes!==null){
       rows+=`<rect x="${padL}" y="${yy}" width="${Math.max(8,end-padL).toFixed(1)}" height="13" rx="6.5" fill="${p.cor}"/>`;
       rows+=`<circle cx="${end.toFixed(1)}" cy="${yy+6.5}" r="6.5" fill="${p.cor}" stroke="${card}" stroke-width="2.5"/>`;
-      const dir = end>W*0.72 ? -1 : 1;
-      rows+=`<text x="${(end+dir*13).toFixed(1)}" y="${yy+11}" fill="${tick}" font-size="10.5" text-anchor="${dir<0?"end":"start"}" font-family="Segoe UI,sans-serif">${labelMes(p.mes)}</text>`;
+      rows+=`<text x="${(end+12).toFixed(1)}" y="${yy+11}" fill="${tick}" font-size="10.5" text-anchor="start" font-family="Segoe UI,sans-serif">${labelMes(p.mes)}</text>`;
     }else{
-      rows+=`<rect x="${padL}" y="${yy}" width="${(W-padR-padL).toFixed(1)}" height="13" rx="6.5" fill="${p.cor}" opacity=".22"/>`;
-      rows+=`<text x="${(W-padR-4).toFixed(1)}" y="${yy+11}" fill="${tick}" font-size="10.5" text-anchor="end" font-family="Segoe UI,sans-serif">além de 10 anos</text>`;
+      rows+=`<rect x="${padL}" y="${yy}" width="${(xMax-padL).toFixed(1)}" height="13" rx="6.5" fill="${p.cor}" opacity=".22"/>`;
+      rows+=`<text x="${(xMax+12).toFixed(1)}" y="${yy+11}" fill="${tick}" font-size="10.5" text-anchor="start" font-family="Segoe UI,sans-serif">+10 anos</text>`;
     }
   });
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Linha do tempo das metas">${axis}${rows}</svg>`;
@@ -1586,9 +1598,8 @@ function renderInvestir(){
     const c=CLASSES[k]||CLASSES.outro, cor=cssv(c.cor);
     const sub=arr.reduce((s,a)=>s+num(a.valor_atual),0);
     return `<div style="margin-bottom:16px">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">
-        <span class="sw" style="background:${cor}"></span><b style="font-size:13.5px">${c.l}</b>
-        <span style="margin-left:auto;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums">${fmt(sub)}</span></div>
+      <div class="ap-grp"><span class="sw" style="background:${cor}"></span><b>${c.l}</b>
+        <span class="tot" style="color:${cor}">${fmt(sub)}</span></div>
       ${arr.map(a=>`<div class="ap-row">
         <div class="ap-ic" style="background:color-mix(in srgb, ${cor} 15%, transparent);color:${cor}">${svgIcon(c.ic)}</div>
         <div class="ap-b"><div class="ap-n">${esc(a.descricao||c.l)}${a.eh_reserva?' <span class="badge b" style="font-size:9.5px">reserva</span>':""}</div>
@@ -1716,7 +1727,27 @@ async function removerAplicacao(id){
    Determinístico: sem IA. Lê PDF (pdf.js) ou CSV, extrai data/descrição/valor,
    classifica por regras salvas e por cruzamento com os gastos fixos declarados,
    e só grava depois da revisão. Duplicidade barrada por hash. */
-let impEtapa="upload", impLinhas=[], impArquivo=null, impConta=null, impCol=1, impSinal="auto", impErro="";
+let impEtapa="upload", impLinhas=[], impArquivo=null, impConta=null, impCol="primeiro", impSinal="auto";
+let modelosData=[], impModeloUsado=null;
+/* Um "modelo de extração" guarda COMO ler o extrato de um banco específico.
+   Na primeira importação você ajusta; da segunda em diante o app reconhece
+   o banco pela conta e aplica o molde sozinho. */
+function modeloDe(contaId, tipoArq){
+  const c=contasData.find(x=>x.id===contaId); if(!c) return null;
+  return modelosData.find(m=>m.banco===c.banco && m.tipo_arquivo===tipoArq) || null;
+}
+async function carregarModelos(){
+  if(!perfilData||offline||!navigator.onLine) return;
+  const { data }=await sb.from("modelos_extracao").select("*").eq("cliente_id",perfilData.cliente_id);
+  modelosData=data||[];
+}
+async function salvarModelo(contaId, tipoArq, cfg){
+  const c=contasData.find(x=>x.id===contaId); if(!c) return;
+  const reg={ cliente_id:perfilData.cliente_id, banco:c.banco, tipo_arquivo:tipoArq,
+              configuracao:cfg, atualizado_em:new Date().toISOString() };
+  const { error }=await sb.from("modelos_extracao").upsert(reg,{onConflict:"cliente_id,banco,tipo_arquivo"});
+  if(!error) await carregarModelos();
+}
 
 function normalizarDesc(s){
   return String(s||"").toUpperCase()
@@ -1841,20 +1872,29 @@ function renderExtratos(){
   }
   let corpo="";
   if(impEtapa==="upload"){
+    const contaSel=impConta||contasData[0].id;
+    const mPdf=modeloDe(contaSel,"PDF"), mCsv=modeloDe(contaSel,"CSV"), m=mPdf||mCsv;
+    const cfg=m&&m.configuracao?m.configuracao:null;
+    const colAtual=cfg&&cfg.coluna?cfg.coluna:impCol, sinalAtual=cfg&&cfg.sinal?cfg.sinal:impSinal;
+    const bancoNome=(contasData.find(c=>c.id===contaSel)||{}).banco||"";
     corpo=`<div class="card">
       <div class="card-h"><div><div class="ct">1. Escolha a conta e o arquivo <span class="beta">beta</span></div>
         <div class="cs">o extrato será lido no seu próprio navegador — o arquivo não é enviado para lugar nenhum</div></div></div>
+      ${m?`<div class="alerta g" style="margin-bottom:14px"><div class="a-ic" style="background:color-mix(in srgb,${cssv("--green")} 18%,transparent);color:${cssv("--green")}">${svgIcon("check")}</div>
+        <div><b>Molde do ${esc(bancoNome)} já aprendido.</b> As opções abaixo já vieram preenchidas do jeito que funcionou da última vez — normalmente é só escolher o arquivo.</div></div>`
+       :`<div class="alerta" style="background:var(--card2);border:1px solid var(--border);margin-bottom:14px"><div class="a-ic" style="background:color-mix(in srgb,${cssv("--brand")} 15%,transparent);color:${cssv("--brand")}">${svgIcon("book")}</div>
+        <div><b>Primeira importação do ${esc(bancoNome)}.</b> Se o resultado sair errado, ajuste as opções abaixo e tente de novo. Quando der certo, o app <b>guarda o molde deste banco</b> e nas próximas vezes já vem pronto.</div></div>`}
       <div class="adm-form" style="margin-bottom:16px">
-        <div style="flex:2"><label>Conta de destino</label><select id="impConta">${contasData.map(c=>`<option value="${c.id}" ${c.id===impConta?"selected":""}>${esc(c.apelido||c.banco)} — ${esc(c.banco)}</option>`).join("")}</select></div>
+        <div style="flex:2"><label>Conta de destino</label><select id="impConta" onchange="trocarContaImp(this.value)">${contasData.map(c=>`<option value="${c.id}" ${c.id===contaSel?"selected":""}>${esc(c.apelido||c.banco)} — ${esc(c.banco)}</option>`).join("")}</select></div>
         <div><label>Onde está o valor na linha</label><select id="impCol">
-          <option value="primeiro" ${impCol==="primeiro"?"selected":""}>1º número da linha</option>
-          <option value="penultimo" ${impCol==="penultimo"?"selected":""}>penúltimo (quando há saldo)</option>
-          <option value="ultimo" ${impCol==="ultimo"?"selected":""}>último número</option></select></div>
+          <option value="primeiro" ${colAtual==="primeiro"?"selected":""}>1º número da linha</option>
+          <option value="penultimo" ${colAtual==="penultimo"?"selected":""}>penúltimo (quando há saldo)</option>
+          <option value="ultimo" ${colAtual==="ultimo"?"selected":""}>último número</option></select></div>
         <div><label>Sinal dos valores</label><select id="impSinal">
-          <option value="auto" ${impSinal==="auto"?"selected":""}>detectar automaticamente</option>
-          <option value="dc" ${impSinal==="dc"?"selected":""}>usar marcação D / C</option>
-          <option value="negativo">tudo como saída</option>
-          <option value="positivo">tudo como entrada</option></select></div>
+          <option value="auto" ${sinalAtual==="auto"?"selected":""}>detectar automaticamente</option>
+          <option value="dc" ${sinalAtual==="dc"?"selected":""}>usar marcação D / C</option>
+          <option value="negativo" ${sinalAtual==="negativo"?"selected":""}>tudo como saída</option>
+          <option value="positivo" ${sinalAtual==="positivo"?"selected":""}>tudo como entrada</option></select></div>
       </div>
       <div class="drop" id="dropZone">
         <div class="d-ic">${svgIcon("upload")}</div>
@@ -1929,6 +1969,7 @@ async function criarConta(ev){
   if(error){ m.className="msg err"; m.textContent="Erro: "+error.message; return; }
   loadData();
 }
+function trocarContaImp(id){ impConta=id; renderExtratos(); }
 async function lerArquivo(file){
   if(!file) return;
   const msg=document.getElementById("impMsg");
@@ -1997,6 +2038,9 @@ async function gravarImportacao(){
         novasRegras.push({cliente_id:perfilData.cliente_id, perfil_id:perfilData.id, padrao_texto:p, categoria_id:l.categoria_id});
     });
     if(novasRegras.length) await sb.from("regras_classificacao").insert(novasRegras);
+    /* deu certo → guarda o molde deste banco para as próximas importações */
+    const tipoArq=/\.pdf$/i.test(impArquivo||"")?"PDF":"CSV";
+    await salvarModelo(impConta, tipoArq, { coluna:impCol, sinal:impSinal, validado_em:new Date().toISOString().slice(0,10), lancamentos:novos.length });
     impLinhas=[]; setImpEtapa("pronto");
   }catch(e){ msg.className="msg err"; msg.textContent="Não consegui gravar: "+(e.message||e); }
 }
