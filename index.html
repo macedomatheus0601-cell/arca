@@ -586,6 +586,24 @@ const fmtK = v => Math.abs(v)>=1000 ? "R$ "+(v/1000).toLocaleString("pt-BR",{max
 const curto = v => { const a=Math.abs(v); const s=v<0?"-":"";
   return a>=1000 ? s+(a/1000).toLocaleString("pt-BR",{maximumFractionDigits:1})+"k" : s+Math.round(a); };
 const pct1 = v => (v*100).toLocaleString("pt-BR",{maximumFractionDigits:2})+"%";
+/* Campo em branco do formulário TEM que virar null, nunca zero.
+   Number(null) e Number("") dão 0 — e um "dia do vencimento" 0 quebra a
+   trava do banco (que exige 1 a 31), derrubando a gravação inteira. */
+const numOuNulo = v => {
+  if(v===null || v===undefined || (typeof v==="string" && v.trim()==="")) return null;
+  const x=Number(v); return isFinite(x) ? x : null;
+};
+/* Dia do vencimento: só aceita 1..31, qualquer outra coisa vira "não informado". */
+const diaVenc = v => { const d=numOuNulo(v); return (d!=null && d>=1 && d<=31) ? Math.round(d) : null; };
+/* Prazo da meta. O formulário manda "2027-06" (campo mês), mas em navegador
+   sem suporte a esse campo o texto pode vir "2027" ou qualquer coisa. */
+const prazoParaData = v => {
+  const t=String(v==null?"":v).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  if(/^\d{4}-\d{2}$/.test(t))        return t+"-01";
+  if(/^\d{4}$/.test(t))               return t+"-01-01";
+  return null;
+};
 const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const num = v => Number(v)||0;
@@ -2455,7 +2473,7 @@ async function converterResposta(id){
   if(offline||!navigator.onLine){ dizer("Sem internet: não é possível converter agora.","err"); return; }
   const r=respostasData.find(x=>x.id===id); if(!r) return;
   const R=r.respostas||{}, p=R.pessoa||{}, rd=R.renda||{}, sit=R.situacao||{}, vr=R.variaveis||{};
-  const n=v=>{ const x=Number(v); return isFinite(x)?x:null; };
+  const n=numOuNulo;
   dizer("Criando cliente...");
   try{
     const nome=(p.nome||r.nome||"Cliente").trim();
@@ -2502,13 +2520,22 @@ const resumoLancamentos = f => Object.keys(f).map(k=>k+": "+f[k]).join(" · ");
    JÁ EXISTE (com perfil). Confere o erro de CADA insert: antes eles eram engolidos e o
    cliente acabava criado pela metade, sem ninguém ficar sabendo. */
 async function gravarFinancasDaResposta(R, cliId, perId){
-  const n=v=>{ const x=Number(v); return isFinite(x)?x:null; };
+  const n=numOuNulo;
   const rd=R.renda||{}, erros=[], feito={};
   const enviar=async(tabela,rotulo,linhas)=>{
     feito[rotulo]=0;
     if(!linhas.length) return;
     const { error }=await sb.from(tabela).insert(linhas);
-    if(error) erros.push(rotulo+" ("+error.message+")"); else feito[rotulo]=linhas.length;
+    if(!error){ feito[rotulo]=linhas.length; return; }
+    /* O Postgres recusa o lote inteiro por causa de UMA linha ruim. Tenta de
+       novo uma a uma: salva o que dá e diz exatamente qual linha ficou de fora. */
+    const sobraram=[];
+    for(const linha of linhas){
+      const { error:e1 }=await sb.from(tabela).insert(linha);
+      if(e1) sobraram.push((linha.descricao||linha.credor||linha.classe||"linha")+": "+e1.message);
+      else feito[rotulo]++;
+    }
+    if(sobraram.length) erros.push(rotulo+" — "+sobraram.join(" | "));
   };
 
   /* categorias padrão — só cria as que faltam, para poder reenviar sem duplicar */
@@ -2534,11 +2561,11 @@ async function gravarFinancasDaResposta(R, cliId, perId){
   /* entradas + gastos fixos */
   const comps=[];
   if(n(rd.salario)) comps.push({cliente_id:cliId,perfil_id:perId,tipo:"receita",descricao:"Salário",
-    valor:n(rd.salario),dia_vencimento:n(rd.dia),categoria_id:catId("Salário"),essencial:true});
+    valor:n(rd.salario),dia_vencimento:diaVenc(rd.dia),categoria_id:catId("Salário"),essencial:true});
   (rd.outras||[]).forEach(o=>{ if(n(o.valor)) comps.push({cliente_id:cliId,perfil_id:perId,tipo:"receita",
     descricao:o.desc||"Outra renda",valor:n(o.valor),categoria_id:catId("Renda extra"),essencial:true}); });
   (R.fixos||[]).forEach(f=>{ if(n(f.valor)) comps.push({cliente_id:cliId,perfil_id:perId,tipo:"despesa",
-    descricao:f.desc||"Gasto fixo",valor:n(f.valor),dia_vencimento:n(f.dia),
+    descricao:f.desc||"Gasto fixo",valor:n(f.valor),dia_vencimento:diaVenc(f.dia),
     categoria_id:adivinhar(f.desc||""),essencial:f.essencial!==false}); });
   await enviar("compromissos_recorrentes","renda e gastos",comps);
 
@@ -2554,7 +2581,7 @@ async function gravarFinancasDaResposta(R, cliId, perId){
 
   await enviar("objetivos","metas",(R.metas||[]).filter(m=>n(m.valor)).map((m,i)=>({cliente_id:cliId,perfil_id:perId,
     tipo:m.tipo||"outro", descricao:m.desc||null, valor_alvo:n(m.valor), valor_atual:0,
-    data_alvo:m.prazo?(m.prazo+"-01"):null, prioridade:i+1, status:"ativo"})));
+    data_alvo:prazoParaData(m.prazo), prioridade:i+1, status:"ativo"})));
 
   return { erros, feito };
 }
