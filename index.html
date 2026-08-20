@@ -2354,10 +2354,16 @@ function abaRespostas(){
             return `<div style="background:var(${bg});border:1px solid color-mix(in srgb,${cor} 26%,transparent);border-radius:11px;padding:10px 12px;font-size:12.5px;line-height:1.5;margin-bottom:7px;display:flex;gap:9px">
               <span style="color:${cor};flex-shrink:0;width:16px;height:16px;display:inline-flex">${svgIcon(a.t==="info"?"book":"alert")}</span><div>${a.m}</div></div>`;
           }).join("")}</div>`; })()}
-        ${r.status==="nova"?`<div style="display:flex;gap:9px;margin-top:16px;flex-wrap:wrap">
-          <button class="btn-p" onclick="converterResposta('${r.id}')" ${offline?"disabled":""}>${svgIcon("plus")} Converter em cliente</button>
-          <button class="btn-sec btn-del" onclick="descartarResposta('${r.id}')" ${offline?"disabled":""}>Descartar</button>
-        </div><div id="convMsg-${r.id}" class="msg"></div>`:""}
+        <div style="display:flex;gap:9px;margin-top:16px;flex-wrap:wrap;align-items:center">
+          ${r.status==="nova"?`<button class="btn-p" onclick="converterResposta('${r.id}')" ${offline?"disabled":""}>${svgIcon("plus")} Converter em cliente</button>`:""}
+          ${clientesLista.length?`<select class="cli-sel" style="height:36px;max-width:200px" id="reimp-${r.id}" aria-label="Cliente que vai receber os dados">
+              ${clientesLista.map(c=>`<option value="${c.id}" ${c.id===clienteAtivo?"selected":""}>${esc(c.nome)}</option>`).join("")}</select>
+            <button class="btn-sec" onclick="reimportarResposta('${r.id}')" ${offline?"disabled":""}>Reenviar para este cliente</button>`:""}
+          ${r.status==="nova"?`<button class="btn-sec btn-del" onclick="descartarResposta('${r.id}')" ${offline?"disabled":""}>Descartar</button>`:""}
+        </div>
+        <div class="cap" style="margin-top:7px"><b>Reenviar</b> lança renda, gastos, dívidas, investimentos e metas deste formulário
+          num cliente que já existe — use quando a conversão falhar no meio. Os dados são <b>somados</b> aos que já estiverem lá.</div>
+        <div id="convMsg-${r.id}" class="msg"></div>
       </div>`;
     }
     return `<div class="cli-card" style="flex-direction:column;align-items:stretch;gap:0">
@@ -2414,58 +2420,110 @@ async function converterResposta(id){
     }).select().single();
     if(e2) throw e2;
 
-    /* categorias padrão */
-    const { data:cats }=await sb.from("categorias")
-      .insert(CATS_PADRAO.map(c=>({cliente_id:cli.id,nome:c[0],tipo:c[1],natureza:c[2]}))).select();
-    const catId=nm=>((cats||[]).find(k=>k.nome===nm)||{}).id||null;
-    /* liga cada gasto do formulário a uma categoria pelo texto */
-    const adivinhar=t=>{ const s=normalizarDesc(t);
-      if(/MORADIA|ALUGUEL|CASA|CONDOMIN|LUZ|AGUA|GAS|INTERNET/.test(s)) return catId("Moradia");
-      if(/SAUDE|PLANO|REMEDIO|FARMAC/.test(s)) return catId("Saúde");
-      if(/TRANSPORTE|CARRO|COMBUST|UBER|ONIBUS/.test(s)) return catId("Transporte");
-      if(/EDUCA|ESCOLA|FACULD|CURSO/.test(s)) return catId("Educação");
-      if(/ASSINAT|STREAMING|ACADEMIA|APP/.test(s)) return catId("Assinaturas");
-      if(/ALIMENT|MERCADO|SUPERMERC/.test(s)) return catId("Alimentação");
-      return catId("Outros gastos"); };
-
-    /* entradas */
-    const comps=[];
-    if(n(rd.salario)) comps.push({cliente_id:cli.id,perfil_id:per.id,tipo:"receita",descricao:"Salário",
-      valor:n(rd.salario),dia_vencimento:n(rd.dia),categoria_id:catId("Salário"),essencial:true});
-    (rd.outras||[]).forEach(o=>{ if(n(o.valor)) comps.push({cliente_id:cli.id,perfil_id:per.id,tipo:"receita",
-      descricao:o.desc||"Outra renda",valor:n(o.valor),categoria_id:catId("Renda extra"),essencial:true}); });
-    /* gastos fixos */
-    (R.fixos||[]).forEach(f=>{ if(n(f.valor)) comps.push({cliente_id:cli.id,perfil_id:per.id,tipo:"despesa",
-      descricao:f.desc||"Gasto fixo",valor:n(f.valor),dia_vencimento:n(f.dia),
-      categoria_id:adivinhar(f.desc||""),essencial:f.essencial!==false}); });
-    if(comps.length) await sb.from("compromissos_recorrentes").insert(comps);
-
-    /* dívidas */
-    const divs=(R.dividas||[]).filter(d=>n(d.saldo)).map(d=>({cliente_id:cli.id,perfil_id:per.id,
-      tipo:d.tipo||"outro", descricao:d.credor?("Dívida — "+d.credor):null, credor:d.credor||null,
-      saldo_devedor:n(d.saldo), taxa_juros_mensal:n(d.taxa)!=null?n(d.taxa)/100:null,
-      parcela:n(d.parcela), parcelas_restantes:n(d.restantes), status:"ativa"}));
-    if(divs.length) await sb.from("dividas").insert(divs);
-
-    /* investimentos */
-    const invs=(R.investimentos||[]).filter(i=>n(i.valor)).map(i=>({cliente_id:cli.id,perfil_id:per.id,
-      classe:i.classe||"outro", descricao:i.instituicao||null, instituicao:i.instituicao||null,
-      valor_atual:n(i.valor), eh_reserva:!!i.reserva, atualizado_em:new Date().toISOString().slice(0,10)}));
-    if(invs.length) await sb.from("aplicacoes").insert(invs);
-
-    /* metas */
-    const mets=(R.metas||[]).filter(m=>n(m.valor)).map((m,i)=>({cliente_id:cli.id,perfil_id:per.id,
-      tipo:m.tipo||"outro", descricao:m.desc||null, valor_alvo:n(m.valor), valor_atual:0,
-      data_alvo:m.prazo?(m.prazo+"-01"):null, prioridade:i+1, status:"ativo"}));
-    if(mets.length) await sb.from("objetivos").insert(mets);
-
+    const res=await gravarFinancasDaResposta(R, cli.id, per.id);
     await sb.from("respostas_onboarding").update({status:"convertida",cliente_id:cli.id}).eq("id",id);
-    dizer("Cliente criado! Abrindo o cadastro dele...","ok");
     clienteAtivo=cli.id; try{ localStorage.setItem("clienteAtivo",cli.id); }catch(e){}
-    respostaAberta=null; abaCliente="financas";
     await carregarRespostas();
+    /* se algo não entrou, o usuário PRECISA saber: fica na tela, com o botão de reenviar à mão */
+    if(res.erros.length){
+      dizer("Cliente criado, mas isto não entrou — "+res.erros.join("; ")+
+            ". Corrija e use \u201cReenviar para este cliente\u201d logo abaixo.","err");
+      return;
+    }
+    dizer("Cliente criado ✓ "+resumoLancamentos(res.feito)+". Abrindo o cadastro dele...","ok");
+    respostaAberta=null; abaCliente="financas";
     setTimeout(loadData,700);
   }catch(e){ dizer("Não consegui converter: "+(e.message||e),"err"); }
+}
+
+/* Quantos registros entraram em cada parte, para o usuário conferir sem abrir o banco. */
+const resumoLancamentos = f => Object.keys(f).map(k=>k+": "+f[k]).join(" · ");
+
+/* Lança renda, gastos, dívidas, investimentos e metas de uma resposta num cliente que
+   JÁ EXISTE (com perfil). Confere o erro de CADA insert: antes eles eram engolidos e o
+   cliente acabava criado pela metade, sem ninguém ficar sabendo. */
+async function gravarFinancasDaResposta(R, cliId, perId){
+  const n=v=>{ const x=Number(v); return isFinite(x)?x:null; };
+  const rd=R.renda||{}, erros=[], feito={};
+  const enviar=async(tabela,rotulo,linhas)=>{
+    feito[rotulo]=0;
+    if(!linhas.length) return;
+    const { error }=await sb.from(tabela).insert(linhas);
+    if(error) erros.push(rotulo+" ("+error.message+")"); else feito[rotulo]=linhas.length;
+  };
+
+  /* categorias padrão — só cria as que faltam, para poder reenviar sem duplicar */
+  const { data:jaTem }=await sb.from("categorias").select("id,nome").eq("cliente_id",cliId);
+  let cats=(jaTem||[]).slice();
+  const faltando=CATS_PADRAO.filter(c=>!cats.some(k=>k.nome===c[0]));
+  if(faltando.length){
+    const { data:novas, error:ec }=await sb.from("categorias")
+      .insert(faltando.map(c=>({cliente_id:cliId,nome:c[0],tipo:c[1],natureza:c[2]}))).select();
+    if(ec) erros.push("categorias ("+ec.message+")"); else cats=cats.concat(novas||[]);
+  }
+  const catId=nm=>(cats.find(k=>k.nome===nm)||{}).id||null;
+  /* liga cada gasto do formulário a uma categoria pelo texto */
+  const adivinhar=t=>{ const s=normalizarDesc(t);
+    if(/MORADIA|ALUGUEL|CASA|CONDOMIN|LUZ|AGUA|GAS|INTERNET/.test(s)) return catId("Moradia");
+    if(/SAUDE|PLANO|REMEDIO|FARMAC/.test(s)) return catId("Saúde");
+    if(/TRANSPORTE|CARRO|COMBUST|UBER|ONIBUS/.test(s)) return catId("Transporte");
+    if(/EDUCA|ESCOLA|FACULD|CURSO/.test(s)) return catId("Educação");
+    if(/ASSINAT|STREAMING|ACADEMIA|APP/.test(s)) return catId("Assinaturas");
+    if(/ALIMENT|MERCADO|SUPERMERC/.test(s)) return catId("Alimentação");
+    return catId("Outros gastos"); };
+
+  /* entradas + gastos fixos */
+  const comps=[];
+  if(n(rd.salario)) comps.push({cliente_id:cliId,perfil_id:perId,tipo:"receita",descricao:"Salário",
+    valor:n(rd.salario),dia_vencimento:n(rd.dia),categoria_id:catId("Salário"),essencial:true});
+  (rd.outras||[]).forEach(o=>{ if(n(o.valor)) comps.push({cliente_id:cliId,perfil_id:perId,tipo:"receita",
+    descricao:o.desc||"Outra renda",valor:n(o.valor),categoria_id:catId("Renda extra"),essencial:true}); });
+  (R.fixos||[]).forEach(f=>{ if(n(f.valor)) comps.push({cliente_id:cliId,perfil_id:perId,tipo:"despesa",
+    descricao:f.desc||"Gasto fixo",valor:n(f.valor),dia_vencimento:n(f.dia),
+    categoria_id:adivinhar(f.desc||""),essencial:f.essencial!==false}); });
+  await enviar("compromissos_recorrentes","renda e gastos",comps);
+
+  /* dívidas — a taxa vem em % ao mês no formulário e é guardada como decimal */
+  await enviar("dividas","dívidas",(R.dividas||[]).filter(d=>n(d.saldo)).map(d=>({cliente_id:cliId,perfil_id:perId,
+    tipo:d.tipo||"outro", descricao:d.credor?("Dívida — "+d.credor):null, credor:d.credor||null,
+    saldo_devedor:n(d.saldo), taxa_juros_mensal:n(d.taxa)!=null?n(d.taxa)/100:null,
+    parcela:n(d.parcela), parcelas_restantes:n(d.restantes), status:"ativa"})));
+
+  await enviar("aplicacoes","investimentos",(R.investimentos||[]).filter(i=>n(i.valor)).map(i=>({cliente_id:cliId,perfil_id:perId,
+    classe:i.classe||"outro", descricao:i.instituicao||null, instituicao:i.instituicao||null,
+    valor_atual:n(i.valor), eh_reserva:!!i.reserva, atualizado_em:new Date().toISOString().slice(0,10)})));
+
+  await enviar("objetivos","metas",(R.metas||[]).filter(m=>n(m.valor)).map((m,i)=>({cliente_id:cliId,perfil_id:perId,
+    tipo:m.tipo||"outro", descricao:m.desc||null, valor_alvo:n(m.valor), valor_atual:0,
+    data_alvo:m.prazo?(m.prazo+"-01"):null, prioridade:i+1, status:"ativo"})));
+
+  return { erros, feito };
+}
+
+/* Reenvia uma resposta para um cliente que ja existe. Serve para consertar uma
+   conversao que falhou no meio (queda de internet, por exemplo). */
+async function reimportarResposta(id){
+  const msg=document.getElementById("convMsg-"+id);
+  const dizer=(t,cls)=>{ if(msg){ msg.className="msg "+(cls||""); msg.textContent=t; } };
+  if(offline||!navigator.onLine){ dizer("Sem internet: não é possível enviar agora.","err"); return; }
+  const r=respostasData.find(x=>x.id===id); if(!r) return;
+  const cliId=(document.getElementById("reimp-"+id)||{}).value;
+  if(!cliId){ dizer("Escolha o cliente que vai receber os dados.","err"); return; }
+  const cli=clientesLista.find(c=>c.id===cliId)||{};
+  try{
+    const { data:pers, error:ep }=await sb.from("perfis").select("id").eq("cliente_id",cliId).eq("ativo",true).limit(1);
+    if(ep){ dizer("Não consegui ler esse cliente: "+ep.message,"err"); return; }
+    const per=(pers||[])[0];
+    if(!per){ dizer("Esse cliente ainda não tem perfil. Complete o cadastro dele antes de reenviar.","err"); return; }
+    if(!confirm("Lançar renda, gastos, dívidas, investimentos e metas deste formulário em "+(cli.nome||"este cliente")+"?\n\nOs dados são SOMADOS aos que já existirem — se já houver algo lá, pode duplicar.")) return;
+    dizer("Enviando...");
+    const res=await gravarFinancasDaResposta(r.respostas||{}, cliId, per.id);
+    if(res.erros.length){ dizer("Falhou em — "+res.erros.join("; "),"err"); return; }
+    if(r.status==="nova") await sb.from("respostas_onboarding").update({status:"convertida",cliente_id:cliId}).eq("id",id);
+    dizer("Enviado ✓ "+resumoLancamentos(res.feito),"ok");
+    clienteAtivo=cliId; try{ localStorage.setItem("clienteAtivo",cliId); }catch(e){}
+    setTimeout(loadData,900);
+  }catch(e){ dizer("Não consegui enviar: "+(e.message||e),"err"); }
 }
 
 function abaLista(){
