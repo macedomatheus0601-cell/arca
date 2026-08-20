@@ -90,6 +90,7 @@
   .brand .bsub { font-size:10.5px; color:var(--muted); white-space:nowrap; }
   .nav { display:flex; flex-direction:column; gap:3px; flex:1; }
   .nav-item { display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:11px; color:var(--text2); font-size:14px; font-weight:600; width:100%; text-align:left; white-space:nowrap; transition:background .15s,color .15s; }
+  .nav-item .ni-ic { display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .nav-item svg { width:19px; height:19px; flex-shrink:0; }
   .nav-item:hover { background:var(--card2); color:var(--text); }
   .nav-item.active { background:color-mix(in srgb,var(--brand) 13%,transparent); color:var(--brand); }
@@ -132,11 +133,20 @@
     .sidebar { position:fixed; bottom:0; left:0; right:0; top:auto; height:auto; flex-direction:row; border-right:none; border-top:1px solid var(--border); padding:7px 8px !important; z-index:50; overflow:visible; box-shadow:0 -4px 18px rgba(0,0,0,.07); }
     .shell.nav-hidden .sidebar > * { opacity:1; pointer-events:auto; }
     .brand, .side-foot { display:none; }
-    .nav { flex-direction:row; gap:2px; overflow-x:auto; scrollbar-width:none; }
-    .nav::-webkit-scrollbar { display:none; }
-    .nav-item { flex-direction:column; gap:3px; padding:7px 3px; font-size:9.5px; border-radius:10px; justify-content:center; min-width:60px; flex:1 0 auto; }
-    .nav-item svg { width:21px; height:21px; }
-    .cli-sel { max-width:140px; font-size:12.5px; }
+    /* barra inferior estilo app: TODAS as abas cabem na tela, sem rolagem lateral.
+       flex:1 1 0 + min-width:0 força a divisão igual da largura disponível. */
+    .nav { flex-direction:row; gap:0; overflow:visible; }
+    .nav-item { position:relative; flex:1 1 0; min-width:0; width:auto; flex-direction:column; gap:3px;
+                padding:7px 1px 5px; border-radius:12px; justify-content:center; text-align:center; background:none; }
+    .nav-item .ni-ic { width:100%; height:24px; border-radius:9px; transition:background .15s; }
+    .nav-item svg { width:var(--nav-ic,21px); height:var(--nav-ic,21px); }
+    .nav-item .ni-l { display:block; width:100%; font-size:var(--nav-fs,9px); line-height:1.15; font-weight:640;
+                      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-.15px; }
+    .nav-item:hover { background:none; color:var(--text2); }
+    .nav-item.active { background:none; color:var(--brand); }
+    .nav-item.active .ni-ic { background:color-mix(in srgb,var(--brand) 15%,transparent); }
+    .nav-item.active .ni-l { font-weight:750; }
+    .cli-sel { max-width:130px; font-size:12.5px; }
     .main { padding:18px 15px 92px; }
     #menuBtn { display:none; }
   }
@@ -1127,8 +1137,14 @@ const PAGES=[
 ];
 const paginasVisiveis = () => PAGES.filter(p=>!p.quando||p.quando());
 function renderNav(){
-  document.getElementById("nav").innerHTML=paginasVisiveis().map(p=>
-    `<button class="nav-item ${p.id===currentPage?"active":""}" onclick="setPage('${p.id}')">${svgIcon(p.icon)}<span>${p.label}</span></button>`).join("");
+  const vis=paginasVisiveis(), nav=document.getElementById("nav");
+  nav.innerHTML=vis.map(p=>
+    `<button class="nav-item ${p.id===currentPage?"active":""}" onclick="setPage('${p.id}')" aria-label="${esc(p.label)}" ${p.id===currentPage?'aria-current="page"':""}>
+       <span class="ni-ic">${svgIcon(p.icon)}</span><span class="ni-l">${p.label}</span></button>`).join("");
+  /* no celular todas as abas dividem a largura: o texto encolhe conforme a quantidade */
+  const n=vis.length;
+  nav.style.setProperty("--nav-fs", n<=4?"10px" : n<=5?"9.4px" : n<=6?"8.8px" : "8.2px");
+  nav.style.setProperty("--nav-ic", n<=5?"21px" : n<=6?"20px" : "19px");
 }
 function setPage(id){
   const vis=paginasVisiveis();
