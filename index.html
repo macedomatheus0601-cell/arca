@@ -922,6 +922,59 @@ function projetar(n=24, extra=0){
   }
   return out;
 }
+/* Trajetória de CADA meta, separadamente.
+   Cada meta parte do que já foi guardado NELA (objetivos.valor_atual) e cresce
+   com a fatia da sobra que lhe cabe na ordem de prioridade.
+   NÃO parte do saldo global: ter dinheiro na reserva de emergência não é ter
+   dinheiro para a viagem — são bolsos com funções diferentes. */
+function trajetoriaMetas(n=24, extra=0){
+  const H=Math.max(n,120), proj=projetar(H,extra);
+  const s=metas.map(m=>{ const ini=Math.min(m.atual,m.alvo), falta=Math.max(0,m.alvo-m.atual);
+    return { id:m.id, nome:m.nome, cor:m.cor, ic:m.ic, alvo:m.alvo, atual:m.atual,
+             inicio:ini, saldo:ini, falta, mes:falta<=0.01?0:null, pontos:[ini] }; });
+  for(let i=1;i<=H;i++){
+    let disp=Math.max(0, proj[i]?proj[i].sobra:0);
+    for(const it of s){
+      if(it.falta>0.01 && disp>0){
+        const usa=Math.min(disp,it.falta);
+        it.saldo+=usa; it.falta-=usa; disp-=usa;
+        if(it.falta<=0.01 && it.mes===null) it.mes=i;
+      }
+      if(i<=n) it.pontos.push(it.saldo);
+    }
+  }
+  return s;
+}
+/* Uma linha por meta, cada uma com seu próprio alvo. Começa no zero porque
+   progresso de meta se lê contra o alvo, não contra um saldo qualquer. */
+function metasChart(series, n){
+  const W=760,H=290,padT=18,padB=28,padL=66,padR=12;
+  const max=Math.max(1, ...series.map(s=>s.alvo), ...series.flatMap(s=>s.pontos));
+  const x=i=>padL+i*(W-padL-padR)/n, y=t=>padT+(max-t)/max*(H-padT-padB);
+  const grid=cssv("--border"), tick=cssv("--muted"), card=cssv("--card");
+  let g=`<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}" stroke="${grid}" stroke-width="1"/>`;
+  for(let k=0;k<=3;k++){ const gy=padT+k*(H-padT-padB)/3, gv=max-k*max/3;
+    g+=`<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W-padR}" y2="${gy.toFixed(1)}" stroke="${grid}" stroke-width="1"/><text x="${(padL-8).toFixed(1)}" y="${(gy+4).toFixed(1)}" fill="${tick}" font-size="11" text-anchor="end" font-family="Segoe UI,sans-serif">${fmtK(gv)}</text>`; }
+  const passo = n>18?6 : n>12?3 : 2;
+  let xl="";
+  for(let i=0;i<=n;i+=passo){ const px=x(i); xl+=`<text x="${px.toFixed(1)}" y="${H-8}" fill="${tick}" font-size="10.5" text-anchor="${px>W-40?"end":"middle"}" font-family="Segoe UI,sans-serif">${labelMes(i)}</text>`; }
+  /* alvo de cada meta: tracejado da cor dela */
+  const alvos=series.map(sr=>{ const ay=y(sr.alvo);
+    return `<line x1="${padL}" y1="${ay.toFixed(1)}" x2="${W-padR}" y2="${ay.toFixed(1)}" stroke="${sr.cor}" stroke-width="1.4" stroke-dasharray="5 6" opacity=".45"/>`; }).join("");
+  const linhas=series.map(sr=>{
+    const pts=sr.pontos.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    /* bolinha no mês em que a meta é alcançada, se for dentro do período */
+    const done = (sr.mes!==null && sr.mes<=n)
+      ? `<circle cx="${x(sr.mes).toFixed(1)}" cy="${y(Math.min(sr.alvo,sr.pontos[sr.mes])).toFixed(1)}" r="5.5" fill="${sr.cor}" stroke="${card}" stroke-width="2.5"/>` : "";
+    return `<polyline points="${pts}" fill="none" stroke="${sr.cor}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${done}`;
+  }).join("");
+  const svg=`<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Progresso projetado de cada meta">
+    ${g}${xl}${alvos}${linhas}</svg>`;
+  return { svg, W, xs:series[0]?series[0].pontos.map((_,i)=>x(i)):[], y0:padT, y1:H-padB,
+    info:i=>`<div class="tt">${labelMesLongo(i)}</div>`+
+      series.map(sr=>tipLinha(sr.cor, sr.nome,
+        fmt(sr.pontos[i]) + (sr.pontos[i]>=sr.alvo-0.01?" \u2713":" de "+fmtK(sr.alvo)))).join("") };
+}
 function planoAlocacao(extra=0, horizonte=120){
   const itens=metas.map(m=>({nome:m.nome,cor:m.cor,ic:m.ic,falta:Math.max(0,m.alvo-m.atual),mes:null}));
   const proj=projetar(horizonte,extra);
@@ -1025,7 +1078,8 @@ function hoverChart(hostId, cfg){
   host.addEventListener("touchmove",mostrar,{passive:true});
   host.addEventListener("touchend",sair);
 }
-const tipLinha=(cor,nome,valor)=>`<div class="tr"><span class="sw" style="background:${cor}"></span><span class="tn">${nome}</span><span class="tv">${valor}</span></div>`;
+/* nome vem do cadastro do cliente em alguns gráficos — escapar sempre */
+const tipLinha=(cor,nome,valor)=>`<div class="tr"><span class="sw" style="background:${cor}"></span><span class="tn">${esc(nome)}</span><span class="tv">${valor}</span></div>`;
 
 /* ================= GRÁFICOS ================= */
 function gaugeSvg(score){
@@ -1338,10 +1392,13 @@ function renderInicio(){
     || `<div class="empty">Nenhuma meta cadastrada.</div>`;
 
   const alvoTotal=metas.reduce((s,m)=>s+m.alvo,0);
-  const proj=projetar(24,0), ch=saldoChart(proj,alvoTotal);
-  const jaTem=proj[0].saldo, falta=Math.max(0,alvoTotal-jaTem);
-  const pctTotal=alvoTotal>0?Math.min(100,Math.round(jaTem/alvoTotal*100)):0;
-  let cruza=null; for(let i=0;i<proj.length;i++){ if(alvoTotal>0&&proj[i].saldo>=alvoTotal){ cruza=i; break; } }
+  /* Cada meta com a sua própria trajetória — ver trajetoriaMetas() para o porquê. */
+  const traj=trajetoriaMetas(24,0);
+  const guardadoEmMetas=traj.reduce((a,t)=>a+t.inicio,0);
+  const faltaMetas=Math.max(0,alvoTotal-guardadoEmMetas);
+  const pctTotal=alvoTotal>0?Math.min(100,Math.round(guardadoEmMetas/alvoTotal*100)):0;
+  const prontas=traj.filter(t=>t.mes!==null&&t.mes<=24).length;
+  const ch=metasChart(traj,24);
 
   const principal=`
     <div class="explica">Esta é a sua <b>visão geral</b>. O número grande resume sua saúde financeira; os cartões abaixo destrincham os quatro indicadores que a compõem. Clique no <b>?</b> de qualquer cartão para entender de onde vem cada valor.</div>
@@ -1353,20 +1410,31 @@ function renderInicio(){
     ${planoAcaoHTML()}
     <div class="eyebrow">Suas metas ${help(T.metasCard)}</div><div class="goals">${goalsH}</div>
     <div class="eyebrow">Para onde você está indo</div>
-    <div class="card"><div class="card-h">
-        <div><div class="ct">Saldo acumulado ${help(T.saldo)}</div><div class="cs">projeção · próximos 24 meses</div></div>
-        <div class="c-end"><div class="lbl">em 2 anos</div><div class="val">${fmt(proj[24].saldo)}</div></div></div>
-      ${alvoTotal>0?`<div class="grid2" style="margin-bottom:13px">
-        <div class="mini"><div class="m-l">Já acumulado</div><div class="m-v" style="color:${cssv("--green")}">${fmt(jaTem)}</div><div style="font-size:10.5px;color:var(--muted);margin-top:2px">${pctTotal}% do total das metas</div></div>
-        <div class="mini"><div class="m-l">Ainda falta</div><div class="m-v" style="color:${cssv("--amber")}">${fmt(falta)}</div><div style="font-size:10.5px;color:var(--muted);margin-top:2px">para financiar tudo</div></div>
-        <div class="mini"><div class="m-l">Total das metas</div><div class="m-v">${fmt(alvoTotal)}</div><div style="font-size:10.5px;color:var(--muted);margin-top:2px">${cruza!=null?"alcançado em "+labelMes(cruza):"além de 2 anos no ritmo atual"}</div></div>
-      </div>`:""}
-      <div class="legend"><span><span class="ln d"></span> Saldo projetado</span>${alvoTotal>0?`<span><span class="ln" style="background:repeating-linear-gradient(90deg,${cssv("--amber")} 0 5px,transparent 5px 10px)"></span> Total das metas</span>`:""}<span style="color:var(--muted)">passe o mouse para ver mês a mês</span></div>
+    ${metas.length?`<div class="card"><div class="card-h">
+        <div><div class="ct">Progresso de cada meta ${help("Cada linha é uma meta, partindo do que já foi guardado NELA. A sobra do mês é distribuída na ordem de prioridade: a segunda meta só acelera depois que a primeira fecha. O tracejado é o alvo de cada uma. Sua reserva de emergência não entra aqui — ela tem outra função.")}</div>
+          <div class="cs">projeção · próximos 24 meses</div></div>
+        <div class="c-end"><div class="lbl">metas fechadas em 2 anos</div><div class="val">${prontas} de ${metas.length}</div></div></div>
+      <div class="grid2" style="margin-bottom:13px">
+        ${traj.map(t=>{ const p=t.alvo>0?Math.min(100,Math.round(t.inicio/t.alvo*100)):0;
+          return `<div class="mini"><div class="m-l"><span style="color:${t.cor}">●</span> ${esc(t.nome)}</div>
+            <div class="m-v" style="color:${t.cor}">${fmtK(t.inicio)}<span style="font-size:12.5px;color:var(--muted);font-weight:600"> de ${fmtK(t.alvo)}</span></div>
+            <div style="font-size:10.5px;color:var(--muted);margin-top:2px">${p}% · ${t.mes===0?"já alcançada":(t.mes!==null?"fecha em "+labelMes(t.mes):"além de 10 anos no ritmo atual")}</div></div>`;
+        }).join("")}
+        <div class="mini"><div class="m-l">Somando todas</div>
+          <div class="m-v">${fmtK(guardadoEmMetas)}<span style="font-size:12.5px;color:var(--muted);font-weight:600"> de ${fmtK(alvoTotal)}</span></div>
+          <div style="font-size:10.5px;color:var(--muted);margin-top:2px">${pctTotal}% · faltam ${fmtK(faltaMetas)}</div></div>
+      </div>
+      <div class="legend">${traj.map(t=>`<span><span class="ln" style="background:${t.cor}"></span> ${esc(t.nome)}</span>`).join("")}
+        <span><span class="ln" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 11px)"></span> alvo de cada meta</span>
+        <span style="color:var(--muted)">passe o mouse para ver mês a mês</span></div>
       <div class="chart-host" id="hIni">${ch.svg}</div>
-      <div class="cap">O saldo <b>vai se acumulando</b>: a cada mês soma-se a sua sobra ao que já existia. Hoje o histórico ainda é projetado — quando seus extratos forem importados, a parte já realizada aparecerá com valores reais.</div></div>`;
+      <div class="cap">Cada meta parte do que já foi guardado <b>nela</b>, não do seu saldo total.
+        A <b>reserva de emergência não entra</b>: ela existe para cobrir imprevistos, e usá-la numa meta te deixaria descoberto.
+        Atualize o quanto já guardou em cada meta na aba <b>Metas</b>.</div></div>`
+    :`<div class="card"><div class="empty">Nenhuma meta cadastrada ainda — sem meta, não há para onde ir.</div></div>`}`;
 
   pagina(principal, railResumo() + railVencimentos());
-  hoverChart("hIni", ch);
+  if(metas.length) hoverChart("hIni", ch);
 }
 
 /* ================= PLANO DE AÇÃO DO MÊS ================= */
@@ -1721,7 +1789,7 @@ async function alternarReserva(id, virar){
   const { error }=await sb.from("aplicacoes").update({eh_reserva:virar}).eq("id",id);
   if(error){ alert("Não consegui alterar: "+error.message); return; }
   const a=apsData.find(x=>x.id===id); if(a) a.eh_reserva=virar;
-  montarEstado(); salvarRetrato(); renderInvestir();
+  montarEstado(); salvarRetrato(); renderInvestir();   /* já mexe só na linha local */
 }
 function renderInvestir(){
   const p=perfilData||{};
@@ -1883,14 +1951,20 @@ async function adicionarAplicacao(ev){
   };
   const { error }=await sb.from("aplicacoes").insert(reg);
   if(error){ if(msg) msg.innerHTML=`<span style="color:var(--rose)">Não consegui adicionar: ${esc(error.message)}</span>`; return; }
-  const { data }=await sb.from("aplicacoes").select("*");
-  apsData=data||[]; montarEstado(); salvarRetrato(); renderInvestir();
+  await recarregarAplicacoes();
 }
 async function removerAplicacao(id){
   if(offline||!navigator.onLine){ alert("Você está sem internet — não é possível remover agora."); return; }
   const { error }=await sb.from("aplicacoes").delete().eq("id",id);
   if(error){ alert("Não consegui remover: "+error.message); return; }
-  const { data }=await sb.from("aplicacoes").select("*");
+  await recarregarAplicacoes();
+}
+/* O consultor enxerga as aplicações de TODOS os clientes. Sem o filtro por
+   cliente, recarregar aqui misturaria o dinheiro de um cliente com o de outro
+   — e a reserva e o total investido sairiam somados errados. */
+async function recarregarAplicacoes(){
+  const { data, error }=await sb.from("aplicacoes").select("*").eq("cliente_id", perfilData.cliente_id);
+  if(error){ alert("Não consegui recarregar os investimentos: "+error.message); return; }
   apsData=data||[]; montarEstado(); salvarRetrato(); renderInvestir();
 }
 
@@ -2208,7 +2282,12 @@ async function gravarImportacao(){
       if(p.length>=4 && !novasRegras.some(r=>r.padrao_texto===p))
         novasRegras.push({cliente_id:perfilData.cliente_id, perfil_id:perfilData.id, padrao_texto:p, categoria_id:l.categoria_id});
     });
-    if(novasRegras.length) await sb.from("regras_classificacao").insert(novasRegras);
+    if(novasRegras.length){
+      const { error:er }=await sb.from("regras_classificacao").insert(novasRegras);
+      /* não é fatal — os lançamentos já entraram — mas o cliente precisa saber
+         que o aprendizado não foi guardado, senão reclassifica tudo de novo mês que vem */
+      if(er) console.warn("regras não salvas:", er.message);
+    }
     /* deu certo → guarda o molde deste banco para as próximas importações */
     const tipoArq=/\.pdf$/i.test(impArquivo||"")?"PDF":"CSV";
     await salvarModelo(impConta, tipoArq, { coluna:impCol, sinal:impSinal, validado_em:new Date().toISOString().slice(0,10), lancamentos:novos.length });
@@ -2837,10 +2916,22 @@ async function criarCliente(ev){
       pct_cdi:PCT_CDI_PADRAO,   /* inflação e CDI vêm das premissas do sistema */
     }).select().single();
     if(e2) throw e2;
-    await sb.from("categorias").insert(CATS_PADRAO.map(c=>({cliente_id:cli.id,nome:c[0],tipo:c[1],natureza:c[2]})));
+    /* mesma disciplina da conversão: erro de gravação nunca fica em silêncio */
+    const falhas=[];
+    const { error:e3 }=await sb.from("categorias").insert(CATS_PADRAO.map(c=>({cliente_id:cli.id,nome:c[0],tipo:c[1],natureza:c[2]})));
+    if(e3) falhas.push("categorias ("+e3.message+")");
     const salario=n("ncSalario");
-    if(salario) await sb.from("compromissos_recorrentes").insert({
-      cliente_id:cli.id, perfil_id:per.id, tipo:"receita", descricao:"Salário", valor:salario, dia_vencimento:n("ncDia"), essencial:true });
+    if(salario){
+      const { error:e4 }=await sb.from("compromissos_recorrentes").insert({
+        cliente_id:cli.id, perfil_id:per.id, tipo:"receita", descricao:"Salário", valor:salario, dia_vencimento:diaVenc(v("ncDia")), essencial:true });
+      if(e4) falhas.push("salário ("+e4.message+")");
+    }
+    if(falhas.length){
+      msg.className="msg err";
+      msg.textContent="Cliente criado, mas isto não entrou — "+falhas.join("; ")+". Lance na aba Renda e gastos.";
+      clienteAtivo=cli.id; try{ localStorage.setItem("clienteAtivo",cli.id); }catch(e){}
+      setTimeout(loadData,1200); return;
+    }
     msg.className="msg ok"; msg.textContent="Cliente criado! Focando nele agora...";
     clienteAtivo=cli.id; try{ localStorage.setItem("clienteAtivo",cli.id); }catch(e){}
     abaCliente="financas";
