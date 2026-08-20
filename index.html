@@ -575,6 +575,9 @@ let cliEditando=null, cliExcluindo=null;         /* cliente sendo renomeado / co
 let offline=false, dadosDe=null;                 /* modo offline + data do retrato salvo */
 let periodoSaldo=24, periodoFluxo=12;
 const CDI_PADRAO=0.105, PCT_CDI_PADRAO=1.00, INFLACAO_PADRAO=0.045;
+/* Inflação e CDI são números de mercado: valem para TODOS os clientes.
+   Ficam numa linha única da tabela "premissas", editada só pelo consultor. */
+let premissas={ inflacao_anual:INFLACAO_PADRAO, cdi_anual:CDI_PADRAO, atualizado_em:null };
 const CACHE_KEY="retrato_v1";
 
 /* ================= HELPERS ================= */
@@ -730,9 +733,11 @@ function montarEstado(){
       renda, fixos, reserva, investido, parcelaDivida, sobra, variaveis, gastoMensal, gastoEssencial, mesesIdeal, rendaInstavel,
       reservaIdeal: gastoEssencial*mesesIdeal, saldoDividas, taxaMaxDivida,
       taxa:renda>0?sobra/renda:0, mesesReserva:gastoEssencial>0?reserva/gastoEssencial:0, divida:renda>0?parcelaDivida/renda:0,
-      cdi: perfil.cdi_anual!=null?num(perfil.cdi_anual):CDI_PADRAO,
-      pctCdi: perfil.pct_cdi!=null?num(perfil.pct_cdi):PCT_CDI_PADRAO,
-      inflacao: perfil.inflacao_anual!=null?num(perfil.inflacao_anual):INFLACAO_PADRAO };
+      /* do sistema, iguais para todo mundo */
+      cdi: num(premissas.cdi_anual),
+      inflacao: num(premissas.inflacao_anual),
+      /* deste cliente: descreve onde o dinheiro DELE está */
+      pctCdi: perfil.pct_cdi!=null?num(perfil.pct_cdi):PCT_CDI_PADRAO };
   metas=objsData.map(o=>{ const st=GOAL_STYLE[o.tipo]||GOAL_STYLE.outro;
     return { nome:o.descricao||o.tipo, tipo:o.tipo, ic:st.ic, corVar:st.cor, cor:cssv(st.cor),
              atual:num(o.valor_atual), alvo:num(o.valor_alvo), dataAlvo:o.data_alvo,
@@ -813,7 +818,7 @@ async function loadData(attempt=1){
 
     /* 3) dados do cliente ativo */
     const F_=q=>clienteAtivo?q.eq("cliente_id",clienteAtivo):q;
-    const [pr,cr,or,ar,dr,plr,kr,ctr]=await Promise.all([
+    const [pr,cr,or,ar,dr,plr,kr,ctr,prem]=await Promise.all([
       F_(sb.from("perfis").select("*")).eq("ativo",true).limit(1),
       F_(sb.from("compromissos_recorrentes").select("*")).eq("ativo",true),
       F_(sb.from("objetivos").select("*")).eq("status","ativo").order("prioridade",{ascending:true}),
@@ -822,6 +827,7 @@ async function loadData(attempt=1){
       F_(sb.from("planos_acao").select("*")).order("ordem",{ascending:true}),
       F_(sb.from("categorias").select("*")).order("nome"),
       F_(sb.from("contas_bancarias").select("*")).order("banco"),
+      sb.from("premissas").select("*").limit(1),   /* sem filtro: valem para todos */
     ]);
     if(pr.error) throw pr.error; if(cr.error) throw cr.error; if(or.error) throw or.error;
     const perfil=(pr.data||[])[0];
@@ -837,6 +843,8 @@ async function loadData(attempt=1){
     planosData = plr.error ? [] : (plr.data||[]);
     catsData   = kr.error  ? [] : (kr.data||[]);
     contasData = ctr.error ? [] : (ctr.data||[]);
+    /* se a migração 09 ainda não foi aplicada, segue com os padrões do código */
+    if(!prem.error && (prem.data||[])[0]) premissas=prem.data[0];
     offline=false; dadosDe=null;
     montarEstado(); salvarRetrato(); barraOffline(); setPage(currentPage);
     carregarModelos();     /* moldes de extrato, em segundo plano */
@@ -1209,6 +1217,15 @@ function pagina(principal, lateral){
   document.getElementById("pageContent").innerHTML =
     `<div class="cols"><div>${principal}</div><aside class="rail">${lateral||""}</aside></div>`;
 }
+/* Deixa claro para o cliente qual número é fato e qual é hipótese.
+   Aparece no pé da Projeção e das Metas. */
+function rodapePremissas(){
+  const q=premissas.atualizado_em?(" Revisadas em "+new Date(premissas.atualizado_em).toLocaleDateString("pt-BR")+"."):"";
+  return `<div class="disclaimer"><b>Premissas destas contas.</b> Inflação de <b>${pct1(F.inflacao)} ao ano</b> e
+    rendimento de <b>${pct1(F.cdi*F.pctCdi)} ao ano</b> (${(F.pctCdi*100).toFixed(0)}% do CDI, que está em ${pct1(F.cdi)}).
+    São os mesmos números para todos os clientes, definidos pelo seu consultor.${q}
+    Projeção não é promessa de resultado — serve para comparar caminhos, não para prever o futuro.</div>`;
+}
 function rcard(titulo, ic, cor, conteudo){
   return `<div class="rcard"><div class="rcard-h"><span class="rh-ic" style="background:color-mix(in srgb, ${cor} 15%, transparent);color:${cor}">${svgIcon(ic)}</span>${titulo}</div>${conteudo}</div>`;
 }
@@ -1484,7 +1501,7 @@ function renderMetas(){
       metas.map((m,i)=>`<div class="rrow"><span class="rday">${i+1}º</span><span class="rr-n">${esc(m.nome)}</span><span class="rr-v" style="color:${m.cor}">${plano[i].mes!==null?labelMes(plano[i].mes):"+10a"}</span></div>`).join("")
       +`<div class="cap" style="margin-top:8px">Data prevista no ritmo atual.</div>`)
     + railResumo();
-  pagina(principal, lateral);
+  pagina(principal + rodapePremissas(), lateral);
 }
 
 /* ================= PÁGINA: PROJEÇÃO ================= */
@@ -1698,12 +1715,12 @@ function renderInvestir(){
       <div class="legend"><span><span class="ln" style="background:repeating-linear-gradient(90deg,${cssv("--slate")} 0 4px,transparent 4px 9px)"></span> Parado (sem render)</span><span><span class="ln" style="background:${cssv("--green")}"></span> Aplicado</span><span style="color:var(--muted)">passe o mouse para ver mês e valor</span></div>
       <div class="chart-host" id="hRend">${chR.svg}</div>
       <div class="prem" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
-        <div><label>CDI ao ano (premissa)</label><input class="num-in" style="width:100%" id="cdiIn" type="number" step="0.1" value="${(F.cdi*100).toFixed(2)}" ${(isHost&&!offline)?"":"disabled"} oninput="atualizarPremissa()"></div>
+        <div><label>CDI ao ano ${help("Número de mercado, igual para todos os clientes. Definido pelo seu consultor em Premissas do sistema.")}</label><div class="ro-box" id="cdiIn">${pct1(F.cdi)}</div></div>
         <div><label>Rende quanto do CDI</label><input class="num-in" style="width:100%" id="pctIn" type="number" step="1" value="${(F.pctCdi*100).toFixed(0)}" ${(isHost&&!offline)?"":"disabled"} oninput="atualizarPremissa()"></div>
         <div><label>Taxa equivalente ao mês</label><div class="ro-box" id="taxaMes">${pct1(i)}</div></div>
       </div>
       <div class="campo-legenda"><span><i class="ed"></i>campo que você preenche</span><span><i class="ro"></i>valor calculado pelo sistema</span></div>
-      ${(isHost&&!offline)?`<div class="note" id="premMsg">Ajuste a premissa e salve para guardar no cadastro. <button class="btn-p" style="height:32px;font-size:12.5px;margin-left:6px" onclick="salvarPremissas()">Salvar</button></div>`:""}
+      ${(isHost&&!offline)?`<div class="note" id="premMsg">Ajuste quanto este cliente rende do CDI e salve. <button class="btn-p" style="height:32px;font-size:12.5px;margin-left:6px" onclick="salvarPremissas()">Salvar</button></div>`:""}
       <div class="tbl-wrap"><table>
         <thead><tr><th>Prazo</th><th>Parado</th><th>Aplicado (bruto)</th><th>IR</th><th>Líquido</th><th>Ganho real</th></tr></thead>
         <tbody id="marcosBody">${marcosHTML()}</tbody></table></div>
@@ -1736,14 +1753,14 @@ function renderInvestir(){
        <div class="rrow"><span class="rr-n">Ideal (${F.mesesIdeal} meses)</span><span class="rr-v">${fmt(F.reservaIdeal)}</span></div>
        <div class="rrow"><span class="rr-n">Falta</span><span class="rr-v" style="color:${cssv("--amber")}">${fmt(Math.max(0,F.reservaIdeal-F.reserva))}</span></div>
        <div class="cap" style="margin-top:8px">A reserva deve ficar em aplicação de <b>liquidez imediata</b>: o objetivo é estar disponível, não render muito.</div>`);
-  pagina(principal, lateral);
+  pagina(principal + rodapePremissas(), lateral);
   hoverChart("hRend", chR);
 }
 function atualizarPremissa(){
-  const c=Number(document.getElementById("cdiIn").value)/100;
+  /* o CDI vem do sistema; aqui só muda quanto do CDI ESTE cliente rende */
   const q=Number(document.getElementById("pctIn").value)/100;
-  if(!isFinite(c)||!isFinite(q)) return;
-  F.cdi=Math.max(0,c); F.pctCdi=Math.max(0,q);
+  if(!isFinite(q)) return;
+  F.pctCdi=Math.max(0,q);
   document.getElementById("taxaMes").textContent=pct1(taxaMensal());
   document.getElementById("marcosBody").innerHTML=marcosHTML();
 }
@@ -1756,9 +1773,9 @@ function bloqueadoOffline(alvo){
 async function salvarPremissas(){
   if(bloqueadoOffline("premMsg")) return;
   const msg=document.getElementById("premMsg");
-  const { error }=await sb.from("perfis").update({cdi_anual:F.cdi, pct_cdi:F.pctCdi}).eq("id",perfilData.id);
+  const { error }=await sb.from("perfis").update({pct_cdi:F.pctCdi}).eq("id",perfilData.id);
   if(msg) msg.innerHTML = error ? `<span style="color:var(--rose)">Não consegui salvar: ${esc(error.message)}</span>` : `<span style="color:var(--green)">Premissa salva ✓</span>`;
-  if(!error){ perfilData.cdi_anual=F.cdi; perfilData.pct_cdi=F.pctCdi; salvarRetrato(); }
+  if(!error){ perfilData.pct_cdi=F.pctCdi; salvarRetrato(); }
 }
 async function adicionarAplicacao(ev){
   ev.preventDefault();
@@ -2125,10 +2142,11 @@ function renderClientes(){
   const nEspera=usuariosData.filter(u=>u.ativo===false).length;
   const tabs=[["respostas","Respostas do formulário"+(nNovas?" ("+nNovas+")":"")],["lista","Meus clientes"],
               ["novo","Novo cliente"],["dados","Dados do cliente"],["financas","Renda e gastos"],["metas","Metas e dívidas"],
-              ["acessos","Acessos"+(nEspera?" ("+nEspera+")":"")]];
+              ["acessos","Acessos"+(nEspera?" ("+nEspera+")":"")],["premissas","Premissas"]];
   const tabsH=`<div class="sub-tabs">${tabs.map(t=>`<button class="sub-tab ${abaCliente===t[0]?"active":""}" onclick="setAbaCliente('${t[0]}')">${t[1]}</button>`).join("")}</div>`;
   let corpo="";
   if(abaCliente==="respostas") corpo=abaRespostas();
+  else if(abaCliente==="premissas") corpo=abaPremissas();
   else if(abaCliente==="acessos") corpo=abaAcessos();
   else if(abaCliente==="lista")     corpo=abaLista();
   else if(abaCliente==="novo") corpo=abaNovo();
@@ -2143,6 +2161,47 @@ function renderClientes(){
        <div class="rrow"><span class="rr-n">Cliente em foco</span><span class="rr-v">${esc((clientesLista.find(c=>c.id===clienteAtivo)||{}).nome||"—")}</span></div>
        <div class="cap" style="margin-top:8px">O que você edita aqui aparece imediatamente para o cliente quando ele entra.</div>`));
 }
+/* ================= PREMISSAS DO SISTEMA ================= */
+/* Um número só, para todos os clientes. Mudar aqui muda a projeção de
+   todo mundo na próxima vez que abrirem o app. */
+function abaPremissas(){
+  const q=premissas.atualizado_em?new Date(premissas.atualizado_em).toLocaleDateString("pt-BR"):"—";
+  return `<div class="card"><div class="card-h"><div><div class="ct">Premissas do sistema</div>
+      <div class="cs">valem para <b>todos</b> os clientes — mude aqui e vale para todos</div></div>
+      <div class="c-end"><div class="lbl">revisado em</div><div class="val" style="font-size:15px">${q}</div></div></div>
+    <form class="adm-form" onsubmit="salvarPremissasSistema(event)">
+      <div><label>Inflação ao ano (%)</label><input id="pmInfl" type="number" step="0.01" min="0" max="100" required
+           value="${(num(premissas.inflacao_anual)*100).toFixed(2)}"></div>
+      <div><label>CDI ao ano (%)</label><input id="pmCdi" type="number" step="0.01" min="0" max="100" required
+           value="${(num(premissas.cdi_anual)*100).toFixed(2)}"></div>
+      <button class="btn-p" type="submit" ${offline?"disabled":""}>Salvar premissas</button>
+    </form><div id="pmMsg" class="msg"></div>
+    <div class="note"><b>Por que aqui e não no cadastro de cada cliente.</b> Inflação e CDI são números de mercado:
+      o IPCA é o mesmo para todo mundo. Guardar uma cópia por cliente significaria revisar cadastro por cadastro
+      a cada mudança de cenário. O que continua sendo de cada cliente é <b>quanto ele rende do CDI</b>
+      — esse depende de onde o dinheiro dele está (poupança rende perto de 70% do CDI, um CDB de banco grande 100%,
+      uma corretora 110%). Ajuste na aba <b>Projeção</b> de cada cliente.</div>
+    <div class="note"><b>Onde isso muda o resultado.</b> A inflação corrige o custo das metas de longo prazo
+      (o que a meta vai custar de verdade na data escolhida). O CDI define o rendimento usado na comparação
+      "guardar parado × aplicado" e na decisão de quitar dívida antes de investir.
+      <b>Nenhum dos dois mexe no saldo de dívida</b> — dívida cresce pela taxa do próprio contrato.</div>`;
+}
+async function salvarPremissasSistema(ev){
+  ev.preventDefault();
+  const msg=document.getElementById("pmMsg");
+  const dizer=(t,cls)=>{ msg.className="msg "+(cls||""); msg.textContent=t; };
+  if(offline||!navigator.onLine){ dizer("Sem internet.","err"); return; }
+  const inf=Number(document.getElementById("pmInfl").value)/100;
+  const cdi=Number(document.getElementById("pmCdi").value)/100;
+  if(!isFinite(inf)||!isFinite(cdi)||inf<0||cdi<0){ dizer("Valores inválidos.","err"); return; }
+  const upd={ inflacao_anual:inf, cdi_anual:cdi, atualizado_em:new Date().toISOString() };
+  const { error }=await sb.from("premissas").update(upd).eq("id",true);
+  if(error){ dizer("Erro: "+error.message,"err"); return; }
+  premissas={...premissas, ...upd};
+  dizer("Premissas salvas ✓ Valem para todos os clientes a partir de agora.","ok");
+  if(perfilData) montarEstado();   /* recalcula o cliente em foco, se houver um */
+}
+
 /* ================= ACESSOS ================= */
 async function carregarUsuarios(){
   if(!isConsultor||offline||!navigator.onLine) return;
@@ -2416,7 +2475,7 @@ async function converterResposta(id){
       poupanca_mensal_atual:sobra, reserva_atual:n(sit.guardado), variavel_essencial:n(vr.essencial),
       conforto_financas:n((R.perfil||{}).conforto_financas), conforto_investimentos:n((R.perfil||{}).conforto_investimentos),
       ja_investe:(R.perfil||{}).ja_investe||null, maior_dificuldade:(R.perfil||{}).maior_dificuldade||null,
-      cdi_anual:CDI_PADRAO, pct_cdi:PCT_CDI_PADRAO, inflacao_anual:INFLACAO_PADRAO,
+      pct_cdi:PCT_CDI_PADRAO,   /* inflação e CDI vêm das premissas do sistema */
     }).select().single();
     if(e2) throw e2;
 
@@ -2674,7 +2733,7 @@ async function criarCliente(ev){
       dependentes:n("ncDep"), tipo_renda:v("ncRenda"),
       poupanca_mensal_atual:n("ncSobra"), reserva_atual:n("ncReserva"),
       conforto_financas:n("ncCf"), conforto_investimentos:n("ncCi"), maior_dificuldade:v("ncDif"),
-      cdi_anual:CDI_PADRAO, pct_cdi:PCT_CDI_PADRAO, inflacao_anual:INFLACAO_PADRAO,
+      pct_cdi:PCT_CDI_PADRAO,   /* inflação e CDI vêm das premissas do sistema */
     }).select().single();
     if(e2) throw e2;
     await sb.from("categorias").insert(CATS_PADRAO.map(c=>({cliente_id:cli.id,nome:c[0],tipo:c[1],natureza:c[2]})));
@@ -2705,7 +2764,6 @@ function abaDados(){
       ${campo("edCf","Conforto finanças (1-5)",p.conforto_financas,"number","min=1 max=5")}
       ${campo("edCi","Conforto investimentos (1-5)",p.conforto_investimentos,"number","min=1 max=5")}
       <div><label>Perfil de investidor</label><select id="edPi">${["","conservador","moderado","arrojado"].map(o=>`<option value="${o}" ${o===(p.perfil_investidor||"")?"selected":""}>${o||"— sugerir automaticamente"}</option>`).join("")}</select></div>
-      ${campo("edInfl","Inflação a.a. (ex 0.045)",p.inflacao_anual,"number","step=0.001")}
       <div class="full"><label>Maior dificuldade</label><select id="edDif">${["","Gasto descontrolado","Nunca sobra pra guardar","Não sei onde guardar","Tenho medo de investir","Outro"].map(o=>`<option ${o===(p.maior_dificuldade||"")?"selected":""}>${o||"—"}</option>`).join("")}</select></div>
       <button class="btn-p" type="submit" ${offline?"disabled":""}>Salvar dados</button>
     </form><div id="edMsg" class="msg"></div></div>
@@ -2729,7 +2787,7 @@ async function salvarPerfil(ev){
     estado_civil:v("edEC")==="—"?null:v("edEC"), dependentes:n("edDep"),
     tipo_renda:v("edRenda")==="—"?null:v("edRenda"), poupanca_mensal_atual:n("edSobra"), reserva_atual:n("edReserva"),
     variavel_essencial:n("edVarEss"), conforto_financas:n("edCf"), conforto_investimentos:n("edCi"),
-    perfil_investidor:v("edPi"), inflacao_anual:n("edInfl"), maior_dificuldade:v("edDif")==="—"?null:v("edDif") };
+    perfil_investidor:v("edPi"), maior_dificuldade:v("edDif")==="—"?null:v("edDif") };
   if(upd.nome_completo){ upd.nome=upd.nome_completo.split(" ")[0];
     upd.iniciais=upd.nome_completo.split(" ").map(x=>x[0]).slice(0,2).join("").toUpperCase(); }
   const { error }=await sb.from("perfis").update(upd).eq("id",perfilData.id);
