@@ -346,9 +346,14 @@
   .ap-form label { font-size:11px; color:var(--muted); display:block; margin-bottom:4px; }
   .ap-form input, .ap-form select { width:100%; height:40px; padding:0 10px; border-radius:11px; border:1px solid var(--border-strong); background:var(--card); color:var(--text); font-size:13.5px; outline:none; }
   .ap-form input:focus, .ap-form select:focus { border-color:var(--brand); }
-  .btn-p { height:40px; border-radius:11px; background:var(--brand); color:#fff; font-size:13.5px; font-weight:700; padding:0 16px; }
+  /* os ícones dentro dos botões precisam de tamanho explícito: sem isso o SVG
+     estica para 100% da altura e some com o texto */
+  .btn-p { height:40px; border-radius:11px; background:var(--brand); color:#fff; font-size:13.5px; font-weight:700;
+           padding:0 16px; display:inline-flex; align-items:center; justify-content:center; gap:7px; white-space:nowrap; }
+  .btn-p svg, .btn-sec svg { width:16px; height:16px; flex-shrink:0; }
   .btn-p:active { transform:scale(.98); }
   .btn-p:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-sec { display:inline-flex; align-items:center; justify-content:center; gap:7px; white-space:nowrap; }
   .chk { display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--text2); height:40px; }
   .chk input { width:auto; height:auto; accent-color:var(--brand); }
   .prem { display:flex; gap:13px; flex-wrap:wrap; align-items:end; }
@@ -556,7 +561,7 @@ const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL,SUPABASE_
 /* ================= ESTADO ================= */
 let F={}, metas=[], perfilData=null, compsData=[], objsData=[], apsData=[], dividasData=[], planosData=[], catsData=[], contasData=[];
 let currentPage="inicio", extraPoupanca=0, isHost=false, isConsultor=false;
-let clientesLista=[], clienteAtivo=null;
+let clientesLista=[], clienteAtivo=null, usuariosData=[], meuUid=null;
 let offline=false, dadosDe=null;                 /* modo offline + data do retrato salvo */
 let periodoSaldo=24, periodoFluxo=12;
 const CDI_PADRAO=0.105, PCT_CDI_PADRAO=1.00, INFLACAO_PADRAO=0.045;
@@ -755,8 +760,18 @@ async function loadData(attempt=1){
   body.innerHTML=`<div class="state"><div class="big">⏳</div>Carregando seus dados...</div>`;
   try{
     /* 1) quem sou eu */
-    const ur=await sb.from("usuarios").select("role,cliente_id").limit(1);
+    try{ const { data:{ user } }=await sb.auth.getUser(); meuUid=user?user.id:null; }catch(e){ meuUid=null; }
+    const ur=await sb.from("usuarios").select("*").limit(1);
     const eu=(ur.data||[])[0]||{};
+    /* acesso ainda não liberado pelo consultor */
+    if(eu.id && eu.ativo===false){
+      perfilData=null; renderNav();
+      body.innerHTML=`<div class="state"><div class="big">⏳</div>
+        <b style="color:var(--text);font-size:16px">Seu acesso ainda não foi liberado</b><br>
+        <span style="font-size:13px">Recebemos seu cadastro. Assim que seu consultor liberar, seus dados aparecem aqui.<br>
+        Você será avisado — não precisa fazer nada.</span></div>`;
+      return;
+    }
     isConsultor = eu.role==="consultor";
     isHost = eu.role==="host" || isConsultor;
 
@@ -770,7 +785,7 @@ async function loadData(attempt=1){
     montarSeletorClientes();
     if(isConsultor && !clienteAtivo){
       offline=false; perfilData=null;
-      carregarRespostas();
+      carregarRespostas(); carregarUsuarios();
       body.innerHTML=`<div class="state"><div class="big">👥</div>Nenhum cliente cadastrado ainda.<br>
         <button class="btn-p" style="margin-top:14px" onclick="setPage('clientes')">Ir para a área de clientes</button></div>`;
       renderNav(); return;
@@ -806,6 +821,7 @@ async function loadData(attempt=1){
     montarEstado(); salvarRetrato(); barraOffline(); setPage(currentPage);
     carregarModelos();     /* moldes de extrato, em segundo plano */
     carregarRespostas();   /* caixa de entrada do formulário */
+    carregarUsuarios();    /* acessos */
   }catch(e){
     const msg=(e&&e.message)?e.message:String(e);
     if(/future|iat|issued|JWT/i.test(msg)&&attempt<4){
@@ -1128,16 +1144,26 @@ function duasLinhasChart(a,b,corA,corB,nomeA,nomeB){
 }
 
 /* ================= NAVEGAÇÃO ================= */
+/* NÍVEIS DE ACESSO — cada aba declara quais papéis podem vê-la.
+   leitor   = cliente que só consulta
+   host     = cliente que também edita (sobe extrato, marca o plano de ação)
+   consultor= você: enxerga tudo e gerencia todos os clientes           */
+const PAPEIS={
+  consultor:{ l:"Consultor", d:"Acesso total: todos os clientes, cadastros e importações." },
+  host:{      l:"Cliente (edita)", d:"Vê os próprios dados, importa extratos e marca o plano de ação." },
+  leitor:{    l:"Cliente (só consulta)", d:"Vê os próprios dados, sem poder alterar nada." },
+};
 const PAGES=[
-  {id:"inicio",label:"Início",titulo:"Início",icon:"home",render:renderInicio},
-  {id:"metas",label:"Metas",titulo:"Suas metas",icon:"target",render:renderMetas},
-  {id:"dividas",label:"Dívidas",titulo:"Suas dívidas",icon:"alert",render:renderDividas,quando:()=>dividasData.length>0},
-  {id:"projecao",label:"Projeção",titulo:"Projeção",icon:"trend",render:renderProjecao},
-  {id:"investir",label:"Investir",titulo:"Seus investimentos",icon:"coins",render:renderInvestir},
-  {id:"extratos",label:"Extratos",titulo:"Importar extrato",icon:"upload",render:renderExtratos,quando:()=>isHost},
-  {id:"clientes",label:"Clientes",titulo:"Gestão de clientes",icon:"users",render:renderClientes,quando:()=>isConsultor},
+  {id:"inicio",   label:"Início",   titulo:"Início",              icon:"home",  render:renderInicio,   papeis:["consultor","host","leitor"]},
+  {id:"metas",    label:"Metas",    titulo:"Suas metas",          icon:"target",render:renderMetas,    papeis:["consultor","host","leitor"]},
+  {id:"dividas",  label:"Dívidas",  titulo:"Suas dívidas",        icon:"alert", render:renderDividas,  papeis:["consultor","host","leitor"], quando:()=>dividasData.length>0},
+  {id:"projecao", label:"Projeção", titulo:"Projeção",            icon:"trend", render:renderProjecao, papeis:["consultor","host","leitor"]},
+  {id:"investir", label:"Investir", titulo:"Seus investimentos",  icon:"coins", render:renderInvestir, papeis:["consultor","host","leitor"]},
+  {id:"extratos", label:"Extratos", titulo:"Importar extrato",    icon:"upload",render:renderExtratos, papeis:["consultor","host"]},
+  {id:"clientes", label:"Clientes", titulo:"Gestão de clientes",  icon:"users", render:renderClientes, papeis:["consultor"]},
 ];
-const paginasVisiveis = () => PAGES.filter(p=>!p.quando||p.quando());
+const meuPapel = () => isConsultor ? "consultor" : (isHost ? "host" : "leitor");
+const paginasVisiveis = () => PAGES.filter(p=>p.papeis.includes(meuPapel()) && (!p.quando||p.quando()));
 function renderNav(){
   const vis=paginasVisiveis(), nav=document.getElementById("nav");
   nav.innerHTML=vis.map(p=>
@@ -2076,11 +2102,14 @@ function setAbaCliente(a){ abaCliente=a; renderClientes(); }
 function renderClientes(){
   if(!isConsultor){ pagina(`<div class="state">Área exclusiva do consultor.</div>`,""); return; }
   const nNovas=respostasData.filter(r=>r.status==="nova").length;
+  const nEspera=usuariosData.filter(u=>u.ativo===false).length;
   const tabs=[["respostas","Respostas do formulário"+(nNovas?" ("+nNovas+")":"")],["lista","Meus clientes"],
-              ["novo","Novo cliente"],["dados","Dados do cliente"],["financas","Renda e gastos"],["metas","Metas e dívidas"]];
+              ["novo","Novo cliente"],["dados","Dados do cliente"],["financas","Renda e gastos"],["metas","Metas e dívidas"],
+              ["acessos","Acessos"+(nEspera?" ("+nEspera+")":"")]];
   const tabsH=`<div class="sub-tabs">${tabs.map(t=>`<button class="sub-tab ${abaCliente===t[0]?"active":""}" onclick="setAbaCliente('${t[0]}')">${t[1]}</button>`).join("")}</div>`;
   let corpo="";
   if(abaCliente==="respostas") corpo=abaRespostas();
+  else if(abaCliente==="acessos") corpo=abaAcessos();
   else if(abaCliente==="lista")     corpo=abaLista();
   else if(abaCliente==="novo") corpo=abaNovo();
   else if(!perfilData)         corpo=`<div class="empty">Selecione um cliente com cadastro completo no seletor do topo.</div>`;
@@ -2093,6 +2122,117 @@ function renderClientes(){
        <div class="rrow"><span class="rr-n">Cliente em foco</span><span class="rr-v">${esc((clientesLista.find(c=>c.id===clienteAtivo)||{}).nome||"—")}</span></div>
        <div class="cap" style="margin-top:8px">O que você edita aqui aparece imediatamente para o cliente quando ele entra.</div>`));
 }
+/* ================= ACESSOS ================= */
+async function carregarUsuarios(){
+  if(!isConsultor||offline||!navigator.onLine) return;
+  const { data }=await sb.from("usuarios").select("*");
+  usuariosData=data||[];
+  if(currentPage==="clientes") renderClientes();
+}
+function abaAcessos(){
+  const nomeCli=id=>(clientesLista.find(c=>c.id===id)||{}).nome||"—";
+  const espera=usuariosData.filter(u=>u.ativo===false);
+  const ativos=usuariosData.filter(u=>u.ativo!==false);
+
+  const quadroPapeis=`<div class="card" style="margin-top:14px">
+    <div class="card-h"><div><div class="ct">O que cada nível enxerga</div>
+      <div class="cs">as abas do sistema mudam conforme o nível de acesso</div></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Aba</th>
+      ${Object.keys(PAPEIS).map(p=>`<th>${PAPEIS[p].l}</th>`).join("")}</tr></thead><tbody>
+      ${PAGES.map(pg=>`<tr><td>${pg.label}</td>${Object.keys(PAPEIS).map(p=>
+        `<td>${pg.papeis.includes(p)?`<span style="color:${cssv("--green")};font-weight:800">✓</span>`:`<span style="color:var(--muted)">—</span>`}</td>`).join("")}</tr>`).join("")}
+    </tbody></table></div>
+    <div class="note">${Object.keys(PAPEIS).map(p=>`<b>${PAPEIS[p].l}:</b> ${PAPEIS[p].d}`).join("<br>")}</div></div>`;
+
+  const cartao=u=>{
+    const souEu=u.id===meuUid, bloqueado=u.ativo===false;
+    return `<div class="cli-card" ${bloqueado?`style="border-color:color-mix(in srgb,${cssv("--amber")} 40%,transparent)"`:""}>
+      <div class="cli-av" ${bloqueado?`style="background:var(--amber-bg);color:${cssv("--amber")}"`:""}>${esc((u.email||"?")[0].toUpperCase())}</div>
+      <div class="cli-b">
+        <div class="cli-n">${esc(u.email||"(sem e-mail)")}
+          ${souEu?`<span class="badge b">você</span>`:""}
+          ${bloqueado?`<span class="badge y">aguardando liberação</span>`:""}</div>
+        <div class="cli-s">${esc(PAPEIS[u.role]?PAPEIS[u.role].l:u.role||"—")} · cliente: ${esc(nomeCli(u.cliente_id))}</div>
+      </div>
+      <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+        ${souEu?`<span class="modo-tag">seu acesso</span>`:`
+          <select class="cli-sel" style="height:36px;max-width:165px" onchange="mudarPapel('${u.id}',this.value)" ${offline?"disabled":""}>
+            ${Object.keys(PAPEIS).map(p=>`<option value="${p}" ${p===u.role?"selected":""}>${PAPEIS[p].l}</option>`).join("")}
+          </select>
+          <button class="btn-sec" onclick="alternarAcesso('${u.id}',${bloqueado})" ${offline?"disabled":""}>
+            ${bloqueado?svgIcon("check")+" Liberar":"Bloquear"}</button>
+          <button class="btn-sec btn-del" onclick="removerAcesso('${u.id}')" ${offline?"disabled":""}>Remover</button>`}
+      </div></div>`;
+  };
+
+  return `${espera.length?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-bottom:14px">
+      <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
+      <div><b>${espera.length} acesso(s) aguardando sua liberação.</b> Enquanto estiverem bloqueados, essas pessoas não conseguem ver nenhum dado.</div></div>`:""}
+    ${espera.length?`<div class="eyebrow">Aguardando liberação</div>${espera.map(cartao).join("")}`:""}
+    <div class="eyebrow">Acessos liberados</div>
+    ${ativos.length?ativos.map(cartao).join(""):`<div class="empty">Nenhum acesso liberado ainda.</div>`}
+    <div class="card" style="margin-top:14px"><div class="card-h"><div><div class="ct">Dar acesso a um cliente</div>
+      <div class="cs">passo a passo, do formulário até a pessoa conseguir entrar</div></div></div>
+      <div class="rrow"><span class="rday">1</span><span class="rr-n">A pessoa preenche o formulário e você converte em cliente</span></div>
+      <div class="rrow"><span class="rday">2</span><span class="rr-n">No Supabase: <b>Authentication → Users → Add user</b>, com o e-mail dela e uma senha</span></div>
+      <div class="rrow"><span class="rday">3</span><span class="rr-n">Copie o <b>User UID</b> e cole no formulário abaixo</span></div>
+      <div class="rrow"><span class="rday">4</span><span class="rr-n">O acesso nasce <b>bloqueado</b>. Quando quiser, clique em <b>Liberar</b> aqui nesta aba</span></div>
+      <form class="adm-form" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)" onsubmit="vincularAcesso(event)">
+        <div style="flex:2"><label>Código do usuário (User UID)</label><input id="acUid" placeholder="00000000-0000-0000-0000-000000000000" required></div>
+        <div><label>E-mail</label><input id="acEmail" type="email" placeholder="cliente@email.com"></div>
+        <div><label>Cliente</label><select id="acCliente">${clientesLista.map(c=>`<option value="${c.id}" ${c.id===clienteAtivo?"selected":""}>${esc(c.nome)}</option>`).join("")}</select></div>
+        <div><label>Nível de acesso</label><select id="acRole">
+          <option value="leitor">${PAPEIS.leitor.l}</option><option value="host">${PAPEIS.host.l}</option></select></div>
+        <label class="chk"><input type="checkbox" id="acLiberar"> liberar agora</label>
+        <button class="btn-p" type="submit" ${offline?"disabled":""}>Vincular</button>
+      </form><div id="acMsg" class="msg"></div></div>
+    ${quadroPapeis}
+    <div class="note"><b>Remover x bloquear.</b> <i>Bloquear</i> tira o acesso na hora, mas guarda o vínculo — bom para pausas.
+      <i>Remover</i> apaga o vínculo de vez; a pessoa deixa de ver tudo, mas o login dela continua existindo no Supabase.
+      Para apagar o login em definitivo, é no painel do Supabase: <b>Authentication → Users → Delete user</b> —
+      isso não pode ser feito por aqui porque exigiria a chave-mestra dentro do navegador.</div>`;
+}
+async function vincularAcesso(ev){
+  ev.preventDefault();
+  const msg=document.getElementById("acMsg");
+  if(offline||!navigator.onLine){ msg.className="msg err"; msg.textContent="Sem internet."; return; }
+  const id=document.getElementById("acUid").value.trim();
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)){
+    msg.className="msg err"; msg.textContent="O código parece inválido — copie o User UID exatamente como aparece no Supabase."; return; }
+  const liberar=document.getElementById("acLiberar").checked;
+  const { error }=await sb.from("usuarios").upsert({ id,
+    cliente_id:document.getElementById("acCliente").value,
+    email:document.getElementById("acEmail").value.trim()||null,
+    role:document.getElementById("acRole").value,
+    ativo:liberar, liberado_em:liberar?new Date().toISOString():null });
+  if(error){ msg.className="msg err"; msg.textContent="Erro: "+error.message; return; }
+  msg.className="msg ok"; msg.textContent=liberar?"Acesso vinculado e liberado ✓":"Acesso vinculado. Está bloqueado — libere quando quiser.";
+  await carregarUsuarios();
+}
+async function alternarAcesso(id,liberar){
+  if(offline||!navigator.onLine){ alert("Sem internet."); return; }
+  if(id===meuUid){ alert("Você não pode bloquear o próprio acesso."); return; }
+  const { error }=await sb.from("usuarios").update({ativo:liberar, liberado_em:liberar?new Date().toISOString():null}).eq("id",id);
+  if(error){ alert("Erro: "+error.message); return; }
+  await carregarUsuarios();
+}
+async function mudarPapel(id,papel){
+  if(offline||!navigator.onLine){ alert("Sem internet."); return; }
+  if(id===meuUid){ alert("Você não pode mudar o próprio nível."); return; }
+  const { error }=await sb.from("usuarios").update({role:papel}).eq("id",id);
+  if(error){ alert("Erro: "+error.message); return; }
+  await carregarUsuarios();
+}
+async function removerAcesso(id){
+  if(offline||!navigator.onLine){ alert("Sem internet."); return; }
+  if(id===meuUid){ alert("Você não pode remover o próprio acesso."); return; }
+  const u=usuariosData.find(x=>x.id===id)||{};
+  if(!confirm("Remover o acesso de "+(u.email||"este usuário")+"?\n\nA pessoa deixa de ver os dados imediatamente.\nO login dela continua existindo no Supabase — para apagar de vez, use Authentication → Users → Delete user.")) return;
+  const { error }=await sb.from("usuarios").delete().eq("id",id);
+  if(error){ alert("Erro: "+error.message); return; }
+  await carregarUsuarios();
+}
+
 /* ---------- conferência de consistência das respostas ----------
    O cliente declara a sobra E os gastos variáveis. Os dois podem se
    contradizer. Em vez de escolher um em silêncio, o sistema aponta. */
