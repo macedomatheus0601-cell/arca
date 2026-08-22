@@ -752,8 +752,13 @@ function montarEstado(){
        2) total declarado no formulário
        3) na falta dos dois, deduz da sobra declarada e AVISA que é estimativa */
   const sobraDeclarada = perfil.poupanca_mensal_atual!=null ? num(perfil.poupanca_mensal_atual) : null;
-  let variaveis, sobra, sobraOrigem;
-  if(perfil.variavel_total!=null){
+  const real = variavelRealizado();
+  let variaveis, sobra, sobraOrigem, mesesReal=0;
+  if(real){
+    variaveis = real.valor; mesesReal = real.meses;
+    sobra = renda - fixos - variaveis;
+    sobraOrigem = "realizada";
+  } else if(perfil.variavel_total!=null){
     variaveis = Math.max(0, num(perfil.variavel_total));
     sobra = renda - fixos - variaveis;
     sobraOrigem = "calculada";
@@ -778,7 +783,8 @@ function montarEstado(){
       renda, fixos, reserva, investido, parcelaDivida, sobra, variaveis, gastoMensal, gastoEssencial, mesesIdeal, rendaInstavel,
       reservaIdeal: gastoEssencial*mesesIdeal, saldoDividas, taxaMaxDivida,
       taxa:renda>0?sobra/renda:0, mesesReserva:gastoEssencial>0?reserva/gastoEssencial:0, divida:renda>0?parcelaDivida/renda:0,
-      sobraDeclarada, sobraOrigem,
+      sobraDeclarada, sobraOrigem, mesesReal,
+      saldoReal:(saldoRealizado()||{}).valor,
       /* do sistema, iguais para todo mundo */
       cdi: num(premissas.cdi_anual),
       inflacao: num(premissas.inflacao_anual),
@@ -893,6 +899,8 @@ async function loadData(attempt=1){
     if(!prem.error && (prem.data||[])[0]) premissas=prem.data[0];
     offline=false; dadosDe=null;
     montarEstado(); salvarRetrato(); barraOffline(); setPage(currentPage);
+    await carregarHistorico();   /* realizado dos meses fechados → alimenta o motor */
+    montarEstado(); salvarRetrato(); setPage(currentPage);
     carregarMes();         /* lançamentos e fechamento do mês em foco */
     carregarModelos();     /* moldes de extrato, em segundo plano */
     carregarRespostas();   /* caixa de entrada do formulário */
@@ -921,7 +929,9 @@ function ativoNoMes(c,off){
 const receitaMes = off => compsData.filter(c=>c.tipo==="receita"&&ativoNoMes(c,off)).reduce((s,c)=>s+num(c.valor),0);
 const fixosMes   = off => compsData.filter(c=>c.tipo==="despesa"&&ativoNoMes(c,off)).reduce((s,c)=>s+num(c.valor),0);
 function projetar(n=24, extra=0){
-  const out=[]; let saldo=F.reserva;
+  /* parte do dinheiro que existe DE VERDADE em caixa, quando já houve um mês
+     fechado. Sem histórico ainda, cai na reserva declarada. */
+  const out=[]; let saldo=F.saldoReal!=null?num(F.saldoReal):F.reserva;
   out.push({off:0,receita:receitaMes(0),fixos:fixosMes(0),variaveis:F.variaveis,despesa:fixosMes(0)+F.variaveis,sobra:F.sobra,saldo});
   for(let i=1;i<=n;i++){
     const rec=receitaMes(i), fx=fixosMes(i), desp=fx+F.variaveis, sob=rec-desp+extra;
@@ -1413,6 +1423,7 @@ function renderInicio(){
     <div class="hero"><div class="gauge-wrap">${gaugeSvg(score)}<div class="gauge-center"><div class="gauge-score">${score}</div><div class="gauge-of">de 100</div></div></div>
       <div class="hero-info"><div class="hero-tag">Índice de saúde financeira ${help(T.score)}</div><div class="hero-title">${ht}</div><div class="hero-desc">${hd}</div><div class="pillars">${pilH}</div></div></div>
     <div class="eyebrow">Seus números do mês</div><div class="tiles">${tilesH}</div>
+    ${blocoMesAtual()}
     <div class="eyebrow">Seu foco agora</div>
     <div class="foco"><div class="f-ic">${svgIcon("target")}</div><div><div class="f-tag">Prioridade do momento ${help(T.foco)}</div><div class="f-title">${fi.t}</div><div class="f-desc">${fi.d}</div></div></div>
     ${planoAcaoHTML()}
@@ -1556,9 +1567,61 @@ function renderDividas(){
   pagina(principal, lateral);
 }
 
+/* Como est\u00e1 o m\u00eas VIGENTE, comparado com o que estava previsto.
+   Sem isso a pessoa s\u00f3 descobre que estourou quando o m\u00eas j\u00e1 acabou. */
+function blocoMesAtual(){
+  const m=mesHoje();
+  const doMes=histLancs.filter(l=>String(l.data).slice(0,7)===m);
+  if(!doMes.length) return `<div class="eyebrow">Este m\u00eas at\u00e9 agora</div>
+    <div class="card"><div class="empty">Nenhum lan\u00e7amento em ${esc(mesLabel(m))} ainda.
+      ${isHost?`<button class="btn-sec" style="margin-left:8px" onclick="setPage('extratos')">Subir extratos</button>`:"Assim que os extratos forem lan\u00e7ados, o realizado aparece aqui."}</div></div>`;
+
+  const r=resumoMes(doMes);
+  const hoje=new Date(), diasNoMes=new Date(hoje.getFullYear(),hoje.getMonth()+1,0).getDate();
+  const decorrido=Math.min(1, hoje.getDate()/diasNoMes);
+  /* previsto do m\u00eas: o que o cadastro diz que deveria acontecer */
+  const prev={ entradas:F.renda, fixos:F.fixos, variaveis:F.variaveis, sobra:F.sobra };
+  /* o vari\u00e1vel \u00e9 comparado PRO RATA: no dia 10 n\u00e3o faz sentido cobrar o m\u00eas inteiro */
+  const alvoVar=prev.variaveis*decorrido;
+  const estouro=r.variaveis-alvoVar;
+
+  const linha=(rot,real,previsto,inverter)=>{
+    const dif=real-previsto;
+    const bom = inverter ? dif<=0 : dif>=0;
+    const cor = Math.abs(dif)<Math.max(30,Math.abs(previsto)*0.05) ? "var(--muted)" : (bom?cssv("--green"):cssv("--rose"));
+    return `<div class="rrow"><span class="rr-n">${rot}</span>
+      <span class="rr-v">${fmt(real)} <span style="color:var(--muted);font-weight:600">de ${fmt(previsto)}</span>
+      <span style="color:${cor};font-weight:800;margin-left:6px">${dif>=0?"+":"\u2212"}${fmt(Math.abs(dif)).replace("R$ ","R$ ")}</span></span></div>`;
+  };
+
+  return `<div class="eyebrow">Este m\u00eas at\u00e9 agora ${help("Compara o que j\u00e1 aconteceu em "+mesLabel(m)+" com o que estava previsto no seu cadastro. O gasto vari\u00e1vel \u00e9 comparado proporcionalmente ao dia do m\u00eas \u2014 no dia 10 n\u00e3o faria sentido cobrar o m\u00eas inteiro.")}</div>
+    <div class="card"><div class="card-h">
+      <div><div class="ct">${esc(mesLabel(m))} \u00b7 dia ${hoje.getDate()} de ${diasNoMes}</div>
+        <div class="cs">${r.total} lan\u00e7amento(s) registrados${r.pendentes?` \u00b7 ${r.pendentes} sem categoria`:""}</div></div>
+      <div class="c-end"><div class="lbl">sobra at\u00e9 aqui</div>
+        <div class="val" style="color:${r.sobra>=0?cssv("--green"):cssv("--rose")}">${fmt(r.sobra)}</div></div></div>
+      <div class="track" style="margin-bottom:12px"><div class="fill" style="width:${Math.min(100,Math.round(decorrido*100))}%;background:${cssv("--brand")}"></div></div>
+      ${linha("Entradas",r.entradas,prev.entradas,false)}
+      ${linha("Gastos fixos",r.fixos,prev.fixos,true)}
+      ${linha("Gastos vari\u00e1veis",r.variaveis,alvoVar,true)}
+      ${estouro>Math.max(50,alvoVar*0.15)
+        ? `<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:10px">
+            <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
+            <div>No ritmo de hoje o vari\u00e1vel fecha o m\u00eas em <b>${fmt(r.variaveis/Math.max(decorrido,0.05))}</b>,
+              contra ${fmt(prev.variaveis)} previstos. D\u00e1 tempo de ajustar \u2014 faltam ${diasNoMes-hoje.getDate()} dias.</div></div>`
+        : `<div class="cap" style="margin-top:8px">No ritmo de hoje o vari\u00e1vel fecha em ${fmt(r.variaveis/Math.max(decorrido,0.05))}, dentro do previsto.</div>`}
+    </div>`;
+}
+
 /* De onde saiu a sobra — e, quando dá, o quanto o cliente errou o próprio chute.
    Essa divergência é informação de consultoria, não ruído. */
 function notaSobra(){
+  if(F.sobraOrigem==="realizada"){
+    const base=`m\u00e9dia do que voc\u00ea <b>realmente gastou</b> nos \u00faltimos ${F.mesesReal} m\u00eas(es) fechados: renda \u2212 fixos \u2212 ${fmt(F.variaveis)} de vari\u00e1vel`;
+    if(F.sobraDeclarada!=null && Math.abs(F.sobraDeclarada-F.sobra)>=Math.max(50,Math.abs(F.sobra)*0.15))
+      return `${base}. Voc\u00ea achava que sobrava <b>${fmt(F.sobraDeclarada)}</b>.`;
+    return base+".";
+  }
   if(F.sobraOrigem==="calculada"){
     const base=`renda − fixos − variáveis (${fmt(F.variaveis)}/mês)`;
     if(F.sobraDeclarada!=null && Math.abs(F.sobraDeclarada-F.sobra)>=Math.max(50,F.sobra*0.15))
@@ -1984,12 +2047,63 @@ let impEtapa="mes", impLinhas=[], impArquivo=null, impConta=null, impCol="primei
 /* ---- mês em foco na aba Lançamentos ---- */
 const mesHoje = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
 let mesAtivo=mesHoje(), lancData=[], fechData=[], lancFiltro="todos";
+/* hist\u00f3rico curto usado pelo motor: o REALIZADO dos meses j\u00e1 fechados \u00e9 a melhor
+   fonte de gasto vari\u00e1vel que existe \u2014 melhor que qualquer valor declarado. */
+let histLancs=[], histFech=[];
 const dia1  = m => m+"-01";
 const diaN  = m => { const [a,b]=m.split("-").map(Number); return new Date(Date.UTC(a,b,0)).toISOString().slice(0,10); };
 const mesAnterior = m => { const [a,b]=m.split("-").map(Number); const d=new Date(Date.UTC(a,b-2,1)); return d.toISOString().slice(0,7); };
 const mesSeguinte = m => { const [a,b]=m.split("-").map(Number); const d=new Date(Date.UTC(a,b,1)); return d.toISOString().slice(0,7); };
 const mesLabel = m => { const [a,b]=m.split("-").map(Number);
   return ["janeiro","fevereiro","mar\u00e7o","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"][b-1]+" de "+a; };
+
+/* Seis meses de lançamentos + todos os fechamentos. É o que permite dizer
+   "você gastou X" em vez de "você disse que gasta X". */
+async function carregarHistorico(){
+  if(!perfilData||!sb||offline||!navigator.onLine){ histLancs=[]; histFech=[]; return; }
+  const d=new Date(); d.setMonth(d.getMonth()-6);
+  const desde=d.toISOString().slice(0,10);
+  const cid=perfilData.cliente_id;
+  const [lr,fr]=await Promise.all([
+    sb.from("lancamentos").select("conta_id,data,valor,categoria_id,descricao,eh_transferencia")
+      .eq("cliente_id",cid).gte("data",desde),
+    sb.from("fechamentos_mensais").select("*").eq("cliente_id",cid).order("mes_referencia",{ascending:false}),
+  ]);
+  histLancs=lr.error?[]:(lr.data||[]);
+  histFech=fr.error?[]:(fr.data||[]);
+}
+
+/* Mêses JÁ FECHADOS, do mais recente para o mais antigo. */
+function mesesFechados(){
+  const porMes={};
+  histFech.filter(f=>f.status==="fechado").forEach(f=>{
+    const m=String(f.mes_referencia).slice(0,7);
+    (porMes[m]=porMes[m]||[]).push(f);
+  });
+  return Object.keys(porMes).sort().reverse();
+}
+
+/* Gasto variável REALIZADO: média dos até 3 últimos meses fechados.
+   Um mês só seria refém de férias ou de um IPVA. */
+function variavelRealizado(){
+  const meses=mesesFechados().slice(0,3);
+  if(!meses.length) return null;
+  const vals=meses.map(m=>{
+    const doMes=histLancs.filter(l=>String(l.data).slice(0,7)===m);
+    return resumoMes(doMes).variaveis;
+  }).filter(v=>v>0);
+  if(!vals.length) return null;
+  return { valor:Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*100)/100, meses:meses.length };
+}
+
+/* Saldo real em caixa: soma do saldo final das contas de fluxo no último mês fechado. */
+function saldoRealizado(){
+  const m=mesesFechados()[0]; if(!m) return null;
+  const doMes=histFech.filter(f=>String(f.mes_referencia).slice(0,7)===m&&f.status==="fechado"&&f.saldo_final!=null);
+  const contasFluxo=new Set(contasData.filter(c=>c.natureza!=="investimento").map(c=>c.id));
+  const soma=doMes.filter(f=>contasFluxo.has(f.conta_id)).reduce((a,f)=>a+num(f.saldo_final),0);
+  return doMes.length?{ valor:soma, mes:m }:null;
+}
 
 /* Carrega os lançamentos e o fechamento do mês em foco. */
 async function carregarMes(){
@@ -2002,6 +2116,9 @@ async function carregarMes(){
   ]);
   lancData = lr.error?[]:(lr.data||[]);
   fechData = fr.error?[]:(fr.data||[]);
+  /* o m\u00eas em foco tamb\u00e9m alimenta o hist\u00f3rico curto que o motor usa */
+  const outros=histLancs.filter(l=>String(l.data).slice(0,7)!==mesAtivo);
+  histLancs=outros.concat(lancData);
 }
 
 /* ---- de qual conta é este arquivo ----
