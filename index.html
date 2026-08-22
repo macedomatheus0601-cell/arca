@@ -92,6 +92,7 @@
   .nav-item { display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:11px; color:var(--text2); font-size:14px; font-weight:600; width:100%; text-align:left; white-space:nowrap; transition:background .15s,color .15s; }
   .nav-item .ni-ic { display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .nav-item svg { width:19px; height:19px; flex-shrink:0; }
+  .nav-item .ni-curto { display:none; }   /* só aparece na barra do celular */
   .nav-item:hover { background:var(--card2); color:var(--text); }
   .nav-item.active { background:color-mix(in srgb,var(--brand) 13%,transparent); color:var(--brand); }
   .side-foot { border-top:1px solid var(--border); padding-top:12px; margin-top:8px; display:flex; align-items:center; gap:10px; }
@@ -140,7 +141,8 @@
                 padding:7px 1px 5px; border-radius:12px; justify-content:center; text-align:center; background:none; }
     .nav-item .ni-ic { width:100%; height:24px; border-radius:9px; transition:background .15s; }
     .nav-item svg { width:var(--nav-ic,21px); height:var(--nav-ic,21px); }
-    .nav-item .ni-l { display:block; width:100%; font-size:var(--nav-fs,9px); line-height:1.15; font-weight:640;
+    .nav-item .ni-l { display:none; }
+    .nav-item .ni-curto { display:block; width:100%; font-size:var(--nav-fs,9px); line-height:1.15; font-weight:640;
                       white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-.15px; }
     .nav-item:hover { background:none; color:var(--text2); }
     .nav-item.active { background:none; color:var(--brand); }
@@ -436,6 +438,10 @@
     .cli-acts { width:100%; justify-content:stretch; }
     .cli-acts button, .cli-acts .modo-tag { flex:1 1 0; text-align:center; }
   }
+  .rev-obs { flex:1 1 100%; height:32px; border-radius:9px; border:1px solid var(--border-strong);
+             background:var(--card2); color:var(--text); padding:0 10px; font-size:12.5px; margin-top:6px; }
+  .rev-obs:focus { border-color:var(--brand); }
+  .pill.b { background:color-mix(in srgb,var(--brand) 10%,transparent); color:var(--brand); }
   .msg { font-size:12.5px; margin-top:10px; font-weight:600; }
   .msg.ok { color:var(--green); } .msg.err { color:var(--rose); }
   .sub-tabs { display:flex; gap:3px; border-bottom:1px solid var(--border); margin-bottom:16px; flex-wrap:wrap; }
@@ -887,6 +893,7 @@ async function loadData(attempt=1){
     if(!prem.error && (prem.data||[])[0]) premissas=prem.data[0];
     offline=false; dadosDe=null;
     montarEstado(); salvarRetrato(); barraOffline(); setPage(currentPage);
+    carregarMes();         /* lançamentos e fechamento do mês em foco */
     carregarModelos();     /* moldes de extrato, em segundo plano */
     carregarRespostas();   /* caixa de entrada do formulário */
     carregarUsuarios();    /* acessos */
@@ -1281,7 +1288,7 @@ const PAGES=[
   {id:"dividas",  label:"Dívidas",  titulo:"Suas dívidas",        icon:"alert", render:renderDividas,  papeis:["consultor","host","leitor"], quando:()=>dividasData.length>0},
   {id:"projecao", label:"Projeção", titulo:"Projeção",            icon:"trend", render:renderProjecao, papeis:["consultor","host","leitor"]},
   {id:"investir", label:"Investir", titulo:"Seus investimentos",  icon:"coins", render:renderInvestir, papeis:["consultor","host","leitor"]},
-  {id:"extratos", label:"Extratos", titulo:"Importar extrato",    icon:"upload",render:renderExtratos, papeis:["consultor","host"]},
+  {id:"extratos", label:"Lançamentos", curto:"Lançar", titulo:"Lançamentos do mês", icon:"upload",render:renderExtratos, papeis:["consultor","host"]},
   {id:"clientes", label:"Clientes", titulo:"Gestão de clientes",  icon:"users", render:renderClientes, papeis:["consultor"]},
 ];
 const meuPapel = () => isConsultor ? "consultor" : (isHost ? "host" : "leitor");
@@ -1290,7 +1297,8 @@ function renderNav(){
   const vis=paginasVisiveis(), nav=document.getElementById("nav");
   nav.innerHTML=vis.map(p=>
     `<button class="nav-item ${p.id===currentPage?"active":""}" onclick="setPage('${p.id}')" aria-label="${esc(p.label)}" ${p.id===currentPage?'aria-current="page"':""}>
-       <span class="ni-ic">${svgIcon(p.icon)}</span><span class="ni-l">${p.label}</span></button>`).join("");
+       <span class="ni-ic">${svgIcon(p.icon)}</span><span class="ni-l">${esc(p.label)}</span
+       ><span class="ni-l ni-curto">${esc(p.curto||p.label)}</span></button>`).join("");
   /* no celular todas as abas dividem a largura: o texto encolhe conforme a quantidade */
   const n=vis.length;
   nav.style.setProperty("--nav-fs", n<=4?"10px" : n<=5?"9.4px" : n<=6?"8.8px" : "8.2px");
@@ -1972,7 +1980,127 @@ async function recarregarAplicacoes(){
    Determinístico: sem IA. Lê PDF (pdf.js) ou CSV, extrai data/descrição/valor,
    classifica por regras salvas e por cruzamento com os gastos fixos declarados,
    e só grava depois da revisão. Duplicidade barrada por hash. */
-let impEtapa="upload", impLinhas=[], impArquivo=null, impConta=null, impCol="primeiro", impSinal="auto";
+let impEtapa="mes", impLinhas=[], impArquivo=null, impConta=null, impCol="primeiro", impSinal="auto";
+/* ---- mês em foco na aba Lançamentos ---- */
+const mesHoje = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
+let mesAtivo=mesHoje(), lancData=[], fechData=[], lancFiltro="todos";
+const dia1  = m => m+"-01";
+const diaN  = m => { const [a,b]=m.split("-").map(Number); return new Date(Date.UTC(a,b,0)).toISOString().slice(0,10); };
+const mesAnterior = m => { const [a,b]=m.split("-").map(Number); const d=new Date(Date.UTC(a,b-2,1)); return d.toISOString().slice(0,7); };
+const mesSeguinte = m => { const [a,b]=m.split("-").map(Number); const d=new Date(Date.UTC(a,b,1)); return d.toISOString().slice(0,7); };
+const mesLabel = m => { const [a,b]=m.split("-").map(Number);
+  return ["janeiro","fevereiro","mar\u00e7o","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"][b-1]+" de "+a; };
+
+/* Carrega os lançamentos e o fechamento do mês em foco. */
+async function carregarMes(){
+  if(!perfilData||!sb||offline||!navigator.onLine) return;
+  const cid=perfilData.cliente_id;
+  const [lr,fr]=await Promise.all([
+    sb.from("lancamentos").select("*").eq("cliente_id",cid)
+      .gte("data",dia1(mesAtivo)).lte("data",diaN(mesAtivo)).order("data",{ascending:true}),
+    sb.from("fechamentos_mensais").select("*").eq("cliente_id",cid).eq("mes_referencia",dia1(mesAtivo)),
+  ]);
+  lancData = lr.error?[]:(lr.data||[]);
+  fechData = fr.error?[]:(fr.data||[]);
+}
+
+/* ---- de qual conta é este arquivo ----
+   Casa pelo número da conta ou pelo final do cartão cadastrados. Nome de banco
+   sozinho não basta: a pessoa pode ter duas contas no mesmo banco. Na dúvida,
+   devolve null e a tela PERGUNTA — nunca chuta. */
+function identificarConta(texto, contas){
+  const T=" "+String(texto||"").toUpperCase().replace(/\s+/g," ")+" ";
+  /* "56789-0" e "56789.0" são o mesmo número: junta os dígitos separados por
+     hífen, ponto ou barra antes de comparar, senão o dígito verificador quebra a busca */
+  const D=" "+String(texto||"").replace(/(\d)[.\-\/](?=\d)/g,"$1").replace(/\D+/g," ").replace(/\s+/g," ")+" ";
+  const dig=v=>String(v==null?"":v).replace(/\D/g,"");
+  const notas=(contas||contasData).filter(c=>c.ativa!==false).map(c=>{
+    let p=0; const por=[];
+    const nc=dig(c.numero_conta);
+    if(nc.length>=4 && D.includes(" "+nc+" ")){ p+=10; por.push("n\u00famero da conta "+c.numero_conta); }
+    const fc=dig(c.final_cartao);
+    if(fc.length===4 && D.includes(" "+fc+" ")){ p+=8; por.push("final do cart\u00e3o "+fc); }
+    const ag=dig(c.agencia);
+    if(ag.length>=3 && D.includes(" "+ag+" ")){ p+=3; por.push("ag\u00eancia "+c.agencia); }
+    const b=String(c.banco||"").toUpperCase().split(/\s+/)[0];
+    if(b.length>=3 && T.includes(" "+b)){ p+=1; por.push("nome do banco"); }
+    return { conta:c, pontos:p, por };
+  }).sort((a,b)=>b.pontos-a.pontos);
+  const top=notas[0];
+  if(!top||top.pontos<6) return { conta:null, motivo:"n\u00e3o encontrei no arquivo o n\u00famero de nenhuma conta cadastrada", notas };
+  if(notas[1]&&notas[1].pontos===top.pontos) return { conta:null, motivo:"o arquivo bate com mais de uma conta", notas };
+  return { conta:top.conta, motivo:"identificada pelo "+top.por.join(" + "), notas };
+}
+
+/* ---- este débito é um gasto fixo já declarado? ----
+   Mesma regra do classificador: valor próximo (±3%), tipo compatível, e
+   nome parecido OU dia do vencimento próximo. */
+function casarComFixo(dataISO, desc, valor){
+  const nd=normalizarDesc(desc||"");
+  return compsData.find(c=>{
+    const cv=num(c.valor); if(!cv) return false;
+    if((c.tipo==="receita")!==(valor>0)) return false;
+    if(Math.abs(Math.abs(valor)-cv)/cv>0.03) return false;
+    const nomeOk=nd.includes(normalizarDesc(c.descricao||"").split(" ")[0]||"###");
+    const diaOk=c.dia_vencimento?Math.abs(Number(String(dataISO).slice(8,10))-Number(c.dia_vencimento))<=3:false;
+    return nomeOk||diaOk;
+  })||null;
+}
+
+/* ---- transferência entre contas do próprio cliente ----
+   Só vira transferência se a CONTRAPARTIDA existir em OUTRA conta: mesmo valor
+   (±R$ 5) dentro de 3 dias. Sem par, é gasto de verdade — conservador de propósito.
+   É também o que faz o pagamento da fatura do cartão não contar duas vezes. */
+function casarTransferencias(lancs, tolValor=5, tolDias=3){
+  const diaNum=d=>Math.round(Date.parse(String(d).slice(0,10)+"T00:00:00Z")/86400000);
+  const usados=new Set(), pares=[];
+  const saidas=lancs.filter(l=>num(l.valor)<0).slice().sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+  for(const sd of saidas){
+    if(usados.has(sd.id)) continue;
+    const alvo=Math.abs(num(sd.valor));
+    const par=lancs.find(e=>!usados.has(e.id)&&e.id!==sd.id&&num(e.valor)>0
+      && e.conta_id!==sd.conta_id
+      && Math.abs(num(e.valor)-alvo)<=tolValor
+      && Math.abs(diaNum(e.data)-diaNum(sd.data))<=tolDias);
+    if(par){ usados.add(sd.id); usados.add(par.id); pares.push([sd,par]); }
+  }
+  return pares;
+}
+
+/* ---- o que REALMENTE aconteceu no mês ---- */
+function resumoMes(lancs){
+  const reais=(lancs||[]).filter(l=>!l.eh_transferencia);
+  let entradas=0, fixos=0, variaveis=0, transf=0;
+  const porCategoria={};
+  (lancs||[]).forEach(l=>{
+    const v=num(l.valor);
+    if(l.eh_transferencia){ transf+=Math.abs(v); return; }
+    if(v>0){ entradas+=v; return; }
+    const gasto=-v;
+    if(casarComFixo(l.data,l.descricao,v)) fixos+=gasto; else variaveis+=gasto;
+    const k=l.categoria_id||"sem";
+    porCategoria[k]=(porCategoria[k]||0)+gasto;
+  });
+  const saidas=fixos+variaveis;
+  return { entradas, saidas, fixos, variaveis, transf, sobra:entradas-saidas,
+           porCategoria, total:reais.length,
+           pendentes:(lancs||[]).filter(l=>!l.categoria_id&&!l.eh_transferencia).length };
+}
+
+/* ---- a conferência que fecha o mês ----
+   saldo inicial + créditos − débitos = saldo final.
+   Se não fecha, falta extrato: página faltando, outra conta, ou dinheiro vivo. */
+function conferirFechamento(fech, lancsDaConta){
+  const cred=lancsDaConta.filter(l=>num(l.valor)>0).reduce((a,l)=>a+num(l.valor),0);
+  const deb =lancsDaConta.filter(l=>num(l.valor)<0).reduce((a,l)=>a-num(l.valor),0);
+  const ini=fech&&fech.saldo_inicial!=null?num(fech.saldo_inicial):null;
+  const fim=fech&&fech.saldo_final!=null?num(fech.saldo_final):null;
+  if(ini==null||fim==null) return { ok:null, cred, deb, esperado:null, diferenca:null };
+  const esperado=ini+cred-deb;
+  const diferenca=Math.round((fim-esperado)*100)/100;
+  return { ok:Math.abs(diferenca)<0.01, cred, deb, esperado, diferenca };
+}
+
 let modelosData=[], impModeloUsado=null;
 /* Um "modelo de extração" guarda COMO ler o extrato de um banco específico.
    Na primeira importação você ajusta; da segunda em diante o app reconhece
@@ -2103,85 +2231,63 @@ function classificar(lancs, regras){
 function setImpEtapa(e){ impEtapa=e; renderExtratos(); }
 function renderExtratos(){
   if(!isHost){ pagina(`<div class="state">Área restrita.</div>`,""); return; }
-  if(!contasData.length){
-    pagina(`<div class="state"><div class="big">🏦</div>Nenhuma conta bancária cadastrada para este cliente.<br>
-      <span style="font-size:12.5px">Cadastre uma conta para poder importar o extrato dela.</span>
-      <div class="card" style="max-width:520px;margin:18px auto 0;text-align:left">
-        <form class="adm-form" onsubmit="criarConta(event)">
-          <div><label>Banco *</label><input id="ctBanco" required placeholder="Banco do Brasil"></div>
-          <div><label>Tipo</label><select id="ctTipo"><option>Conta corrente</option><option>Poupança</option><option>Conta digital</option><option>Dinheiro</option></select></div>
-          <div class="full"><label>Apelido</label><input id="ctApelido" placeholder="Conta salário"></div>
-          <button class="btn-p" type="submit" ${offline?"disabled":""}>Criar conta</button>
-        </form><div id="ctMsg" class="msg"></div></div></div>`,"");
-    return;
-  }
   let corpo="";
-  if(impEtapa==="upload"){
-    const contaSel=impConta||contasData[0].id;
-    const mPdf=modeloDe(contaSel,"PDF"), mCsv=modeloDe(contaSel,"CSV"), m=mPdf||mCsv;
-    const cfg=m&&m.configuracao?m.configuracao:null;
-    const colAtual=cfg&&cfg.coluna?cfg.coluna:impCol, sinalAtual=cfg&&cfg.sinal?cfg.sinal:impSinal;
-    const bancoNome=(contasData.find(c=>c.id===contaSel)||{}).banco||"";
-    corpo=`<div class="card">
-      <div class="card-h"><div><div class="ct">1. Escolha a conta e o arquivo <span class="beta">beta</span></div>
-        <div class="cs">o extrato será lido no seu próprio navegador — o arquivo não é enviado para lugar nenhum</div></div></div>
-      ${m?`<div class="alerta g" style="margin-bottom:14px"><div class="a-ic" style="background:color-mix(in srgb,${cssv("--green")} 18%,transparent);color:${cssv("--green")}">${svgIcon("check")}</div>
-        <div><b>Molde do ${esc(bancoNome)} já aprendido.</b> As opções abaixo já vieram preenchidas do jeito que funcionou da última vez — normalmente é só escolher o arquivo.</div></div>`
-       :`<div class="alerta" style="background:var(--card2);border:1px solid var(--border);margin-bottom:14px"><div class="a-ic" style="background:color-mix(in srgb,${cssv("--brand")} 15%,transparent);color:${cssv("--brand")}">${svgIcon("book")}</div>
-        <div><b>Primeira importação do ${esc(bancoNome)}.</b> Se o resultado sair errado, ajuste as opções abaixo e tente de novo. Quando der certo, o app <b>guarda o molde deste banco</b> e nas próximas vezes já vem pronto.</div></div>`}
-      <div class="adm-form" style="margin-bottom:16px">
-        <div style="flex:2"><label>Conta de destino</label><select id="impConta" onchange="trocarContaImp(this.value)">${contasData.map(c=>`<option value="${c.id}" ${c.id===contaSel?"selected":""}>${esc(c.apelido||c.banco)} — ${esc(c.banco)}</option>`).join("")}</select></div>
-        <div><label>Onde está o valor na linha</label><select id="impCol">
-          <option value="primeiro" ${colAtual==="primeiro"?"selected":""}>1º número da linha</option>
-          <option value="penultimo" ${colAtual==="penultimo"?"selected":""}>penúltimo (quando há saldo)</option>
-          <option value="ultimo" ${colAtual==="ultimo"?"selected":""}>último número</option></select></div>
-        <div><label>Sinal dos valores</label><select id="impSinal">
-          <option value="auto" ${sinalAtual==="auto"?"selected":""}>detectar automaticamente</option>
-          <option value="dc" ${sinalAtual==="dc"?"selected":""}>usar marcação D / C</option>
-          <option value="negativo" ${sinalAtual==="negativo"?"selected":""}>tudo como saída</option>
-          <option value="positivo" ${sinalAtual==="positivo"?"selected":""}>tudo como entrada</option></select></div>
-      </div>
-      <div class="drop" id="dropZone">
-        <div class="d-ic">${svgIcon("upload")}</div>
-        <div class="d-t">Arraste o extrato aqui</div>
-        <div class="d-s">PDF ou CSV · o arquivo fica no seu computador</div>
-        <input type="file" id="impFile" accept=".pdf,.csv,.txt" style="display:none" onchange="lerArquivo(this.files[0])">
-        <button class="btn-p" onclick="document.getElementById('impFile').click()" ${offline?"disabled":""}>Selecionar arquivo</button>
-      </div>
-      <div id="impMsg" class="msg"></div>
-      <div class="note">Se o resultado vier errado, mude a opção <b>“onde está o valor na linha”</b> e tente de novo — cada banco organiza o extrato de um jeito.</div></div>`;
-  }
+  const subAbas=(impEtapa==="mes"||impEtapa==="upload")?`<div class="sub-tabs">
+      <button class="sub-tab ${impEtapa==="mes"?"active":""}" onclick="setImpEtapa('mes')">Posi\u00e7\u00e3o do m\u00eas</button>
+      <button class="sub-tab ${impEtapa==="upload"?"active":""}" onclick="setImpEtapa('upload')">Subir extratos</button>
+    </div>`:"";
+  if(impEtapa==="mes") corpo=etapaMes();
+  else if(impEtapa==="manual") corpo=etapaManual();
+  else if(impEtapa==="upload") corpo=etapaUpload();
   else if(impEtapa==="revisao"){
-    const cats=catsData;
-    const auto=impLinhas.filter(l=>l.categoria_id&&!l.duplicado).length;
-    const pend=impLinhas.filter(l=>!l.categoria_id&&!l.duplicado).length;
-    const dup=impLinhas.filter(l=>l.duplicado).length;
-    const listaPend=impLinhas.map((l,i)=>({l,i})).filter(x=>!x.l.categoria_id&&!x.l.duplicado).slice(0,80);
+    const novos=impLinhas.filter(l=>!l.duplicado);
+    const auto=novos.filter(l=>l.categoria_id&&!l.eh_transferencia).length;
+    const pend=novos.filter(l=>!l.categoria_id&&!l.eh_transferencia).length;
+    const dup=impLinhas.length-novos.length;
+    const transf=novos.filter(l=>l.eh_transferencia).length;
+    const nomeConta=id=>{ const c=contasData.find(x=>x.id===id); return c?rotuloConta(c):"conta"; };
+    const so=lancFiltro==="pendentes"?novos.filter(l=>!l.categoria_id&&!l.eh_transferencia)
+            :lancFiltro==="transferencias"?novos.filter(l=>l.eh_transferencia)
+            :novos;
+
+    const linha=(l)=>{ const i=impLinhas.indexOf(l);
+      const fixo=l.valor<0?casarComFixo(l.data,l.desc,l.valor):null;
+      return `<div class="rev-row" style="flex-wrap:wrap">
+        <div class="rev-b" style="min-width:180px">
+          <div class="rev-n">${esc(l.desc)}</div>
+          <div class="rev-s">${dataBR(l.data)} \u00b7 ${esc(nomeConta(l.conta_id))}${fixo?` \u00b7 <b style="color:${cssv("--brand")}">\u00e9 o seu gasto fixo \u201c${esc(fixo.descricao)}\u201d</b>`:""}${l.eh_transferencia?` \u00b7 <b style="color:${cssv("--teal")}">transfer\u00eancia entre suas contas</b>`:""}</div>
+        </div>
+        <div class="rev-v ${l.valor>=0?"pos":"neg"}">${fmt(l.valor)}</div>
+        ${l.eh_transferencia
+          ? `<button class="btn-sec" onclick="desfazerTransferencia(${i})">n\u00e3o \u00e9 transfer\u00eancia</button>`
+          : `<select onchange="definirCategoria(${i},this.value)"><option value="">Categoria\u2026</option>
+              ${catsData.filter(k=>(k.tipo==="Receita")===(l.valor>0)).map(k=>`<option value="${k.id}" ${k.id===l.categoria_id?"selected":""}>${esc(k.nome)}</option>`).join("")}</select>`}
+        <input class="rev-obs" placeholder="descri\u00e7\u00e3o (opcional)" value="${esc(l.observacao||"")}"
+               oninput="definirObs(${i},this.value)" aria-label="Descri\u00e7\u00e3o deste lan\u00e7amento">
+      </div>`; };
+
     corpo=`<div class="card">
-      <div class="card-h"><div><div class="ct">2. Confira antes de gravar</div><div class="cs">${esc(impArquivo||"")}</div></div>
-        <button class="btn-sec" onclick="setImpEtapa('upload')">← trocar arquivo</button></div>
+      <div class="card-h"><div><div class="ct">2. Classifique os lan\u00e7amentos</div>
+        <div class="cs">${impArquivos.filter(a=>a.conta_id).map(a=>esc(a.nome)).join(" \u00b7 ")||"lan\u00e7amento manual"}</div></div>
+        <button class="btn-sec" onclick="setImpEtapa('upload')">\u2190 voltar aos arquivos</button></div>
       <div class="pill-sum">
         <div class="pill g"><span style="font-size:19px">${svgIcon("check")}</span><div><div class="p-n">${auto}</div><div class="p-t">classificados automaticamente</div></div></div>
-        <div class="pill y"><span style="font-size:19px">?</span><div><div class="p-n">${pend}</div><div class="p-t">precisam da sua revisão</div></div></div>
-        <div class="pill n"><span style="font-size:19px">⊘</span><div><div class="p-n">${dup}</div><div class="p-t">já existiam (ignorados)</div></div></div>
+        <div class="pill y"><span style="font-size:19px">?</span><div><div class="p-n">${pend}</div><div class="p-t">precisam de voc\u00ea</div></div></div>
+        <div class="pill b"><span style="font-size:19px">\u21c4</span><div><div class="p-n">${transf}</div><div class="p-t">transfer\u00eancias (n\u00e3o s\u00e3o gasto)</div></div></div>
+        <div class="pill n"><span style="font-size:19px">\u2298</span><div><div class="p-n">${dup}</div><div class="p-t">j\u00e1 existiam</div></div></div>
       </div>
-      ${pend?`<div style="font-size:13px;font-weight:680;margin:6px 0 4px">Escolha a categoria destes lançamentos</div>
-      ${listaPend.map(x=>`<div class="rev-row">
-        <div class="rev-b"><div class="rev-n">${esc(x.l.desc)}</div><div class="rev-s">${dataBR(x.l.data)}${x.l.origem==="fixo"?" · parece um gasto fixo seu":""}</div></div>
-        <div class="rev-v ${x.l.valor>=0?"pos":"neg"}">${fmt(x.l.valor)}</div>
-        <select onchange="definirCategoria(${x.i},this.value)"><option value="">Selecionar…</option>
-          ${cats.filter(k=>(k.tipo==="Receita")===(x.l.valor>0)).map(k=>`<option value="${k.id}">${esc(k.nome)}</option>`).join("")}</select>
-      </div>`).join("")}`:`<div class="alerta g"><div class="a-ic" style="background:color-mix(in srgb,${cssv("--green")} 18%,transparent);color:${cssv("--green")}">${svgIcon("check")}</div>
-        <div>Tudo classificado! É só confirmar para gravar no histórico.</div></div>`}
-      <details style="margin-top:14px"><summary>Ver todos os ${impLinhas.length} lançamentos lidos</summary>
-        <div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Situação</th></tr></thead><tbody>
-        ${impLinhas.slice(0,300).map(l=>`<tr><td>${dataBR(l.data)}</td><td style="text-align:left;white-space:normal">${esc(l.desc)}</td>
-          <td class="${l.valor>=0?"pos":"neg"}">${fmt(l.valor)}</td>
-          <td>${l.duplicado?"já existia":(l.categoria_id?"classificado":"pendente")}</td></tr>`).join("")}
-        </tbody></table></div></details>
+      <div class="sub-tabs" style="margin:10px 0 12px">
+        ${[["todos","Todos ("+novos.length+")"],["pendentes","Sem categoria ("+pend+")"],["transferencias","Transfer\u00eancias ("+transf+")"]]
+          .map(t=>`<button class="sub-tab ${lancFiltro===t[0]?"active":""}" onclick="lancFiltro='${t[0]}';renderExtratos()">${t[1]}</button>`).join("")}
+      </div>
+      ${so.length?so.slice(0,200).map(linha).join(""):`<div class="empty">Nada nesta lista.</div>`}
+      ${so.length>200?`<div class="cap">Mostrando os 200 primeiros de ${so.length}.</div>`:""}
+      ${pend?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:12px">
+        <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
+        <div>${pend} lan\u00e7amento(s) ainda sem categoria. D\u00e1 para gravar assim, mas eles ficam de fora da an\u00e1lise por categoria.</div></div>`:""}
       <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">
         <button class="btn-sec" onclick="setImpEtapa('upload')">Cancelar</button>
-        <button class="btn-p" onclick="gravarImportacao()" ${offline?"disabled":""}>Gravar ${impLinhas.filter(l=>!l.duplicado).length} lançamentos</button>
+        <button class="btn-p" onclick="gravarImportacao()" ${offline?"disabled":""}>Gravar ${novos.length} lan\u00e7amento(s)</button>
       </div><div id="impMsg2" class="msg"></div></div>`;
   }
   else if(impEtapa==="pronto"){
@@ -2190,7 +2296,7 @@ function renderExtratos(){
       <span style="font-size:13px">Os lançamentos já fazem parte do histórico deste cliente.</span>
       <div style="margin-top:16px"><button class="btn-p" onclick="setImpEtapa('upload')">Importar outro extrato</button></div></div></div>`;
   }
-  const principal=`<div class="explica">A importação lê o extrato <b>no próprio navegador</b> — o arquivo não sai do seu computador. O sistema tenta classificar sozinho usando as regras já aprendidas e os gastos fixos declarados; o que ficar em dúvida vem para você confirmar. Nada é gravado antes da sua revisão, e lançamentos repetidos são ignorados automaticamente.</div>${corpo}`;
+  const principal=subAbas+`<div class="explica" style="${impEtapa==="mes"?"display:none":""}">A importação lê o extrato <b>no próprio navegador</b> — o arquivo não sai do seu computador. O sistema tenta classificar sozinho usando as regras já aprendidas e os gastos fixos declarados; o que ficar em dúvida vem para você confirmar. Nada é gravado antes da sua revisão, e lançamentos repetidos são ignorados automaticamente.</div>${corpo}`;
   pagina(principal, rcard("Como funciona","book",cssv("--brand"),
     `<div class="rrow"><span class="rday">1</span><span class="rr-n">Lê o arquivo</span></div>
      <div class="rrow"><span class="rday">2</span><span class="rr-n">Classifica pelas regras</span></div>
@@ -2201,17 +2307,390 @@ function renderExtratos(){
   if(dz){
     ["dragenter","dragover"].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.classList.add("over");}));
     ["dragleave","drop"].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.classList.remove("over");}));
-    dz.addEventListener("drop",ev=>{ const f=ev.dataTransfer.files[0]; if(f) lerArquivo(f); });
+    dz.addEventListener("drop",ev=>{ const fs=ev.dataTransfer.files; if(fs&&fs.length) lerArquivos(fs); });
   }
 }
+/* ---------- POSI\u00c7\u00c3O DO M\u00caS ----------
+   O que realmente aconteceu, conta por conta, com a confer\u00eancia que fecha o m\u00eas:
+   saldo inicial + cr\u00e9ditos \u2212 d\u00e9bitos = saldo final.
+   Se n\u00e3o bate, falta extrato \u2014 p\u00e1gina, conta ou dinheiro vivo. */
+const ESTADOS_MES={ aberto:"em preenchimento", enviado:"enviado para o consultor",
+                    revisao:"em revis\u00e3o", fechado:"fechado" };
+const fechDe = contaId => fechData.find(f=>f.conta_id===contaId)||null;
+const lancsDe = contaId => lancData.filter(l=>l.conta_id===contaId);
+const estadoMes = () => {
+  const fs=fechData.filter(f=>f.status);
+  if(!fs.length) return "aberto";
+  if(fs.every(f=>f.status==="fechado")) return "fechado";
+  if(fs.some(f=>f.status==="revisao")) return "revisao";
+  if(fs.every(f=>f.status==="enviado"||f.status==="fechado")) return "enviado";
+  return "aberto";
+};
+
+function etapaMes(){
+  const contas=contasData.filter(c=>c.ativa!==false&&c.natureza!=="investimento");
+  const r=resumoMes(lancData);
+  const est=estadoMes();
+  const travado = est==="fechado" || (est!=="aberto" && !isConsultor);
+
+  if(!lancData.length&&!fechData.length) return `${cabecMes(est)}
+    <div class="card"><div class="state"><div class="big">\ud83d\udcc4</div>
+      Nenhum lan\u00e7amento em ${esc(mesLabel(mesAtivo))}.<br>
+      <span style="font-size:12.5px">Suba os extratos das contas ou lance \u00e0 m\u00e3o.</span>
+      <div style="margin-top:14px"><button class="btn-p" onclick="setImpEtapa('upload')">Subir extratos</button></div>
+    </div></div>`;
+
+  const tiles=`<div class="tiles">
+    ${[["Entradas",r.entradas,"--green","trend"],["Sa\u00eddas",r.saidas,"--rose","card"],
+       ["Gastos fixos",r.fixos,"--slate","home"],["Gastos vari\u00e1veis",r.variaveis,"--amber","cart"]]
+      .map(([l,v,c,ic])=>`<div class="tile"><div class="card-top"><div class="chip" style="background:color-mix(in srgb,${cssv(c)} 15%,transparent);color:${cssv(c)}">${svgIcon(ic)}</div></div>
+        <div class="t-label">${l}</div><div class="t-value" style="color:${cssv(c)}">${fmt(v)}</div></div>`).join("")}
+    <div class="tile"><div class="card-top"><div class="chip green">${svgIcon("coins")}</div></div>
+      <div class="t-label">Sobra realizada</div>
+      <div class="t-value" style="color:${r.sobra>=0?cssv("--green"):cssv("--rose")}">${fmt(r.sobra)}</div>
+      <div class="cap" style="margin-top:6px">entradas \u2212 sa\u00eddas deste m\u00eas${r.transf>0?` \u00b7 ${fmt(r.transf)} em transfer\u00eancias n\u00e3o contam`:""}</div></div>
+  </div>`;
+
+  const cartaoConta=c=>{
+    const f=fechDe(c.id), ls=lancsDe(c.id), cf=conferirFechamento(f,ls);
+    const cor = cf.ok===true?cssv("--green") : cf.ok===false?cssv("--rose") : cssv("--muted");
+    return `<div class="card">
+      <div class="card-h"><div><div class="ct">${esc(rotuloConta(c))}</div>
+        <div class="cs">${esc(c.banco||"")} \u00b7 ${ls.length} lan\u00e7amento(s) \u00b7 ${esc(NATUREZAS[c.natureza]||"")}</div></div>
+        <div class="c-end"><div class="lbl">situa\u00e7\u00e3o</div><div class="val" style="font-size:14px;color:${cor}">${
+          cf.ok===true?"confere \u2713" : cf.ok===false?"n\u00e3o fecha" : "informe os saldos"}</div></div></div>
+      <div class="adm-form">
+        <div><label>Saldo no in\u00edcio do m\u00eas</label><input id="fiIni-${c.id}" type="number" step="0.01"
+             value="${f&&f.saldo_inicial!=null?f.saldo_inicial:""}" ${travado?"disabled":""} placeholder="0,00"></div>
+        <div><label>Cr\u00e9ditos</label><div class="ro-box">${fmt(cf.cred)}</div></div>
+        <div><label>D\u00e9bitos</label><div class="ro-box">${fmt(cf.deb)}</div></div>
+        <div><label>Saldo no fim do m\u00eas (do extrato)</label><input id="fiFim-${c.id}" type="number" step="0.01"
+             value="${f&&f.saldo_final!=null?f.saldo_final:""}" ${travado?"disabled":""} placeholder="0,00"></div>
+        ${travado?"":`<button class="btn-p" onclick="salvarFechamento('${c.id}')">Conferir</button>`}
+      </div>
+      ${cf.ok===false?`<div class="alerta" style="background:var(--rose-bg);border:1px solid color-mix(in srgb,${cssv("--rose")} 30%,transparent);margin-top:10px">
+        <div class="a-ic" style="background:color-mix(in srgb,${cssv("--rose")} 18%,transparent);color:${cssv("--rose")}">${svgIcon("alert")}</div>
+        <div><b>Faltam ${fmt(Math.abs(cf.diferenca))}.</b> O extrato diz que sobrou ${fmt(num(f.saldo_final))},
+          mas somando os lan\u00e7amentos daria ${fmt(cf.esperado)}. Quase sempre \u00e9 <b>p\u00e1gina faltando no extrato</b>,
+          <b>outra conta ainda n\u00e3o importada</b> ou <b>gasto em dinheiro</b>.
+          ${travado?"":`<div class="cli-edit" style="margin-top:8px"><input id="fiJust-${c.id}" placeholder="explique a diferen\u00e7a para fechar assim mesmo" value="${esc((f&&f.justificativa)||"")}">
+            <button class="btn-sec" onclick="salvarFechamento('${c.id}')">Salvar explica\u00e7\u00e3o</button></div>`}</div></div>`:""}
+      ${cf.ok===true?`<div class="cap" style="margin-top:8px">${fmt(num(f.saldo_inicial))} + ${fmt(cf.cred)} \u2212 ${fmt(cf.deb)} = ${fmt(num(f.saldo_final))} \u2713</div>`:""}
+    </div>`;
+  };
+
+  const podeEnviar = isHost && !isConsultor && est==="aberto" && contas.length &&
+    contas.every(c=>{ const f=fechDe(c.id); const cf=conferirFechamento(f,lancsDe(c.id));
+                      return cf.ok===true || (cf.ok===false && f&&f.justificativa); });
+  const acoes = est==="fechado" ? `<div class="alerta g" style="margin-top:14px"><div class="a-ic" style="background:color-mix(in srgb,${cssv("--green")} 18%,transparent);color:${cssv("--green")}">${svgIcon("check")}</div>
+      <div><b>M\u00eas fechado.</b> Vira hist\u00f3rico e n\u00e3o muda mais. O saldo final \u00e9 o inicial de ${esc(mesLabel(mesSeguinte(mesAtivo)))}.</div></div>`
+    : isConsultor ? `<div style="display:flex;gap:9px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap">
+        <button class="btn-sec" onclick="mudarEstadoMes('revisao')" ${offline?"disabled":""}>Marcar em revis\u00e3o</button>
+        <button class="btn-p" onclick="mudarEstadoMes('fechado')" ${offline?"disabled":""}>Fechar o m\u00eas</button>
+      </div><div id="mesMsg" class="msg"></div>`
+    : `<div style="display:flex;gap:9px;justify-content:flex-end;margin-top:14px;align-items:center;flex-wrap:wrap">
+        ${podeEnviar?"":`<span class="cap">Confira os saldos de todas as contas para poder enviar.</span>`}
+        <button class="btn-p" onclick="mudarEstadoMes('enviado')" ${(!podeEnviar||offline)?"disabled":""}>Enviar para o consultor</button>
+      </div><div id="mesMsg" class="msg"></div>`;
+
+  return `${cabecMes(est)}${tiles}
+    ${r.pendentes?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin:14px 0">
+      <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
+      <div>${r.pendentes} lan\u00e7amento(s) sem categoria \u2014 eles entram no total, mas ficam fora da an\u00e1lise por categoria.</div></div>`:""}
+    <div class="eyebrow" style="margin-top:16px">Confer\u00eancia por conta</div>
+    ${contas.length?contas.map(cartaoConta).join(""):`<div class="empty">Nenhuma conta de fluxo cadastrada.</div>`}
+    ${acoes}`;
+}
+function cabecMes(est){
+  const cor = est==="fechado"?cssv("--green") : est==="aberto"?cssv("--muted") : cssv("--amber");
+  return `<div class="card"><div class="card-h">
+    <div><div class="ct">${esc(mesLabel(mesAtivo))}</div>
+      <div class="cs" style="color:${cor}">${ESTADOS_MES[est]||est}</div></div>
+    ${seletorMes()}</div></div>`;
+}
+
+async function salvarFechamento(contaId){
+  if(offline||!navigator.onLine){ alert("Sem internet."); return; }
+  const v=id=>{ const el=document.getElementById(id); return el?numOuNulo(el.value):null; };
+  const just=(document.getElementById("fiJust-"+contaId)||{}).value;
+  const ini=v("fiIni-"+contaId), fim=v("fiFim-"+contaId);
+  const ls=lancsDe(contaId);
+  const cf=conferirFechamento({saldo_inicial:ini,saldo_final:fim}, ls);
+  const reg={ cliente_id:perfilData.cliente_id, conta_id:contaId, mes_referencia:dia1(mesAtivo),
+              saldo_inicial:ini, saldo_final:fim, diferenca:cf.diferenca,
+              justificativa:just?String(just).trim()||null:undefined };
+  if(reg.justificativa===undefined) delete reg.justificativa;
+  const { error }=await sb.from("fechamentos_mensais").upsert(reg,{onConflict:"conta_id,mes_referencia"});
+  if(error){ alert("N\u00e3o consegui salvar: "+error.message); return; }
+  await carregarMes(); renderExtratos();
+}
+
+/* Muda o estado do m\u00eas inteiro. Ao FECHAR, o saldo final de cada conta vira o
+   saldo inicial do m\u00eas seguinte \u2014 \u00e9 o que d\u00e1 continuidade ao hist\u00f3rico. */
+async function mudarEstadoMes(novo){
+  const msg=document.getElementById("mesMsg");
+  const dizer=(t,c)=>{ if(msg){ msg.className="msg "+(c||""); msg.textContent=t; } };
+  if(offline||!navigator.onLine){ dizer("Sem internet.","err"); return; }
+  const contas=contasData.filter(c=>c.ativa!==false&&c.natureza!=="investimento");
+  if(novo==="fechado"&&!confirm("Fechar "+mesLabel(mesAtivo)+"?\n\nO m\u00eas vira hist\u00f3rico e n\u00e3o pode mais ser alterado.")) return;
+  dizer("Salvando\u2026");
+  const agora=new Date().toISOString();
+  for(const c of contas){
+    const f=fechDe(c.id);
+    const reg={ cliente_id:perfilData.cliente_id, conta_id:c.id, mes_referencia:dia1(mesAtivo),
+      saldo_inicial:f?f.saldo_inicial:null, saldo_final:f?f.saldo_final:null,
+      diferenca:f?f.diferenca:null, status:novo };
+    if(novo==="enviado") reg.enviado_em=agora;
+    if(novo==="fechado") reg.fechado_em=agora;
+    const { error }=await sb.from("fechamentos_mensais").upsert(reg,{onConflict:"conta_id,mes_referencia"});
+    if(error){ dizer("Erro em "+rotuloConta(c)+": "+error.message,"err"); return; }
+    /* o saldo final vira o inicial do m\u00eas seguinte */
+    if(novo==="fechado"&&f&&f.saldo_final!=null){
+      await sb.from("fechamentos_mensais").upsert({
+        cliente_id:perfilData.cliente_id, conta_id:c.id, mes_referencia:dia1(mesSeguinte(mesAtivo)),
+        saldo_inicial:f.saldo_final, status:"aberto" },{onConflict:"conta_id,mes_referencia",ignoreDuplicates:false});
+    }
+  }
+  await carregarMes();
+  dizer(novo==="fechado"?"M\u00eas fechado \u2713":novo==="enviado"?"Enviado ao consultor \u2713":"Marcado em revis\u00e3o \u2713","ok");
+  renderExtratos();
+}
+
+/* ---------- LAN\u00c7AMENTO \u00c0 M\u00c3O ----------
+   Para extrato que veio como foto, ou conta sem arquivo nenhum. */
+let manualLinhas=[];
+function etapaManual(){
+  const contas=contasData.filter(c=>c.ativa!==false);
+  return `<div class="card">
+    <div class="card-h"><div><div class="ct">Lan\u00e7ar \u00e0 m\u00e3o</div>
+      <div class="cs">${esc(mesLabel(mesAtivo))} \u00b7 use quando o extrato veio como foto</div></div>
+      <button class="btn-sec" onclick="setImpEtapa('upload')">\u2190 voltar</button></div>
+    <form class="adm-form" onsubmit="addLinhaManual(event)">
+      <div><label>Conta *</label><select id="mlConta" required>${contas.map(c=>`<option value="${c.id}">${esc(rotuloConta(c))}</option>`).join("")}</select></div>
+      <div><label>Data *</label><input id="mlData" type="date" required value="${dia1(mesAtivo)}" min="${dia1(mesAtivo)}" max="${diaN(mesAtivo)}"></div>
+      <div style="flex:2"><label>Descri\u00e7\u00e3o *</label><input id="mlDesc" required placeholder="Mercado"></div>
+      <div><label>Valor *</label><input id="mlValor" type="number" step="0.01" required placeholder="-120,00"></div>
+      <div><label>Categoria</label><select id="mlCat"><option value="">\u2014</option>${catsData.map(k=>`<option value="${k.id}">${esc(k.nome)}</option>`).join("")}</select></div>
+      <button class="btn-p" type="submit">Adicionar</button>
+    </form>
+    <div class="note">Valor <b>negativo</b> para gasto, <b>positivo</b> para entrada.</div>
+    ${manualLinhas.length?`<div class="eyebrow" style="margin-top:14px">${manualLinhas.length} lan\u00e7amento(s) digitados</div>
+      ${manualLinhas.map((l,i)=>`<div class="ap-row">
+        <div class="ap-b"><div class="ap-n">${esc(l.desc)}</div><div class="ap-s">${dataBR(l.data)} \u00b7 ${esc(rotuloConta(contasData.find(c=>c.id===l.conta_id)||{}))}</div></div>
+        <div class="ap-v ${l.valor>=0?"pos":"neg"}">${fmt(l.valor)}</div>
+        <button class="ap-del" onclick="manualLinhas.splice(${i},1);renderExtratos()">\u00d7</button></div>`).join("")}
+      <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:14px">
+        <button class="btn-p" onclick="usarManuais()">Prosseguir com ${manualLinhas.length}</button></div>`:""}
+    <div id="mlMsg" class="msg"></div></div>`;
+}
+function addLinhaManual(ev){
+  ev.preventDefault();
+  const v=id=>document.getElementById(id).value;
+  const valor=numOuNulo(v("mlValor"));
+  if(valor==null||valor===0){ const m=document.getElementById("mlMsg"); m.className="msg err"; m.textContent="Informe um valor diferente de zero."; return; }
+  const desc=v("mlDesc").trim();
+  manualLinhas.push({ conta_id:v("mlConta"), data:v("mlData"), desc, normalizada:normalizarDesc(desc),
+                      valor, categoria_id:v("mlCat")||null, origem:"manual" });
+  ["mlDesc","mlValor"].forEach(id=>document.getElementById(id).value="");
+  renderExtratos();
+}
+function usarManuais(){
+  if(!manualLinhas.length) return;
+  const porConta={};
+  manualLinhas.forEach(l=>{ (porConta[l.conta_id]=porConta[l.conta_id]||[]).push(l); });
+  Object.keys(porConta).forEach(cid=>{
+    impArquivos.push({ nome:"lan\u00e7amento manual", manual:true, conta_id:cid, lancs:porConta[cid], motivo:"digitado \u00e0 m\u00e3o" });
+  });
+  manualLinhas=[];
+  irParaRevisao();
+}
+
+/* ---------- ETAPA 1: contas + arquivos ----------
+   Layout pedido: cadastrar conta > soltar os arquivos > o sistema diz de qual
+   conta é cada um > o que não for identificado exige decisão explícita. */
+let impArquivos=[], mostrarFormConta=false;
+
+const NATUREZAS={ corrente:"Conta corrente / poupan\u00e7a", cartao:"Cart\u00e3o de cr\u00e9dito", investimento:"Investimentos" };
+const rotuloConta = c => (c.apelido||c.banco||"conta")+(c.final_cartao?" \u00b7 final "+c.final_cartao:(c.numero_conta?" \u00b7 n\u00ba "+c.numero_conta:""));
+
+function etapaUpload(){
+  const contas=contasData.filter(c=>c.ativa!==false);
+  const pend=impArquivos.filter(a=>!a.conta_id&&!a.manual);
+  const prontos=impArquivos.filter(a=>a.conta_id);
+  const totalLancs=prontos.reduce((n,a)=>n+(a.lancs||[]).length,0);
+
+  const formConta=(mostrarFormConta||!contas.length)?`<div class="card">
+      <div class="card-h"><div><div class="ct">Cadastrar conta</div>
+        <div class="cs">o n\u00famero (ou o final do cart\u00e3o) \u00e9 o que permite reconhecer o extrato sozinho</div></div></div>
+      <form class="adm-form" onsubmit="criarConta(event)">
+        <div><label>Banco *</label><input id="ctBanco" required placeholder="Banco do Brasil"></div>
+        <div><label>Tipo *</label><select id="ctNat" onchange="renderExtratos()">${Object.keys(NATUREZAS).map(k=>`<option value="${k}">${NATUREZAS[k]}</option>`).join("")}</select></div>
+        <div><label>Apelido</label><input id="ctApelido" placeholder="Conta sal\u00e1rio"></div>
+        <div><label>Ag\u00eancia</label><input id="ctAgencia" placeholder="1234"></div>
+        <div><label>N\u00famero da conta</label><input id="ctNumero" placeholder="56789-0"></div>
+        <div><label>4 \u00faltimos d\u00edgitos do cart\u00e3o</label><input id="ctFinal" maxlength="4" inputmode="numeric" placeholder="4412"></div>
+        <button class="btn-p" type="submit" ${offline?"disabled":""}>Salvar conta</button>
+        ${contas.length?`<button class="btn-sec" type="button" onclick="mostrarFormConta=false;renderExtratos()">Cancelar</button>`:""}
+      </form><div id="ctMsg" class="msg"></div>
+      <div class="note">Sem n\u00famero da conta ou final do cart\u00e3o eu n\u00e3o consigo saber de qual conta \u00e9 cada arquivo \u2014 vou ter que perguntar toda vez.</div>
+    </div>`:"";
+
+  if(!contas.length) return `<div class="explica">Antes de subir extrato, cadastre as contas que a pessoa possui \u2014 conta corrente, cart\u00e3o e investimentos.</div>`+formConta;
+
+  const listaContas=`<div class="card"><div class="card-h">
+      <div><div class="ct">Contas cadastradas</div><div class="cs">${contas.length} conta(s) \u00b7 os extratos s\u00e3o reconhecidos por elas</div></div>
+      <button class="btn-sec" onclick="mostrarFormConta=true;renderExtratos()">${svgIcon("plus")} Cadastrar nova conta banc\u00e1ria</button></div>
+    ${contas.map(c=>`<div class="ap-row">
+      <div class="ap-ic" style="background:color-mix(in srgb, ${cssv("--brand")} 14%, transparent);color:${cssv("--brand")}">${svgIcon(c.natureza==="cartao"?"card":c.natureza==="investimento"?"coins":"bank")}</div>
+      <div class="ap-b"><div class="ap-n">${esc(rotuloConta(c))}</div>
+        <div class="ap-s">${esc(c.banco||"")} \u00b7 ${esc(NATUREZAS[c.natureza]||"Conta corrente")}${(!c.numero_conta&&!c.final_cartao)?` \u00b7 <span style="color:${cssv("--amber")}">sem n\u00famero \u2014 n\u00e3o d\u00e1 para reconhecer sozinho</span>`:""}</div></div>
+    </div>`).join("")}</div>`;
+
+  const zona=`<div class="card"><div class="card-h"><div><div class="ct">Extratos de ${esc(mesLabel(mesAtivo))}</div>
+      <div class="cs">solte todos de uma vez \u2014 conta, cart\u00e3o e investimentos</div></div>
+      ${seletorMes()}</div>
+    <div class="drop" id="dropZone">
+      <div class="d-ic">${svgIcon("upload")}</div>
+      <div><b>Arraste os arquivos aqui</b> ou <button class="lnk" onclick="document.getElementById('impFile').click()">escolha no computador</button></div>
+      <div class="cap">PDF, CSV ou Excel salvos do banco \u00b7 v\u00e1rios arquivos de uma vez \u00b7 tudo \u00e9 lido no seu pr\u00f3prio navegador</div>
+      <input type="file" id="impFile" accept=".pdf,.csv,.txt,.xls,.xlsx" multiple style="display:none" onchange="lerArquivos(this.files)">
+    </div><div id="impMsg" class="msg"></div></div>`;
+
+  const cartaoArquivo=(a,i)=>{
+    if(a.manual) return `<div class="ap-row"><div class="ap-ic" style="background:var(--card2)">\u270e</div>
+      <div class="ap-b"><div class="ap-n">Lan\u00e7amento manual \u2014 ${esc(rotuloConta(contasData.find(c=>c.id===a.conta_id)||{}))}</div>
+        <div class="ap-s">${(a.lancs||[]).length} lan\u00e7amento(s) digitado(s)</div></div>
+      <button class="ap-del" onclick="removerArquivo(${i})" ${offline?"disabled":""}>\u00d7</button></div>`;
+    if(a.conta_id){ const c=contasData.find(x=>x.id===a.conta_id)||{};
+      return `<div class="ap-row"><div class="ap-ic" style="background:color-mix(in srgb, ${cssv("--green")} 15%, transparent);color:${cssv("--green")}">${svgIcon("check")}</div>
+        <div class="ap-b"><div class="ap-n">${esc(a.nome)} <span class="badge b">${esc(rotuloConta(c))}</span></div>
+          <div class="ap-s">${(a.lancs||[]).length} lan\u00e7amento(s) \u00b7 ${esc(a.motivo||"conta escolhida por voc\u00ea")}</div></div>
+        <button class="ap-del" onclick="removerArquivo(${i})" ${offline?"disabled":""}>\u00d7</button></div>`; }
+    return `<div class="cli-card" style="flex-direction:column;align-items:stretch;border-color:color-mix(in srgb,${cssv("--amber")} 45%,transparent)">
+      <div><div class="cli-n">\u26a0 ${esc(a.nome)} \u2014 de qual conta \u00e9 este extrato?</div>
+        <div class="cli-s" style="margin-top:4px">${esc(a.motivo||"n\u00e3o consegui identificar")}. ${(a.lancs||[]).length} lan\u00e7amento(s) lidos.
+          ${a.dica?`Encontrei no arquivo: <b>${esc(a.dica)}</b>.`:""}</div></div>
+      <div class="cli-edit" style="margin-top:10px">
+        <select id="fixConta-${i}" aria-label="Conta deste extrato">
+          <option value="">Escolher conta\u2026</option>
+          ${contas.map(c=>`<option value="${c.id}">${esc(rotuloConta(c))} \u00b7 ${esc(NATUREZAS[c.natureza]||"")}</option>`).join("")}</select>
+        <button class="btn-p" style="height:36px;padding:0 14px" onclick="atribuirConta(${i})">Usar esta conta</button>
+      </div>
+      <div class="cli-acts" style="margin-top:8px;justify-content:flex-start">
+        <button class="btn-sec" onclick="mostrarFormConta=true;renderExtratos()">\u00c9 uma conta nova \u2014 cadastrar</button>
+        <button class="btn-sec" onclick="lancarManual(${i})">Lan\u00e7ar \u00e0 m\u00e3o (extrato \u00e9 foto)</button>
+        <button class="btn-sec btn-del" onclick="removerArquivo(${i})">Seguir sem este arquivo</button>
+      </div></div>`;
+  };
+
+  const lista=impArquivos.length?`<div class="card">
+      <div class="card-h"><div><div class="ct">Arquivos lidos</div>
+        <div class="cs">${prontos.length} identificado(s) \u00b7 ${pend.length} aguardando voc\u00ea</div></div></div>
+      ${impArquivos.map(cartaoArquivo).join("")}
+      ${pend.length?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:12px">
+        <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
+        <div>Seguir sem um extrato deixa o m\u00eas <b>incompleto</b>: a confer\u00eancia de saldo n\u00e3o vai fechar e o gasto do m\u00eas sai menor do que foi de verdade.</div></div>`:""}
+      <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">
+        <button class="btn-sec" onclick="impArquivos=[];renderExtratos()">Limpar tudo</button>
+        <button class="btn-p" onclick="irParaRevisao()" ${(!prontos.length||offline)?"disabled":""}>
+          Prosseguir com ${totalLancs} lan\u00e7amento(s)</button>
+      </div></div>`:"";
+
+  return `<div class="explica">A leitura acontece <b>no seu pr\u00f3prio navegador</b> \u2014 o arquivo n\u00e3o sai do computador.
+      O sistema reconhece de qual conta \u00e9 cada extrato pelo n\u00famero cadastrado, tenta classificar sozinho pelas regras
+      j\u00e1 aprendidas e pelos seus gastos fixos, e traz para voc\u00ea o que ficou em d\u00favida. Nada \u00e9 gravado antes da sua revis\u00e3o.</div>
+    ${listaContas}${formConta}${zona}${lista}`;
+}
+
+function seletorMes(){
+  return `<div style="display:flex;gap:6px;align-items:center">
+    <button class="btn-sec" style="height:34px;padding:0 10px" onclick="trocarMes('${mesAnterior(mesAtivo)}')">\u2039</button>
+    <span style="font-size:13px;font-weight:700;min-width:130px;text-align:center">${esc(mesLabel(mesAtivo))}</span>
+    <button class="btn-sec" style="height:34px;padding:0 10px" onclick="trocarMes('${mesSeguinte(mesAtivo)}')" ${mesAtivo>=mesHoje()?"disabled":""}>\u203a</button>
+  </div>`;
+}
+async function trocarMes(m){ mesAtivo=m; await carregarMes(); renderExtratos(); }
+
+function removerArquivo(i){ impArquivos.splice(i,1); renderExtratos(); }
+function atribuirConta(i){
+  const sel=document.getElementById("fixConta-"+i); if(!sel||!sel.value) return;
+  impArquivos[i].conta_id=sel.value; impArquivos[i].motivo="conta escolhida por voc\u00ea";
+  renderExtratos();
+}
+function lancarManual(i){
+  if(i!=null) impArquivos.splice(i,1);   /* o arquivo ilegível sai; o que vale é o que for digitado */
+  setImpEtapa("manual");
+}
+
+/* L\u00ea v\u00e1rios arquivos de uma vez e diz de qual conta \u00e9 cada um. */
+async function lerArquivos(files){
+  const msg=document.getElementById("impMsg");
+  const lista=[...(files||[])];
+  if(!lista.length) return;
+  const dizer=t=>{ if(msg){ msg.className="msg"; msg.textContent=t; } };
+  const { data:regras }=await sb.from("regras_classificacao").select("*").eq("cliente_id",perfilData.cliente_id);
+  for(const file of lista){
+    dizer("Lendo "+file.name+"\u2026");
+    try{
+      let linhas;
+      if(/\.pdf$/i.test(file.name)) linhas=await textoDoPDF(file);
+      else linhas=linhasDoCSV(await file.text());
+      const texto=linhas.join("\n");
+      const id=identificarConta(texto, contasData);
+      let lancs=extrairLancamentos(linhas, "primeiro", "auto");
+      lancs=classificar(lancs, regras||[]);
+      const dica=(texto.match(/\b\d{4,}[-\s]?\d?\b/)||[])[0]||null;
+      impArquivos.push({ nome:file.name, linhas, lancs,
+        conta_id:id.conta?id.conta.id:null, motivo:id.motivo, dica,
+        vazio:lancs.length<2 });
+    }catch(e){
+      impArquivos.push({ nome:file.name, linhas:[], lancs:[], conta_id:null,
+        motivo:"n\u00e3o consegui ler: "+(e.message||e) });
+    }
+  }
+  if(msg){ msg.className="msg"; msg.textContent=""; }
+  renderExtratos();
+}
+
+/* Junta tudo que foi identificado, marca duplicados e vai para a classifica\u00e7\u00e3o. */
+async function irParaRevisao(){
+  const msg=document.getElementById("impMsg");
+  const prontos=impArquivos.filter(a=>a.conta_id&&(a.lancs||[]).length);
+  if(!prontos.length) return;
+  if(msg){ msg.className="msg"; msg.textContent="Conferindo duplicidade\u2026"; }
+  const todos=[];
+  for(const a of prontos){
+    const { data:existentes }=await sb.from("lancamentos").select("hash").eq("conta_id",a.conta_id);
+    const jaTem=new Set((existentes||[]).map(x=>x.hash));
+    const vistos=new Set();
+    a.lancs.forEach(l=>{
+      l.conta_id=a.conta_id; l.arquivo=a.nome;
+      l.hash=hashLanc(l.data,l.desc,l.valor,a.conta_id);
+      l.duplicado=jaTem.has(l.hash)||vistos.has(l.hash); vistos.add(l.hash);
+      todos.push(l);
+    });
+  }
+  /* transfer\u00eancia entre contas do pr\u00f3prio cliente: s\u00f3 com contrapartida */
+  todos.forEach((l,i)=>{ l.id="tmp"+i; l.eh_transferencia=false; });
+  casarTransferencias(todos).forEach(([a,b])=>{ a.eh_transferencia=true; b.eh_transferencia=true;
+    a.par=b.id; b.par=a.id; });
+  impLinhas=todos;
+  if(msg) msg.textContent="";
+  setImpEtapa("revisao");
+}
+
 async function criarConta(ev){
   ev.preventDefault();
   if(bloqueadoOffline("ctMsg")) return;
+  const val=id=>{ const el=document.getElementById(id); const t=el?el.value.trim():""; return t||null; };
+  const nat=val("ctNat")||"corrente";
   const { error }=await sb.from("contas_bancarias").insert({ cliente_id:perfilData.cliente_id, perfil_id:perfilData.id,
-    banco:document.getElementById("ctBanco").value.trim(), tipo:document.getElementById("ctTipo").value,
-    apelido:document.getElementById("ctApelido").value.trim()||null });
+    banco:val("ctBanco"), tipo:NATUREZAS[nat]||"Conta corrente", natureza:nat,
+    apelido:val("ctApelido"), agencia:val("ctAgencia"), numero_conta:val("ctNumero"),
+    final_cartao:(val("ctFinal")||"").replace(/\D/g,"").slice(-4)||null });
   const m=document.getElementById("ctMsg");
   if(error){ m.className="msg err"; m.textContent="Erro: "+error.message; return; }
+  mostrarFormConta=false;
   loadData();
 }
 function trocarContaImp(id){ impConta=id; renderExtratos(); }
@@ -2252,47 +2731,67 @@ async function lerArquivo(file){
     msg.className="msg err"; msg.textContent="Não consegui ler o arquivo: "+(e.message||e);
   }
 }
-function definirCategoria(i,catId){ if(impLinhas[i]){ impLinhas[i].categoria_id=catId||null; impLinhas[i].origem="manual"; } }
+function definirCategoria(i,catId){ if(impLinhas[i]){ impLinhas[i].categoria_id=catId||null; impLinhas[i].origem="manual"; renderExtratos(); } }
+function definirObs(i,txt){ if(impLinhas[i]) impLinhas[i].observacao=txt; }
+/* O casamento autom\u00e1tico pode errar: dois pagamentos iguais em dias pr\u00f3ximos.
+   Desfazer devolve os dois lados para a contagem de gastos. */
+function desfazerTransferencia(i){
+  const l=impLinhas[i]; if(!l) return;
+  const par=impLinhas.find(x=>x.id===l.par);
+  l.eh_transferencia=false; l.par=null;
+  if(par){ par.eh_transferencia=false; par.par=null; }
+  renderExtratos();
+}
 async function gravarImportacao(){
   const msg=document.getElementById("impMsg2");
-  if(offline||!navigator.onLine){ msg.className="msg err"; msg.textContent="Sem internet: não é possível gravar agora."; return; }
+  const dizer=(t,c)=>{ if(msg){ msg.className="msg "+(c||""); msg.textContent=t; } };
+  if(offline||!navigator.onLine){ dizer("Sem internet: n\u00e3o \u00e9 poss\u00edvel gravar agora.","err"); return; }
   const novos=impLinhas.filter(l=>!l.duplicado);
-  if(!novos.length){ msg.className="msg err"; msg.textContent="Nada novo para gravar."; return; }
-  msg.className="msg"; msg.textContent="Gravando...";
+  if(!novos.length){ dizer("Nada novo para gravar.","err"); return; }
+  dizer("Gravando\u2026");
   try{
-    const auto=novos.filter(l=>l.origem==="regra"||l.origem==="fixo").length;
-    const { data:imp, error:e1 }=await sb.from("importacoes").insert({
-      cliente_id:perfilData.cliente_id, conta_id:impConta, nome_arquivo:impArquivo||"extrato",
-      tipo_arquivo:/\.pdf$/i.test(impArquivo||"")?"PDF":"CSV", status:"concluido",
-      total_lancamentos:novos.length, total_classificados_auto:auto,
-      total_revisao_manual:novos.length-auto, total_duplicados:impLinhas.length-novos.length,
-    }).select().single();
-    if(e1) throw e1;
-    const regs=novos.map(l=>({ cliente_id:perfilData.cliente_id, conta_id:impConta, categoria_id:l.categoria_id||null,
-      importacao_id:imp.id, data:l.data, descricao:l.desc, descricao_normalizada:l.normalizada,
-      valor:l.valor, status:l.origem==="manual"?"confirmado_manual":(l.categoria_id?"classificado_auto":"pendente"), hash:l.hash }));
-    for(let i=0;i<regs.length;i+=200){
-      const { error:e2 }=await sb.from("lancamentos").insert(regs.slice(i,i+200));
-      if(e2) throw e2;
+    const porConta={};
+    novos.forEach(l=>{ (porConta[l.conta_id]=porConta[l.conta_id]||[]).push(l); });
+    let gravados=0;
+    for(const contaId of Object.keys(porConta)){
+      const linhas=porConta[contaId];
+      const arq=impArquivos.find(a=>a.conta_id===contaId);
+      const auto=linhas.filter(l=>l.origem==="regra"||l.origem==="fixo").length;
+      const { data:imp, error:e1 }=await sb.from("importacoes").insert({
+        cliente_id:perfilData.cliente_id, conta_id:contaId, nome_arquivo:(arq&&arq.nome)||"lan\u00e7amento manual",
+        tipo_arquivo:/\.pdf$/i.test((arq&&arq.nome)||"")?"PDF":"CSV", status:"concluido",
+        total_lancamentos:linhas.length, total_classificados_auto:auto,
+        total_revisao_manual:linhas.length-auto,
+        total_duplicados:impLinhas.filter(l=>l.duplicado&&l.conta_id===contaId).length,
+      }).select().single();
+      if(e1) throw e1;
+      const regs=linhas.map(l=>({ cliente_id:perfilData.cliente_id, conta_id:contaId,
+        categoria_id:l.categoria_id||null, importacao_id:imp.id, data:l.data,
+        descricao:l.desc, descricao_normalizada:l.normalizada, observacao:l.observacao||null,
+        eh_transferencia:!!l.eh_transferencia, valor:l.valor,
+        status:l.origem==="manual"?"confirmado_manual":(l.categoria_id?"classificado_auto":"pendente"),
+        hash:l.hash }));
+      for(let i=0;i<regs.length;i+=200){
+        const { error:e2 }=await sb.from("lancamentos").insert(regs.slice(i,i+200));
+        if(e2) throw e2;
+      }
+      gravados+=regs.length;
+      await salvarModelo(contaId, /\.pdf$/i.test((arq&&arq.nome)||"")?"PDF":"CSV",
+        { coluna:"primeiro", sinal:"auto", validado_em:new Date().toISOString().slice(0,10), lancamentos:regs.length });
     }
-    /* aprende: cada classificação manual vira regra para as próximas importações */
-    const novasRegras=[];
-    novos.filter(l=>l.origem==="manual"&&l.categoria_id).forEach(l=>{
-      const p=l.normalizada.split(" ").slice(0,3).join(" ");
-      if(p.length>=4 && !novasRegras.some(r=>r.padrao_texto===p))
-        novasRegras.push({cliente_id:perfilData.cliente_id, perfil_id:perfilData.id, padrao_texto:p, categoria_id:l.categoria_id});
-    });
+    /* aprende com o que voc\u00ea classificou \u00e0 m\u00e3o */
+    const novasRegras=novos.filter(l=>l.origem==="manual"&&l.categoria_id).map(l=>({
+      cliente_id:perfilData.cliente_id, padrao_texto:(l.normalizada||normalizarDesc(l.desc)).split(" ").slice(0,3).join(" "),
+      categoria_id:l.categoria_id }));
     if(novasRegras.length){
       const { error:er }=await sb.from("regras_classificacao").insert(novasRegras);
-      /* não é fatal — os lançamentos já entraram — mas o cliente precisa saber
-         que o aprendizado não foi guardado, senão reclassifica tudo de novo mês que vem */
-      if(er) console.warn("regras não salvas:", er.message);
+      if(er) console.warn("regras n\u00e3o salvas:", er.message);
     }
-    /* deu certo → guarda o molde deste banco para as próximas importações */
-    const tipoArq=/\.pdf$/i.test(impArquivo||"")?"PDF":"CSV";
-    await salvarModelo(impConta, tipoArq, { coluna:impCol, sinal:impSinal, validado_em:new Date().toISOString().slice(0,10), lancamentos:novos.length });
-    impLinhas=[]; setImpEtapa("pronto");
-  }catch(e){ msg.className="msg err"; msg.textContent="Não consegui gravar: "+(e.message||e); }
+    impArquivos=[]; impLinhas=[];
+    await carregarMes();
+    dizer(gravados+" lan\u00e7amento(s) gravados \u2713","ok");
+    setImpEtapa("pronto");
+  }catch(e){ dizer("N\u00e3o consegui gravar: "+(e.message||e),"err"); }
 }
 
 /* ================= PÁGINA: CLIENTES (consultor) ================= */
