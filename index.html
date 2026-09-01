@@ -496,6 +496,20 @@
       </div>
       <button class="login-btn" id="loginBtn" type="submit">Entrar</button>
     </form>
+    <form id="codigoForm" style="display:none">
+      <div class="lsub" style="margin:0 0 14px">Enviamos um c\u00f3digo para o seu e-mail. Digite abaixo.</div>
+      <div class="field"><label>C\u00f3digo de 6 d\u00edgitos</label>
+        <input type="text" id="codigoOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+               placeholder="000000" style="letter-spacing:6px;text-align:center;font-size:19px;font-weight:700"></div>
+      <button class="login-btn" id="codigoBtn" type="submit">Confirmar c\u00f3digo</button>
+      <button type="button" class="link-btn" style="margin-top:12px" id="verLinkBtn">Recebi um link em vez de c\u00f3digo</button>
+      <div id="colarLinkBox" style="display:none;margin-top:12px">
+        <div class="field"><label>Cole o endere\u00e7o do link do e-mail</label>
+          <input type="text" id="linkColado" placeholder="http://...#access_token=..."></div>
+        <button type="button" class="login-btn" id="colarLinkBtn">Usar este link</button>
+        <div class="lsub" style="margin-top:8px;font-size:11.5px">Serve quando o link abre uma p\u00e1gina de erro: copie o endere\u00e7o da barra do navegador e cole aqui.</div>
+      </div>
+    </form>
     <form id="novaSenhaForm" style="display:none">
       <div class="lsub" style="margin:0 0 14px">Escolha uma nova senha para entrar no Arca.</div>
       <div class="field"><label>Nova senha</label><input type="password" id="novaSenha" autocomplete="new-password" minlength="8" required></div>
@@ -700,7 +714,8 @@ document.getElementById("esqueciBtn").addEventListener("click", async ()=>{
   if(!sb||!navigator.onLine){ err.textContent="É preciso estar conectado à internet para redefinir a senha."; err.classList.add("show"); return; }
   const { error }=await sb.auth.resetPasswordForEmail(email,{ redirectTo: location.href.split("#")[0] });
   if(error){ err.textContent="Não consegui enviar o e-mail: "+error.message; err.classList.add("show"); return; }
-  ok.textContent="Enviamos um link de redefinição para "+email+". Confira sua caixa de entrada.";
+  telaLogin("codigo");
+  ok.textContent="Enviamos para "+email+". Digite o código do e-mail — ou use o link, se vier link.";
   ok.classList.add("show");
 });
 /* ---------- REDEFINIR SENHA ----------
@@ -708,12 +723,8 @@ document.getElementById("esqueciBtn").addEventListener("click", async ()=>{
    esse token (detectSessionInUrl) e dispara PASSWORD_RECOVERY \u2014 \u00e9 a\u00ed que
    precisamos PEDIR a nova senha. Sem isso o link "funciona" e nada acontece. */
 function modoNovaSenha(ligar){
-  const lf=document.getElementById("loginForm"), nf=document.getElementById("novaSenhaForm");
-  if(!lf||!nf) return;
-  lf.style.display = ligar?"none":"";
-  nf.style.display = ligar?"":"none";
+  telaLogin(ligar?"senha":"login");
   if(ligar){
-    showLogin();
     const ok=document.getElementById("loginOk");
     ok.textContent="Link confirmado. Defina sua nova senha abaixo.";
     ok.classList.add("show");
@@ -736,6 +747,56 @@ function erroDoLink(){
   showLogin();
   try{ history.replaceState(null,"",location.pathname); }catch(e){}
   return true;
+}
+/* Tr\u00eas telas na mesma caixa de login: entrar, confirmar c\u00f3digo, definir senha. */
+function telaLogin(qual){
+  const box={ login:"loginForm", codigo:"codigoForm", senha:"novaSenhaForm" };
+  Object.keys(box).forEach(k=>{
+    const el=document.getElementById(box[k]); if(el) el.style.display = (k===qual)?"":"none";
+  });
+  showLogin();
+}
+/* C\u00f3digo de 6 d\u00edgitos: n\u00e3o depende de redirect nenhum, funciona em qualquer
+   aparelho e sobrevive a cliente de e-mail que estraga link. */
+async function confirmarCodigo(ev){
+  ev.preventDefault();
+  const err=document.getElementById("loginErr"), ok=document.getElementById("loginOk");
+  err.classList.remove("show"); ok.classList.remove("show");
+  const email=document.getElementById("email").value.trim();
+  const token=(document.getElementById("codigoOtp").value||"").replace(/\D/g,"");
+  if(!email){ err.textContent="Volte e digite o seu e-mail primeiro."; err.classList.add("show"); return; }
+  if(token.length!==6){ err.textContent="O c\u00f3digo tem 6 d\u00edgitos."; err.classList.add("show"); return; }
+  const btn=document.getElementById("codigoBtn");
+  btn.disabled=true; btn.textContent="Conferindo\u2026";
+  const { error }=await sb.auth.verifyOtp({ email, token, type:"recovery" });
+  btn.disabled=false; btn.textContent="Confirmar c\u00f3digo";
+  if(error){
+    err.textContent=/expired|invalid/i.test(error.message)
+      ? "C\u00f3digo inv\u00e1lido ou expirado. Pe\u00e7a um novo em \u201cEsqueci minha senha\u201d."
+      : "N\u00e3o consegui confirmar: "+error.message;
+    err.classList.add("show"); return;
+  }
+  modoNovaSenha(true);
+}
+/* Sa\u00edda de emerg\u00eancia: o link do e-mail carrega os tokens no pr\u00f3prio endere\u00e7o.
+   Se ele abrir numa p\u00e1gina de erro, os tokens continuam l\u00e1 \u2014 basta colar aqui. */
+async function usarLinkColado(){
+  const err=document.getElementById("loginErr"), ok=document.getElementById("loginOk");
+  err.classList.remove("show"); ok.classList.remove("show");
+  const txt=(document.getElementById("linkColado").value||"").trim();
+  const corpo=txt.includes("#")?txt.slice(txt.indexOf("#")+1):(txt.includes("?")?txt.slice(txt.indexOf("?")+1):txt);
+  const p=new URLSearchParams(corpo);
+  const at=p.get("access_token"), rt=p.get("refresh_token");
+  if(!at||!rt){
+    err.textContent="N\u00e3o encontrei o c\u00f3digo dentro desse endere\u00e7o. Copie o link INTEIRO, incluindo o trecho depois do #.";
+    err.classList.add("show"); return;
+  }
+  const btn=document.getElementById("colarLinkBtn");
+  btn.disabled=true; btn.textContent="Conferindo\u2026";
+  const { error }=await sb.auth.setSession({ access_token:at, refresh_token:rt });
+  btn.disabled=false; btn.textContent="Usar este link";
+  if(error){ err.textContent="Esse link expirou ou j\u00e1 foi usado. Pe\u00e7a um novo."; err.classList.add("show"); return; }
+  modoNovaSenha(true);
 }
 async function salvarNovaSenha(ev){
   ev.preventDefault();
@@ -760,6 +821,12 @@ async function sair(){
   location.reload();
 }
 document.getElementById("novaSenhaForm").addEventListener("submit", salvarNovaSenha);
+document.getElementById("codigoForm").addEventListener("submit", confirmarCodigo);
+document.getElementById("colarLinkBtn").addEventListener("click", usarLinkColado);
+document.getElementById("verLinkBtn").addEventListener("click", ()=>{
+  const b=document.getElementById("colarLinkBox");
+  b.style.display = b.style.display==="none" ? "" : "none";
+});
 if(sb&&sb.auth&&sb.auth.onAuthStateChange) sb.auth.onAuthStateChange((ev)=>{ if(ev==="PASSWORD_RECOVERY") modoNovaSenha(true); });
 document.getElementById("logoutBtn").addEventListener("click", sair);
 document.getElementById("sairBtn").addEventListener("click", sair);
