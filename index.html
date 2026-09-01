@@ -471,6 +471,16 @@
   .rev-row:first-child { border-top:none; }
   .rev-b { flex:1; min-width:160px; }
   .rev-n { font-size:13px; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* No celular a descrição do banco é o que identifica a compra — cortar com
+     "..." obriga a adivinhar. Aqui ela quebra em várias linhas e aparece inteira. */
+  @media (max-width:820px){
+    .rev-row { align-items:flex-start; gap:8px; }
+    .rev-b { flex:1 1 100%; min-width:0; }
+    .rev-n { white-space:normal; overflow:visible; text-overflow:clip; line-height:1.35; word-break:break-word; }
+    .rev-s { line-height:1.4; }
+    .rev-v { flex:0 0 auto; }
+    .rev-row select { flex:1 1 auto; min-width:0; }
+  }
   .rev-s { font-size:11px; color:var(--muted); }
   .rev-v { font-size:13.5px; font-weight:720; font-variant-numeric:tabular-nums; }
   .rev-row select { height:36px; padding:0 9px; border-radius:10px; border:1px solid var(--border-strong); background:var(--card); color:var(--text); font-size:12.5px; min-width:150px; }
@@ -2228,7 +2238,7 @@ let impEtapa="mes", impLinhas=[], impArquivo=null, impConta=null, impCol="primei
 /* ---- mês em foco na aba Lançamentos ---- */
 const mesHoje = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
 let mesAtivo=mesHoje(), lancData=[], fechData=[], lancFiltro="todos";
-let regrasData=[], aprendidasAgora=0;
+let regrasData=[], aprendidasAgora=0, novaCatAberta=false;
 /* histórico curto usado pelo motor: o REALIZADO dos meses já fechados é a melhor
    fonte de gasto variável que existe — melhor que qualquer valor declarado. */
 let histLancs=[], histFech=[];
@@ -2843,6 +2853,7 @@ function renderExtratos(){
       </div>
       ${so.length?so.slice(0,200).map(linha).join(""):`<div class="empty">Nada nesta lista.</div>`}
       ${so.length>200?`<div class="cap">Mostrando os 200 primeiros de ${so.length}.</div>`:""}
+      ${formCategoria()}
       ${pend?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:12px">
         <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
         <div>${pend} lançamento(s) ainda sem categoria. Dá para gravar assim, mas eles ficam de fora da análise por categoria.</div></div>`:""}
@@ -2925,9 +2936,52 @@ function etapaClassificar(){
     </div>
     ${lista.length?lista.slice(0,300).map(linha).join(""):`<div class="empty">Nada nesta lista.</div>`}
     ${lista.length>300?`<div class="cap">Mostrando os 300 primeiros de ${lista.length}.</div>`:""}
+    ${formCategoria()}
     <div class="note">Cada escolha é salva na hora — pode fechar e voltar depois.
       Escolher <b>Quitação de fatura</b> tira o lançamento do gasto do mês: as compras já foram contadas dentro da fatura.</div>
     <div id="clMsg" class="msg"></div></div>`;
+}
+
+/* Criar categoria pela própria tela de classificação: é ali que a falta
+   aparece, e mandar a pessoa procurar outro lugar faz ela desistir e jogar
+   tudo em "Outros gastos". Disponível para host e consultor. */
+function formCategoria(){
+  if(!isHost) return "";
+  if(!novaCatAberta) return `<div style="margin-top:12px">
+    <button class="btn-sec" onclick="novaCatAberta=true;renderExtratos()">${svgIcon("plus")} Criar categoria</button></div>`;
+  return `<div class="card" style="margin-top:12px;box-shadow:none">
+    <div class="ct" style="font-size:14px">Nova categoria</div>
+    <form class="adm-form" style="margin-top:10px" onsubmit="criarCategoria(event)">
+      <div style="flex:2"><label>Nome *</label><input id="ncatNome" required maxlength="40" placeholder="Ex.: Pet, Presentes, Farmácia"></div>
+      <div><label>Tipo *</label><select id="ncatTipo">
+        <option value="Despesa">Despesa (dinheiro que sai)</option>
+        <option value="Receita">Receita (dinheiro que entra)</option></select></div>
+      <div><label>Natureza</label><select id="ncatNat">
+        <option value="Variavel">Variável — muda todo mês</option>
+        <option value="Fixa">Fixa — mesmo valor sempre</option>
+        <option value="Ambas">Às vezes fixa, às vezes variável</option></select></div>
+      <button class="btn-p" type="submit" ${offline?"disabled":""}>Criar</button>
+      <button class="btn-sec" type="button" onclick="novaCatAberta=false;renderExtratos()">Cancelar</button>
+    </form><div id="ncatMsg" class="msg"></div></div>`;
+}
+async function criarCategoria(ev){
+  ev.preventDefault();
+  const msg=document.getElementById("ncatMsg");
+  const dizer=(t,c)=>{ if(msg){ msg.className="msg "+(c||""); msg.textContent=t; } };
+  if(offline||!navigator.onLine){ dizer("Sem internet.","err"); return; }
+  const nome=(document.getElementById("ncatNome").value||"").trim();
+  const tipo=document.getElementById("ncatTipo").value;
+  const natureza=document.getElementById("ncatNat").value;
+  if(nome.length<2){ dizer("Dê um nome com pelo menos 2 letras.","err"); return; }
+  const igual=catsData.find(k=>k.tipo===tipo && String(k.nome||"").toLowerCase()===nome.toLowerCase());
+  if(igual){ dizer("Já existe uma categoria de "+tipo.toLowerCase()+" com esse nome.","err"); return; }
+  const { data, error }=await sb.from("categorias")
+    .insert({ cliente_id:perfilData.cliente_id, nome, tipo, natureza }).select();
+  if(error){ dizer("Não consegui criar: "+error.message,"err"); return; }
+  if(data&&data[0]) catsData.push(data[0]);
+  catsData.sort((a,b)=>String(a.nome).localeCompare(String(b.nome),"pt-BR"));
+  novaCatAberta=false;
+  renderExtratos();
 }
 
 async function salvarCategoriaLanc(id, catId){
