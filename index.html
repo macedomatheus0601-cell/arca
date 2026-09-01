@@ -2238,7 +2238,7 @@ let impEtapa="mes", impLinhas=[], impArquivo=null, impConta=null, impCol="primei
 /* ---- mês em foco na aba Lançamentos ---- */
 const mesHoje = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
 let mesAtivo=mesHoje(), lancData=[], fechData=[], lancFiltro="todos";
-let regrasData=[], aprendidasAgora=0, novaCatAberta=false;
+let regrasData=[], aprendidasAgora=0, generalizadasAgora=[], novaCatAberta=false;
 /* histórico curto usado pelo motor: o REALIZADO dos meses já fechados é a melhor
    fonte de gasto variável que existe — melhor que qualquer valor declarado. */
 let histLancs=[], histFech=[];
@@ -2755,8 +2755,13 @@ function padraoDaDescricao(desc){
 function casaRegra(nd, padrao){
   const p=String(padrao||"").trim().toUpperCase();
   if(!p) return false;
+  const partes=p.split(/\s+/).filter(Boolean);
+  /* Padrão de UMA palavra é genérico (ex.: SHOPEE) — casa só quando a descrição
+     COMEÇA com ele. Sem isso, "CASA" pegaria "CONTAS DA CASA" e classificaria
+     errado todo mês, sem ninguém perceber. */
+  if(partes.length===1) return nd===partes[0] || nd.startsWith(partes[0]+" ");
   if(nd.includes(p)) return true;
-  return p.split(/\s+/).every(w=>w&&nd.includes(w));
+  return partes.every(w=>nd.includes(w));
 }
 function classificar(lancs, regras){
   return lancs.map(l=>{
@@ -2996,8 +3001,10 @@ async function salvarCategoriaLanc(id, catId){
   if(error){ dizer("Não consegui salvar: "+error.message,"err"); return; }
   Object.assign(l, upd);
   /* a escolha manual também vira regra para o mês que vem */
-  if(catId && !quit) await aprenderRegra(l.descricao, catId);
-  dizer("Salvo ✓","ok");
+  let ampliou=null;
+  if(catId && !quit) ampliou=await aprenderRegra(l.descricao, catId);
+  dizer(ampliou ? "Salvo ✓ Agora tudo que começa com \u201c"+ampliou+"\u201d entra nesta categoria sozinho."
+                : "Salvo ✓","ok");
   renderExtratos();
 }
 async function salvarObsLanc(id, txt){
@@ -3014,19 +3021,56 @@ async function tirarNeutro(id){
   const l=lancData.find(x=>x.id===id); if(l) Object.assign(l, upd);
   renderExtratos();
 }
-/* Uma classificação manual, um padrão aprendido — reforçando se já existir. */
+/* ---- a regra aprende e vai FICANDO MAIS GENÉRICA ----
+   Primeira vez: guarda o padrão específico ("SHOPEE CREPUSCULO").
+   Segunda vez, com outro nome que começa igual e MESMA categoria
+   ("Shopee *Storeph"), o sistema conclui que o que importa é o começo e
+   encolhe a regra para "SHOPEE" — daí em diante qualquer Shopee entra sozinho.
+   Só generaliza quando a categoria é a mesma: uma loja pode vender coisas de
+   categorias diferentes, e aí o específico tem que continuar valendo. */
+function generalizavel(p){
+  const t=String(p||"").split(" ")[0]||"";
+  return t.length>=4 ? t : null;   /* palavra curta demais é ambígua */
+}
 async function aprenderRegra(desc, catId){
-  const p=padraoDaDescricao(desc); if(!p) return;
-  const velha=regrasData.find(r=>r.padrao_texto===p);
-  if(velha){
-    await sb.from("regras_classificacao").update({ categoria_id:catId,
-      ocorrencias:(Number(velha.ocorrencias)||1)+1, atualizado_em:new Date().toISOString() }).eq("id",velha.id);
-    velha.categoria_id=catId; velha.ocorrencias=(Number(velha.ocorrencias)||1)+1;
-  } else {
-    const { data }=await sb.from("regras_classificacao")
-      .insert({ cliente_id:perfilData.cliente_id, padrao_texto:p, categoria_id:catId }).select();
-    if(data&&data[0]) regrasData.push(data[0]);
+  const p=padraoDaDescricao(desc); if(!p) return null;
+  const raiz=generalizavel(p);
+
+  /* já existe a regra genérica? só reforça */
+  const jaGenerica = raiz && regrasData.find(r=>r.padrao_texto===raiz && r.categoria_id===catId);
+  if(jaGenerica){ await reforcar(jaGenerica, catId); return null; }
+
+  /* outra regra com o mesmo começo e a mesma categoria → hora de encolher */
+  const irmas = raiz ? regrasData.filter(r=>r.categoria_id===catId && r.padrao_texto!==raiz
+                        && String(r.padrao_texto||"").split(" ")[0]===raiz) : [];
+  if(raiz && irmas.length && !irmas.some(r=>r.padrao_texto===p)){
+    const soma=irmas.reduce((a,r)=>a+(Number(r.ocorrencias)||1),0)+1;
+    const ficar=irmas[0];
+    const { error }=await sb.from("regras_classificacao")
+      .update({ padrao_texto:raiz, ocorrencias:soma, atualizado_em:new Date().toISOString() }).eq("id",ficar.id);
+    if(!error){
+      ficar.padrao_texto=raiz; ficar.ocorrencias=soma;
+      const sobrando=irmas.slice(1).map(r=>r.id);
+      if(sobrando.length){
+        await sb.from("regras_classificacao").delete().in("id",sobrando);
+        regrasData=regrasData.filter(r=>!sobrando.includes(r.id));
+      }
+      return raiz;   /* avisa quem chamou que a regra ficou mais ampla */
+    }
   }
+
+  const velha=regrasData.find(r=>r.padrao_texto===p);
+  if(velha){ await reforcar(velha, catId); return null; }
+  const { data }=await sb.from("regras_classificacao")
+    .insert({ cliente_id:perfilData.cliente_id, padrao_texto:p, categoria_id:catId }).select();
+  if(data&&data[0]) regrasData.push(data[0]);
+  return null;
+}
+async function reforcar(regra, catId){
+  const n=(Number(regra.ocorrencias)||1)+1;
+  await sb.from("regras_classificacao")
+    .update({ categoria_id:catId, ocorrencias:n, atualizado_em:new Date().toISOString() }).eq("id",regra.id);
+  regra.categoria_id=catId; regra.ocorrencias=n;
 }
 
 /* ---- REGRAS APRENDIDAS ----
@@ -3665,31 +3709,21 @@ async function gravarImportacao(continuarDepois){
       const p=padraoDaDescricao(l.desc);
       if(p) aprender[p]=l.categoria_id;   /* a última escolha do mês prevalece */
     });
-    const padroes=Object.keys(aprender);
-    if(padroes.length){
-      const { data:jaTem }=await sb.from("regras_classificacao")
-        .select("id,padrao_texto,ocorrencias,categoria_id").eq("cliente_id",perfilData.cliente_id);
-      const mapa={}; (jaTem||[]).forEach(r=>{ mapa[r.padrao_texto]=r; });
-      const criar=[];
-      for(const p of padroes){
-        const velha=mapa[p];
-        if(velha){
-          const { error:eu }=await sb.from("regras_classificacao")
-            .update({ categoria_id:aprender[p], ocorrencias:(Number(velha.ocorrencias)||1)+1,
-                      atualizado_em:new Date().toISOString() }).eq("id",velha.id);
-          if(eu) console.warn("regra não reforçada:", eu.message);
-        } else criar.push({ cliente_id:perfilData.cliente_id, padrao_texto:p, categoria_id:aprender[p] });
-      }
-      if(criar.length){
-        const { error:er }=await sb.from("regras_classificacao").insert(criar);
-        if(er) console.warn("regras não salvas:", er.message);
-      }
-      aprendidasAgora=padroes.length;
+    /* mesma função da tela de classificação: aprende, reforça e generaliza */
+    await carregarRegras();
+    const manuais=novos.filter(l=>l.origem==="manual"&&l.categoria_id);
+    const ampliados=new Set();
+    for(const l of manuais){
+      const r=await aprenderRegra(l.desc, l.categoria_id);
+      if(r) ampliados.add(r);
     }
+    aprendidasAgora=manuais.length;
+    generalizadasAgora=[...ampliados];
     impArquivos=[]; impLinhas=[];
     await carregarMes(); await carregarRegras();
     dizer(gravados+" lançamento(s) gravados ✓"+
-      (aprendidasAgora?" · "+aprendidasAgora+" regra(s) aprendida(s) para o mês que vem":""),"ok");
+      (aprendidasAgora?" · "+aprendidasAgora+" regra(s) aprendida(s) para o mês que vem":"")+
+      (generalizadasAgora.length?" · agora reconhece sozinho tudo que começa com "+generalizadasAgora.join(", "):""),"ok");
     /* quem escolheu continuar depois vai direto para a lista do que falta */
     if(continuarDepois && semCat.length){ lancFiltro="pendentes"; setImpEtapa("classificar"); return; }
     setImpEtapa("pronto");
