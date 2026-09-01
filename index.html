@@ -2248,7 +2248,7 @@ async function carregarHistorico(){
   const desde=d.toISOString().slice(0,10);
   const cid=perfilData.cliente_id;
   const [lr,fr]=await Promise.all([
-    sb.from("lancamentos").select("conta_id,data,competencia,valor,categoria_id,descricao,eh_transferencia,eh_estorno")
+    sb.from("lancamentos").select("conta_id,data,competencia,valor,categoria_id,descricao,eh_transferencia,eh_estorno,eh_pagamento_fatura")
       .eq("cliente_id",cid).gte("data",desde),
     sb.from("fechamentos_mensais").select("*").eq("cliente_id",cid).order("mes_referencia",{ascending:false}),
   ]);
@@ -2354,6 +2354,7 @@ function casarComFixo(dataISO, desc, valor){
    Só vira transferência se a CONTRAPARTIDA existir em OUTRA conta: mesmo valor
    (±R$ 5) dentro de 3 dias. Sem par, é gasto de verdade — conservador de propósito.
    É também o que faz o pagamento da fatura do cartão não contar duas vezes. */
+const ehPagamentoFatura = d => /pagamento\s+(de\s+)?fatura|pagto\s+fatura|pag\.?\s*fatura/i.test(String(d||""));
 function casarTransferencias(lancs, tolValor=5, tolDias=3){
   const diaNum=d=>Math.round(Date.parse(String(d).slice(0,10)+"T00:00:00Z")/86400000);
   const usados=new Set(), pares=[];
@@ -2393,7 +2394,7 @@ function casarEstornos(lancs, tol=0.01){
 function conciliarFixos(lancs){
   const norm=t=>normalizarDesc(t||"");
   const tokens=t=>norm(t).split(" ").filter(w=>w.length>=4);
-  const cands=(lancs||[]).filter(l=>num(l.valor)<0 && !l.eh_transferencia && !l.eh_estorno);
+  const cands=(lancs||[]).filter(l=>num(l.valor)<0 && !l.eh_transferencia && !l.eh_estorno && !l.eh_pagamento_fatura);
   const usados=new Set();
   return compsData.filter(c=>c.tipo==="despesa").map(c=>{
     const alvo=num(c.valor), tk=tokens(c.descricao);
@@ -2421,12 +2422,14 @@ function conciliarFixos(lancs){
 
 /* ---- o que REALMENTE aconteceu no mês ---- */
 function resumoMes(lancs){
-  const reais=(lancs||[]).filter(l=>!l.eh_transferencia&&!l.eh_estorno);
-  let entradas=0, fixos=0, variaveis=0, transf=0, estornado=0;
+  const neutro=l=>l.eh_transferencia||l.eh_estorno||l.eh_pagamento_fatura;
+  const reais=(lancs||[]).filter(l=>!neutro(l));
+  let entradas=0, fixos=0, variaveis=0, transf=0, estornado=0, quitacao=0;
   const porCategoria={};
   (lancs||[]).forEach(l=>{
     const v=num(l.valor);
     if(l.eh_estorno){ if(v<0) estornado+=Math.abs(v); return; }
+    if(l.eh_pagamento_fatura){ quitacao+=Math.abs(v); return; }
     if(l.eh_transferencia){ transf+=Math.abs(v); return; }
     if(v>0){ entradas+=v; return; }
     const gasto=-v;
@@ -2435,9 +2438,9 @@ function resumoMes(lancs){
     porCategoria[k]=(porCategoria[k]||0)+gasto;
   });
   const saidas=fixos+variaveis;
-  return { entradas, saidas, fixos, variaveis, transf, estornado, sobra:entradas-saidas,
+  return { entradas, saidas, fixos, variaveis, transf, estornado, quitacao, sobra:entradas-saidas,
            porCategoria, total:reais.length,
-           pendentes:(lancs||[]).filter(l=>!l.categoria_id&&!l.eh_transferencia&&!l.eh_estorno).length };
+           pendentes:(lancs||[]).filter(l=>!l.categoria_id&&!neutro(l)).length };
 }
 
 /* ---- a conferência que fecha o mês ----
@@ -2741,15 +2744,17 @@ function renderExtratos(){
     const dup=impLinhas.length-novos.length;
     const transf=novos.filter(l=>l.eh_transferencia).length;
     const estor=novos.filter(l=>l.eh_estorno).length;
+    const quit=novos.filter(l=>l.eh_pagamento_fatura).length;
     const nomeConta=id=>{ const c=contasData.find(x=>x.id===id); return c?rotuloConta(c):"conta"; };
     const so=lancFiltro==="pendentes"?novos.filter(l=>!l.categoria_id&&!l.eh_transferencia&&!l.eh_estorno)
             :lancFiltro==="transferencias"?novos.filter(l=>l.eh_transferencia)
             :lancFiltro==="estornos"?novos.filter(l=>l.eh_estorno)
+            :lancFiltro==="quitacao"?novos.filter(l=>l.eh_pagamento_fatura)
             :lancFiltro==="automaticos"?novos.filter(l=>l.categoria_id&&l.origem!=="manual")
             :novos;
 
     const linha=(l)=>{ const i=impLinhas.indexOf(l);
-      const fixo=l.valor<0?casarComFixo(l.data,l.desc,l.valor):null;
+      const fixo=(l.valor<0&&!l.eh_pagamento_fatura)?casarComFixo(l.data,l.desc,l.valor):null;
       /* deixa explícito o que o sistema decidiu sozinho e por quê */
       const selo = l.origem==="manual" ? `<span class="badge b">você escolheu</span>`
                  : l.origem==="regra"  ? `<span class="badge g">automático · regra aprendida</span>`
@@ -2759,7 +2764,7 @@ function renderExtratos(){
       return `<div class="rev-row" style="flex-wrap:wrap">
         <div class="rev-b" style="min-width:180px">
           <div class="rev-n">${esc(l.desc)}</div>
-          <div class="rev-s">${dataBR(l.data)} · ${esc(nomeConta(l.conta_id))} ${selo}${fixo?` · <b style="color:${cssv("--brand")}">é o seu gasto fixo “${esc(fixo.descricao)}”</b>`:""}${l.eh_transferencia?` · <b style="color:${cssv("--teal")}">transferência entre suas contas</b>`:""}${l.eh_estorno?` · <b style="color:${cssv("--slate")}">compra estornada — não conta</b>`:""}</div>
+          <div class="rev-s">${dataBR(l.data)} · ${esc(nomeConta(l.conta_id))} ${selo}${fixo?` · <b style="color:${cssv("--brand")}">é o seu gasto fixo “${esc(fixo.descricao)}”</b>`:""}${l.eh_transferencia?` · <b style="color:${cssv("--teal")}">transferência entre suas contas</b>`:""}${l.eh_estorno?` · <b style="color:${cssv("--slate")}">compra estornada — não conta</b>`:""}${l.eh_pagamento_fatura?` · <b style="color:${cssv("--slate")}">quitação da fatura — o gasto já foi contado no cartão</b>`:""}</div>
         </div>
         <div class="rev-v ${l.valor>=0?"pos":"neg"}">${fmt(l.valor)}</div>
         ${l.eh_transferencia
@@ -2784,7 +2789,8 @@ function renderExtratos(){
       <div class="sub-tabs" style="margin:10px 0 12px">
         ${[["todos","Todos ("+novos.length+")"],["pendentes","Sem categoria ("+pend+")"],
            ["automaticos","Classificados sozinho ("+auto+")"],
-           ["transferencias","Transferências ("+transf+")"],["estornos","Estornados ("+estor+")"]]
+           ["transferencias","Transferências ("+transf+")"],["estornos","Estornados ("+estor+")"],
+           ["quitacao","Quitação de fatura ("+quit+")"]]
           .map(t=>`<button class="sub-tab ${lancFiltro===t[0]?"active":""}" onclick="lancFiltro='${t[0]}';renderExtratos()">${t[1]}</button>`).join("")}
       </div>
       ${so.length?so.slice(0,200).map(linha).join(""):`<div class="empty">Nada nesta lista.</div>`}
@@ -3241,18 +3247,24 @@ async function irParaRevisao(){
       todos.push(l);
     });
   }
-  /* Pagamento de fatura na conta corrente NUNCA é gasto quando o cliente tem
-     cartão cadastrado: o gasto já foi contado na fatura daquele mês. Deixá-lo
-     como despesa contaria o cartão duas vezes. */
+  /* TRANSFERÊNCIA é só o que tem contrapartida: saiu de uma conta sua e entrou
+     em outra conta sua, e os dois lados foram encontrados. */
+  todos.forEach((l,i)=>{ l.id="tmp"+i; l.eh_transferencia=false; l.eh_pagamento_fatura=false; });
+  casarTransferencias(todos).forEach(([a,b])=>{
+    a.eh_transferencia=true; b.eh_transferencia=true; a.par=b.id; b.par=a.id; });
+
+  /* PAGAMENTO DE FATURA é outra coisa: não tem contrapartida em conta nenhuma,
+     porque o gasto já foi contado dentro da própria fatura, na competência
+     dela. Marcado à parte, com rótulo próprio — se virasse despesa, o cartão
+     contaria duas vezes no mesmo mês. */
   const temCartao=contasData.some(c=>c.natureza==="cartao"&&c.ativa!==false);
-  const ehPagamentoFatura=d=>/pagamento\s+(de\s+)?fatura|pagto\s+fatura|pag\.?\s*fatura/i.test(String(d||""));
-  todos.forEach((l,i)=>{ l.id="tmp"+i;
-    l.eh_transferencia = temCartao && l.valor<0 && ehPagamentoFatura(l.desc); });
-  casarTransferencias(todos).forEach(([a,b])=>{ a.eh_transferencia=true; b.eh_transferencia=true;
-    a.par=b.id; b.par=a.id; });
+  todos.forEach(l=>{
+    if(!l.eh_transferencia && temCartao && l.valor<0 && ehPagamentoFatura(l.desc))
+      l.eh_pagamento_fatura=true;
+  });
   /* compra + estorno de mesmo valor: as duas se anulam */
   todos.forEach(l=>{ l.eh_estorno=false; });
-  casarEstornos(todos.filter(l=>!l.eh_transferencia)).forEach(([d,c])=>{
+  casarEstornos(todos.filter(l=>!l.eh_transferencia&&!l.eh_pagamento_fatura)).forEach(([d,c])=>{
     d.eh_estorno=true; c.eh_estorno=true; d.par=c.id; c.par=d.id; });
   impLinhas=todos;
   if(msg) msg.textContent="";
@@ -3329,6 +3341,19 @@ async function gravarImportacao(){
   if(offline||!navigator.onLine){ dizer("Sem internet: não é possível gravar agora.","err"); return; }
   const novos=impLinhas.filter(l=>!l.duplicado);
   if(!novos.length){ dizer("Nada novo para gravar.","err"); return; }
+  /* gravar sem classificar é permitido, mas nunca em silêncio: o que fica sem
+     categoria some da análise por categoria e ninguém percebe depois */
+  const semCat=novos.filter(l=>!l.categoria_id&&!l.eh_transferencia&&!l.eh_estorno&&!l.eh_pagamento_fatura);
+  if(semCat.length){
+    const amostra=semCat.slice(0,3).map(l=>"• "+String(l.desc||"").slice(0,40)+"  "+fmt(l.valor)).join("\n");
+    const ok=confirm("Ainda faltam "+semCat.length+" lançamento(s) sem categoria:\n\n"+amostra+
+      (semCat.length>3?"\n… e mais "+(semCat.length-3):"")+
+      "\n\nSem categoria eles entram no total do mês, mas ficam de fora da análise por categoria.\n\nGravar assim mesmo?");
+    if(!ok){ lancFiltro="pendentes"; renderExtratos();
+      const m2=document.getElementById("impMsg2");
+      if(m2){ m2.className="msg err"; m2.textContent="Mostrando só os "+semCat.length+" sem categoria."; }
+      return; }
+  }
   dizer("Gravando…");
   try{
     const porConta={};
@@ -3350,7 +3375,8 @@ async function gravarImportacao(){
         categoria_id:l.categoria_id||null, importacao_id:imp.id, data:l.data,
         competencia:l.competencia||(String(l.data).slice(0,7)+"-01"),
         descricao:l.desc, descricao_normalizada:l.normalizada, observacao:l.observacao||null,
-        eh_transferencia:!!l.eh_transferencia, eh_estorno:!!l.eh_estorno, valor:l.valor,
+        eh_transferencia:!!l.eh_transferencia, eh_estorno:!!l.eh_estorno,
+        eh_pagamento_fatura:!!l.eh_pagamento_fatura, valor:l.valor,
         status:l.origem==="manual"?"confirmado_manual":(l.categoria_id?"classificado_auto":"pendente"),
         hash:l.hash }));
       for(let i=0;i<regs.length;i+=200){
@@ -3395,7 +3421,7 @@ let abaCliente="respostas", respostasData=[], respostaAberta=null;
 const CATS_PADRAO=[
   ["Moradia","Despesa","Fixa"],["Alimentação","Despesa","Variavel"],["Transporte","Despesa","Variavel"],
   ["Saúde","Despesa","Ambas"],["Educação","Despesa","Ambas"],["Lazer","Despesa","Variavel"],
-  ["Vestuário","Despesa","Variavel"],["Barbeiro","Despesa","Variavel"],
+  ["Vestuário","Despesa","Variavel"],["Barbeiro","Despesa","Variavel"],["Veículo","Despesa","Variavel"],
   ["Assinaturas","Despesa","Fixa"],["Dívidas","Despesa","Fixa"],
   ["Impostos e tarifas","Despesa","Ambas"],["Outros gastos","Despesa","Variavel"],
   ["Salário","Receita","Fixa"],["Renda extra","Receita","Variavel"],["Rendimentos","Receita","Variavel"],["Transferência","Receita","Ambas"],
