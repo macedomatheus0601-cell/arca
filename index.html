@@ -501,17 +501,17 @@
       <button class="login-btn" id="loginBtn" type="submit">Entrar</button>
     </form>
     <form id="codigoForm" style="display:none">
-      <div class="lsub" style="margin:0 0 14px">Enviamos um c\u00f3digo para o seu e-mail. Digite abaixo.</div>
-      <div class="field"><label>C\u00f3digo de 6 d\u00edgitos</label>
+      <div class="lsub" style="margin:0 0 14px">Enviamos um código para o seu e-mail. Digite abaixo.</div>
+      <div class="field"><label>Código de 6 dígitos</label>
         <input type="text" id="codigoOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
                placeholder="000000" style="letter-spacing:6px;text-align:center;font-size:19px;font-weight:700"></div>
-      <button class="login-btn" id="codigoBtn" type="submit">Confirmar c\u00f3digo</button>
-      <button type="button" class="link-btn" style="margin-top:12px" id="verLinkBtn">Recebi um link em vez de c\u00f3digo</button>
+      <button class="login-btn" id="codigoBtn" type="submit">Confirmar código</button>
+      <button type="button" class="link-btn" style="margin-top:12px" id="verLinkBtn">Recebi um link em vez de código</button>
       <div id="colarLinkBox" style="display:none;margin-top:12px">
-        <div class="field"><label>Cole o endere\u00e7o do link do e-mail</label>
+        <div class="field"><label>Cole o endereço do link do e-mail</label>
           <input type="text" id="linkColado" placeholder="http://...#access_token=..."></div>
         <button type="button" class="login-btn" id="colarLinkBtn">Usar este link</button>
-        <div class="lsub" style="margin-top:8px;font-size:11.5px">Serve quando o link abre uma p\u00e1gina de erro: copie o endere\u00e7o da barra do navegador e cole aqui.</div>
+        <div class="lsub" style="margin-top:8px;font-size:11.5px">Serve quando o link abre uma página de erro: copie o endereço da barra do navegador e cole aqui.</div>
       </div>
     </form>
     <form id="novaSenhaForm" style="display:none">
@@ -527,7 +527,7 @@
 <div class="modal-bg" id="senhaModal" style="display:none">
   <div class="modal-card">
     <div class="ct" style="font-size:16px">Alterar minha senha</div>
-    <div class="cs" style="margin-bottom:14px">Vale imediatamente. N\u00e3o precisa de e-mail.</div>
+    <div class="cs" style="margin-bottom:14px">Vale imediatamente. Não precisa de e-mail.</div>
     <form id="trocaSenhaForm" class="adm-form" style="grid-template-columns:1fr">
       <div class="full"><label>Nova senha</label><input type="password" id="tsSenha" autocomplete="new-password" minlength="8" required placeholder="pelo menos 8 caracteres"></div>
       <div class="full"><label>Repita a nova senha</label><input type="password" id="tsSenha2" autocomplete="new-password" minlength="8" required></div>
@@ -741,8 +741,8 @@ document.getElementById("esqueciBtn").addEventListener("click", async ()=>{
   ok.classList.add("show");
 });
 /* ---------- REDEFINIR SENHA ----------
-   O link do e-mail volta para c\u00e1 com um token na URL. O supabase-js consome
-   esse token (detectSessionInUrl) e dispara PASSWORD_RECOVERY \u2014 \u00e9 a\u00ed que
+   O link do e-mail volta para cá com um token na URL. O supabase-js consome
+   esse token (detectSessionInUrl) e dispara PASSWORD_RECOVERY — é aí que
    precisamos PEDIR a nova senha. Sem isso o link "funciona" e nada acontece. */
 function modoNovaSenha(ligar){
   telaLogin(ligar?"senha":"login");
@@ -753,8 +753,8 @@ function modoNovaSenha(ligar){
     document.getElementById("loginErr").classList.remove("show");
   }
 }
-/* O link pode voltar com erro (expirado, j\u00e1 usado, endere\u00e7o n\u00e3o autorizado).
-   Sem isto o usu\u00e1rio v\u00ea uma p\u00e1gina quebrada sem explica\u00e7\u00e3o. */
+/* O link pode voltar com erro (expirado, já usado, endereço não autorizado).
+   Sem isto o usuário vê uma página quebrada sem explicação. */
 function erroDoLink(){
   const p=new URLSearchParams((location.hash||"").replace(/^#/,""));
   const q=new URLSearchParams(location.search||"");
@@ -763,14 +763,14 @@ function erroDoLink(){
   const desc=(p.get("error_description")||q.get("error_description")||"").replace(/\+/g," ");
   const err=document.getElementById("loginErr");
   err.textContent = /expired|invalid/i.test(cod+desc)
-    ? "Este link de redefini\u00e7\u00e3o expirou ou j\u00e1 foi usado. Pe\u00e7a um novo em \u201cEsqueci minha senha\u201d."
-    : "N\u00e3o consegui abrir o link: "+(desc||cod);
+    ? "Este link de redefinição expirou ou já foi usado. Peça um novo em “Esqueci minha senha”."
+    : "Não consegui abrir o link: "+(desc||cod);
   err.classList.add("show");
   showLogin();
   try{ history.replaceState(null,"",location.pathname); }catch(e){}
   return true;
 }
-/* Tr\u00eas telas na mesma caixa de login: entrar, confirmar c\u00f3digo, definir senha. */
+/* Três telas na mesma caixa de login: entrar, confirmar código, definir senha. */
 function telaLogin(qual){
   const box={ login:"loginForm", codigo:"codigoForm", senha:"novaSenhaForm" };
   Object.keys(box).forEach(k=>{
@@ -778,7 +778,7 @@ function telaLogin(qual){
   });
   showLogin();
 }
-/* C\u00f3digo de 6 d\u00edgitos: n\u00e3o depende de redirect nenhum, funciona em qualquer
+/* Código de 6 dígitos: não depende de redirect nenhum, funciona em qualquer
    aparelho e sobrevive a cliente de e-mail que estraga link. */
 async function confirmarCodigo(ev){
   ev.preventDefault();
@@ -787,21 +787,21 @@ async function confirmarCodigo(ev){
   const email=document.getElementById("email").value.trim();
   const token=(document.getElementById("codigoOtp").value||"").replace(/\D/g,"");
   if(!email){ err.textContent="Volte e digite o seu e-mail primeiro."; err.classList.add("show"); return; }
-  if(token.length!==6){ err.textContent="O c\u00f3digo tem 6 d\u00edgitos."; err.classList.add("show"); return; }
+  if(token.length!==6){ err.textContent="O código tem 6 dígitos."; err.classList.add("show"); return; }
   const btn=document.getElementById("codigoBtn");
-  btn.disabled=true; btn.textContent="Conferindo\u2026";
+  btn.disabled=true; btn.textContent="Conferindo…";
   const { error }=await sb.auth.verifyOtp({ email, token, type:"recovery" });
-  btn.disabled=false; btn.textContent="Confirmar c\u00f3digo";
+  btn.disabled=false; btn.textContent="Confirmar código";
   if(error){
     err.textContent=/expired|invalid/i.test(error.message)
-      ? "C\u00f3digo inv\u00e1lido ou expirado. Pe\u00e7a um novo em \u201cEsqueci minha senha\u201d."
-      : "N\u00e3o consegui confirmar: "+error.message;
+      ? "Código inválido ou expirado. Peça um novo em “Esqueci minha senha”."
+      : "Não consegui confirmar: "+error.message;
     err.classList.add("show"); return;
   }
   modoNovaSenha(true);
 }
-/* Sa\u00edda de emerg\u00eancia: o link do e-mail carrega os tokens no pr\u00f3prio endere\u00e7o.
-   Se ele abrir numa p\u00e1gina de erro, os tokens continuam l\u00e1 \u2014 basta colar aqui. */
+/* Saída de emergência: o link do e-mail carrega os tokens no próprio endereço.
+   Se ele abrir numa página de erro, os tokens continuam lá — basta colar aqui. */
 async function usarLinkColado(){
   const err=document.getElementById("loginErr"), ok=document.getElementById("loginOk");
   err.classList.remove("show"); ok.classList.remove("show");
@@ -810,14 +810,14 @@ async function usarLinkColado(){
   const p=new URLSearchParams(corpo);
   const at=p.get("access_token"), rt=p.get("refresh_token");
   if(!at||!rt){
-    err.textContent="N\u00e3o encontrei o c\u00f3digo dentro desse endere\u00e7o. Copie o link INTEIRO, incluindo o trecho depois do #.";
+    err.textContent="Não encontrei o código dentro desse endereço. Copie o link INTEIRO, incluindo o trecho depois do #.";
     err.classList.add("show"); return;
   }
   const btn=document.getElementById("colarLinkBtn");
-  btn.disabled=true; btn.textContent="Conferindo\u2026";
+  btn.disabled=true; btn.textContent="Conferindo…";
   const { error }=await sb.auth.setSession({ access_token:at, refresh_token:rt });
   btn.disabled=false; btn.textContent="Usar este link";
-  if(error){ err.textContent="Esse link expirou ou j\u00e1 foi usado. Pe\u00e7a um novo."; err.classList.add("show"); return; }
+  if(error){ err.textContent="Esse link expirou ou já foi usado. Peça um novo."; err.classList.add("show"); return; }
   modoNovaSenha(true);
 }
 async function salvarNovaSenha(ev){
@@ -826,20 +826,20 @@ async function salvarNovaSenha(ev){
   const a=document.getElementById("novaSenha").value, b=document.getElementById("novaSenha2").value;
   err.classList.remove("show"); ok.classList.remove("show");
   if(a.length<8){ err.textContent="A senha precisa ter pelo menos 8 caracteres."; err.classList.add("show"); return; }
-  if(a!==b){ err.textContent="As duas senhas n\u00e3o s\u00e3o iguais."; err.classList.add("show"); return; }
+  if(a!==b){ err.textContent="As duas senhas não são iguais."; err.classList.add("show"); return; }
   const btn=document.getElementById("novaSenhaBtn");
-  btn.disabled=true; btn.textContent="Salvando\u2026";
+  btn.disabled=true; btn.textContent="Salvando…";
   const { error }=await sb.auth.updateUser({ password:a });
   btn.disabled=false; btn.textContent="Salvar nova senha";
-  if(error){ err.textContent="N\u00e3o consegui salvar: "+error.message; err.classList.add("show"); return; }
+  if(error){ err.textContent="Não consegui salvar: "+error.message; err.classList.add("show"); return; }
   try{ history.replaceState(null,"",location.pathname); }catch(e){}
   modoNovaSenha(false);
-  ok.textContent="Senha alterada \u2713 Entrando\u2026"; ok.classList.add("show");
+  ok.textContent="Senha alterada ✓ Entrando…"; ok.classList.add("show");
   setTimeout(()=>{ showApp(); loadData(); }, 900);
 }
-/* ---------- ALTERAR A PR\u00d3PRIA SENHA, J\u00c1 LOGADO ----------
-   Sem e-mail: n\u00e3o depende de SMTP nem de limite de envio. O fluxo por e-mail
-   continua existindo, mas s\u00f3 \u00e9 necess\u00e1rio para quem est\u00e1 trancado fora. */
+/* ---------- ALTERAR A PRÓPRIA SENHA, JÁ LOGADO ----------
+   Sem e-mail: não depende de SMTP nem de limite de envio. O fluxo por e-mail
+   continua existindo, mas só é necessário para quem está trancado fora. */
 function abrirSenha(){
   document.getElementById("senhaModal").style.display="flex";
   document.getElementById("tsMsg").textContent="";
@@ -852,16 +852,16 @@ async function trocarSenha(ev){
   ev.preventDefault();
   const msg=document.getElementById("tsMsg");
   const dizer=(t,c)=>{ msg.className="msg "+(c||""); msg.textContent=t; };
-  if(!sb||!navigator.onLine){ dizer("\u00c9 preciso estar conectado \u00e0 internet.","err"); return; }
+  if(!sb||!navigator.onLine){ dizer("É preciso estar conectado à internet.","err"); return; }
   const a=document.getElementById("tsSenha").value, b=document.getElementById("tsSenha2").value;
   if(a.length<8){ dizer("A senha precisa ter pelo menos 8 caracteres.","err"); return; }
-  if(a!==b){ dizer("As duas senhas n\u00e3o s\u00e3o iguais.","err"); return; }
+  if(a!==b){ dizer("As duas senhas não são iguais.","err"); return; }
   const btn=document.getElementById("tsBtn");
-  btn.disabled=true; btn.textContent="Salvando\u2026";
+  btn.disabled=true; btn.textContent="Salvando…";
   const { error }=await sb.auth.updateUser({ password:a });
   btn.disabled=false; btn.textContent="Salvar senha";
-  if(error){ dizer("N\u00e3o consegui alterar: "+error.message,"err"); return; }
-  dizer("Senha alterada \u2713 Use a nova da pr\u00f3xima vez que entrar.","ok");
+  if(error){ dizer("Não consegui alterar: "+error.message,"err"); return; }
+  dizer("Senha alterada ✓ Use a nova da próxima vez que entrar.","ok");
   setTimeout(fecharSenha, 1600);
 }
 async function sair(){
@@ -1168,7 +1168,7 @@ function metasChart(series, n){
   return { svg, W, xs:series[0]?series[0].pontos.map((_,i)=>x(i)):[], y0:padT, y1:H-padB,
     info:i=>`<div class="tt">${labelMesLongo(i)}</div>`+
       series.map(sr=>tipLinha(sr.cor, sr.nome,
-        fmt(sr.pontos[i]) + (sr.pontos[i]>=sr.alvo-0.01?" \u2713":" de "+fmtK(sr.alvo)))).join("") };
+        fmt(sr.pontos[i]) + (sr.pontos[i]>=sr.alvo-0.01?" ✓":" de "+fmtK(sr.alvo)))).join("") };
 }
 function planoAlocacao(extra=0, horizonte=120){
   const itens=metas.map(m=>({nome:m.nome,cor:m.cor,ic:m.ic,falta:Math.max(0,m.alvo-m.atual),mes:null}));
@@ -1747,21 +1747,21 @@ function renderDividas(){
   pagina(principal, lateral);
 }
 
-/* Como est\u00e1 o m\u00eas VIGENTE, comparado com o que estava previsto.
-   Sem isso a pessoa s\u00f3 descobre que estourou quando o m\u00eas j\u00e1 acabou. */
+/* Como está o mês VIGENTE, comparado com o que estava previsto.
+   Sem isso a pessoa só descobre que estourou quando o mês já acabou. */
 function blocoMesAtual(){
   const m=mesHoje();
-  const doMes=histLancs.filter(l=>String(l.data).slice(0,7)===m);
-  if(!doMes.length) return `<div class="eyebrow">Este m\u00eas at\u00e9 agora</div>
-    <div class="card"><div class="empty">Nenhum lan\u00e7amento em ${esc(mesLabel(m))} ainda.
-      ${isHost?`<button class="btn-sec" style="margin-left:8px" onclick="setPage('extratos')">Subir extratos</button>`:"Assim que os extratos forem lan\u00e7ados, o realizado aparece aqui."}</div></div>`;
+  const doMes=histLancs.filter(l=>compDe(l)===m);
+  if(!doMes.length) return `<div class="eyebrow">Este mês até agora</div>
+    <div class="card"><div class="empty">Nenhum lançamento em ${esc(mesLabel(m))} ainda.
+      ${isHost?`<button class="btn-sec" style="margin-left:8px" onclick="setPage('extratos')">Subir extratos</button>`:"Assim que os extratos forem lançados, o realizado aparece aqui."}</div></div>`;
 
   const r=resumoMes(doMes);
   const hoje=new Date(), diasNoMes=new Date(hoje.getFullYear(),hoje.getMonth()+1,0).getDate();
   const decorrido=Math.min(1, hoje.getDate()/diasNoMes);
-  /* previsto do m\u00eas: o que o cadastro diz que deveria acontecer */
+  /* previsto do mês: o que o cadastro diz que deveria acontecer */
   const prev={ entradas:F.renda, fixos:F.fixos, variaveis:F.variaveis, sobra:F.sobra };
-  /* o vari\u00e1vel \u00e9 comparado PRO RATA: no dia 10 n\u00e3o faz sentido cobrar o m\u00eas inteiro */
+  /* o variável é comparado PRO RATA: no dia 10 não faz sentido cobrar o mês inteiro */
   const alvoVar=prev.variaveis*decorrido;
   const estouro=r.variaveis-alvoVar;
 
@@ -1771,25 +1771,25 @@ function blocoMesAtual(){
     const cor = Math.abs(dif)<Math.max(30,Math.abs(previsto)*0.05) ? "var(--muted)" : (bom?cssv("--green"):cssv("--rose"));
     return `<div class="rrow"><span class="rr-n">${rot}</span>
       <span class="rr-v">${fmt(real)} <span style="color:var(--muted);font-weight:600">de ${fmt(previsto)}</span>
-      <span style="color:${cor};font-weight:800;margin-left:6px">${dif>=0?"+":"\u2212"}${fmt(Math.abs(dif)).replace("R$ ","R$ ")}</span></span></div>`;
+      <span style="color:${cor};font-weight:800;margin-left:6px">${dif>=0?"+":"−"}${fmt(Math.abs(dif)).replace("R$ ","R$ ")}</span></span></div>`;
   };
 
-  return `<div class="eyebrow">Este m\u00eas at\u00e9 agora ${help("Compara o que j\u00e1 aconteceu em "+mesLabel(m)+" com o que estava previsto no seu cadastro. O gasto vari\u00e1vel \u00e9 comparado proporcionalmente ao dia do m\u00eas \u2014 no dia 10 n\u00e3o faria sentido cobrar o m\u00eas inteiro.")}</div>
+  return `<div class="eyebrow">Este mês até agora ${help("Compara o que já aconteceu em "+mesLabel(m)+" com o que estava previsto no seu cadastro. O gasto variável é comparado proporcionalmente ao dia do mês — no dia 10 não faria sentido cobrar o mês inteiro.")}</div>
     <div class="card"><div class="card-h">
-      <div><div class="ct">${esc(mesLabel(m))} \u00b7 dia ${hoje.getDate()} de ${diasNoMes}</div>
-        <div class="cs">${r.total} lan\u00e7amento(s) registrados${r.pendentes?` \u00b7 ${r.pendentes} sem categoria`:""}</div></div>
-      <div class="c-end"><div class="lbl">sobra at\u00e9 aqui</div>
+      <div><div class="ct">${esc(mesLabel(m))} · dia ${hoje.getDate()} de ${diasNoMes}</div>
+        <div class="cs">${r.total} lançamento(s) registrados${r.pendentes?` · ${r.pendentes} sem categoria`:""}</div></div>
+      <div class="c-end"><div class="lbl">sobra até aqui</div>
         <div class="val" style="color:${r.sobra>=0?cssv("--green"):cssv("--rose")}">${fmt(r.sobra)}</div></div></div>
       <div class="track" style="margin-bottom:12px"><div class="fill" style="width:${Math.min(100,Math.round(decorrido*100))}%;background:${cssv("--brand")}"></div></div>
       ${linha("Entradas",r.entradas,prev.entradas,false)}
       ${linha("Gastos fixos",r.fixos,prev.fixos,true)}
-      ${linha("Gastos vari\u00e1veis",r.variaveis,alvoVar,true)}
+      ${linha("Gastos variáveis",r.variaveis,alvoVar,true)}
       ${estouro>Math.max(50,alvoVar*0.15)
         ? `<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:10px">
             <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
-            <div>No ritmo de hoje o vari\u00e1vel fecha o m\u00eas em <b>${fmt(r.variaveis/Math.max(decorrido,0.05))}</b>,
-              contra ${fmt(prev.variaveis)} previstos. D\u00e1 tempo de ajustar \u2014 faltam ${diasNoMes-hoje.getDate()} dias.</div></div>`
-        : `<div class="cap" style="margin-top:8px">No ritmo de hoje o vari\u00e1vel fecha em ${fmt(r.variaveis/Math.max(decorrido,0.05))}, dentro do previsto.</div>`}
+            <div>No ritmo de hoje o variável fecha o mês em <b>${fmt(r.variaveis/Math.max(decorrido,0.05))}</b>,
+              contra ${fmt(prev.variaveis)} previstos. Dá tempo de ajustar — faltam ${diasNoMes-hoje.getDate()} dias.</div></div>`
+        : `<div class="cap" style="margin-top:8px">No ritmo de hoje o variável fecha em ${fmt(r.variaveis/Math.max(decorrido,0.05))}, dentro do previsto.</div>`}
     </div>`;
 }
 
@@ -1797,9 +1797,9 @@ function blocoMesAtual(){
    Essa divergência é informação de consultoria, não ruído. */
 function notaSobra(){
   if(F.sobraOrigem==="realizada"){
-    const base=`m\u00e9dia do que voc\u00ea <b>realmente gastou</b> nos \u00faltimos ${F.mesesReal} m\u00eas(es) fechados: renda \u2212 fixos \u2212 ${fmt(F.variaveis)} de vari\u00e1vel`;
+    const base=`média do que você <b>realmente gastou</b> nos últimos ${F.mesesReal} mês(es) fechados: renda − fixos − ${fmt(F.variaveis)} de variável`;
     if(F.sobraDeclarada!=null && Math.abs(F.sobraDeclarada-F.sobra)>=Math.max(50,Math.abs(F.sobra)*0.15))
-      return `${base}. Voc\u00ea achava que sobrava <b>${fmt(F.sobraDeclarada)}</b>.`;
+      return `${base}. Você achava que sobrava <b>${fmt(F.sobraDeclarada)}</b>.`;
     return base+".";
   }
   if(F.sobraOrigem==="calculada"){
@@ -2227,15 +2227,18 @@ let impEtapa="mes", impLinhas=[], impArquivo=null, impConta=null, impCol="primei
 /* ---- mês em foco na aba Lançamentos ---- */
 const mesHoje = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
 let mesAtivo=mesHoje(), lancData=[], fechData=[], lancFiltro="todos";
-/* hist\u00f3rico curto usado pelo motor: o REALIZADO dos meses j\u00e1 fechados \u00e9 a melhor
-   fonte de gasto vari\u00e1vel que existe \u2014 melhor que qualquer valor declarado. */
+/* histórico curto usado pelo motor: o REALIZADO dos meses já fechados é a melhor
+   fonte de gasto variável que existe — melhor que qualquer valor declarado. */
 let histLancs=[], histFech=[];
 const dia1  = m => m+"-01";
+/* O mês em que o lançamento CONTA. No cartão difere da data da compra:
+   a fatura conta no mês do salário que a paga. Sem competência, vale a data. */
+const compDe = l => String(l.competencia||l.data||"").slice(0,7);
 const diaN  = m => { const [a,b]=m.split("-").map(Number); return new Date(Date.UTC(a,b,0)).toISOString().slice(0,10); };
 const mesAnterior = m => { const [a,b]=m.split("-").map(Number); const d=new Date(Date.UTC(a,b-2,1)); return d.toISOString().slice(0,7); };
 const mesSeguinte = m => { const [a,b]=m.split("-").map(Number); const d=new Date(Date.UTC(a,b,1)); return d.toISOString().slice(0,7); };
 const mesLabel = m => { const [a,b]=m.split("-").map(Number);
-  return ["janeiro","fevereiro","mar\u00e7o","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"][b-1]+" de "+a; };
+  return ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"][b-1]+" de "+a; };
 
 /* Seis meses de lançamentos + todos os fechamentos. É o que permite dizer
    "você gastou X" em vez de "você disse que gasta X". */
@@ -2245,7 +2248,7 @@ async function carregarHistorico(){
   const desde=d.toISOString().slice(0,10);
   const cid=perfilData.cliente_id;
   const [lr,fr]=await Promise.all([
-    sb.from("lancamentos").select("conta_id,data,valor,categoria_id,descricao,eh_transferencia")
+    sb.from("lancamentos").select("conta_id,data,competencia,valor,categoria_id,descricao,eh_transferencia")
       .eq("cliente_id",cid).gte("data",desde),
     sb.from("fechamentos_mensais").select("*").eq("cliente_id",cid).order("mes_referencia",{ascending:false}),
   ]);
@@ -2269,7 +2272,7 @@ function variavelRealizado(){
   const meses=mesesFechados().slice(0,3);
   if(!meses.length) return null;
   const vals=meses.map(m=>{
-    const doMes=histLancs.filter(l=>String(l.data).slice(0,7)===m);
+    const doMes=histLancs.filter(l=>compDe(l)===m);
     return resumoMes(doMes).variaveis;
   }).filter(v=>v>0);
   if(!vals.length) return null;
@@ -2289,15 +2292,18 @@ function saldoRealizado(){
 async function carregarMes(){
   if(!perfilData||!sb||offline||!navigator.onLine) return;
   const cid=perfilData.cliente_id;
+  /* janela larga na data: uma fatura de competência agosto tem compras de
+     29/jul a 29/ago, e o filtro final é pela competência, não pela data */
+  const de=dia1(mesAnterior(mesAnterior(mesAtivo))), ate=diaN(mesSeguinte(mesAtivo));
   const [lr,fr]=await Promise.all([
     sb.from("lancamentos").select("*").eq("cliente_id",cid)
-      .gte("data",dia1(mesAtivo)).lte("data",diaN(mesAtivo)).order("data",{ascending:true}),
+      .gte("data",de).lte("data",ate).order("data",{ascending:true}),
     sb.from("fechamentos_mensais").select("*").eq("cliente_id",cid).eq("mes_referencia",dia1(mesAtivo)),
   ]);
-  lancData = lr.error?[]:(lr.data||[]);
+  lancData = lr.error?[]:(lr.data||[]).filter(l=>compDe(l)===mesAtivo);
   fechData = fr.error?[]:(fr.data||[]);
-  /* o m\u00eas em foco tamb\u00e9m alimenta o hist\u00f3rico curto que o motor usa */
-  const outros=histLancs.filter(l=>String(l.data).slice(0,7)!==mesAtivo);
+  /* o mês em foco também alimenta o histórico curto que o motor usa */
+  const outros=histLancs.filter(l=>compDe(l)!==mesAtivo);
   histLancs=outros.concat(lancData);
 }
 
@@ -2314,17 +2320,17 @@ function identificarConta(texto, contas){
   const notas=(contas||contasData).filter(c=>c.ativa!==false).map(c=>{
     let p=0; const por=[];
     const nc=dig(c.numero_conta);
-    if(nc.length>=4 && D.includes(" "+nc+" ")){ p+=10; por.push("n\u00famero da conta "+c.numero_conta); }
+    if(nc.length>=4 && D.includes(" "+nc+" ")){ p+=10; por.push("número da conta "+c.numero_conta); }
     const fc=dig(c.final_cartao);
-    if(fc.length===4 && D.includes(" "+fc+" ")){ p+=8; por.push("final do cart\u00e3o "+fc); }
+    if(fc.length===4 && D.includes(" "+fc+" ")){ p+=8; por.push("final do cartão "+fc); }
     const ag=dig(c.agencia);
-    if(ag.length>=3 && D.includes(" "+ag+" ")){ p+=3; por.push("ag\u00eancia "+c.agencia); }
+    if(ag.length>=3 && D.includes(" "+ag+" ")){ p+=3; por.push("agência "+c.agencia); }
     const b=String(c.banco||"").toUpperCase().split(/\s+/)[0];
     if(b.length>=3 && T.includes(" "+b)){ p+=1; por.push("nome do banco"); }
     return { conta:c, pontos:p, por };
   }).sort((a,b)=>b.pontos-a.pontos);
   const top=notas[0];
-  if(!top||top.pontos<6) return { conta:null, motivo:"n\u00e3o encontrei no arquivo o n\u00famero de nenhuma conta cadastrada", notas };
+  if(!top||top.pontos<6) return { conta:null, motivo:"não encontrei no arquivo o número de nenhuma conta cadastrada", notas };
   if(notas[1]&&notas[1].pontos===top.pontos) return { conta:null, motivo:"o arquivo bate com mais de uma conta", notas };
   return { conta:top.conta, motivo:"identificada pelo "+top.por.join(" + "), notas };
 }
@@ -2504,33 +2510,33 @@ function extrairLancamentos(linhas, colValor, sinalModo){
 }
 /* classificação determinística: regras salvas + cruzamento com gastos fixos */
 /* ================= LEITORES POR FORMATO =================
-   Extrato de banco n\u00e3o tem padr\u00e3o. O leitor gen\u00e9rico exige data dd/mm na
-   mesma linha do valor \u2014 e o Nubank n\u00e3o \u00e9 assim: a data vem como "03 AGO 2026"
-   num cabe\u00e7alho e o sinal vem da se\u00e7\u00e3o ("Total de entradas" / "Total de sa\u00eddas").
+   Extrato de banco não tem padrão. O leitor genérico exige data dd/mm na
+   mesma linha do valor — e o Nubank não é assim: a data vem como "03 AGO 2026"
+   num cabeçalho e o sinal vem da seção ("Total de entradas" / "Total de saídas").
    Cada leitor sabe ler um formato e se anuncia com detectar(). */
 const MESES_PT={ JAN:1,FEV:2,MAR:3,ABR:4,MAI:5,JUN:6,JUL:7,AGO:8,SET:9,OUT:10,NOV:11,DEZ:12 };
 const iso=(a,m,d)=>`${a}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-/* valor no FIM da linha \u2014 no meio quase sempre \u00e9 texto explicativo */
-const VAL_FIM=/(\u2212|-)?\s*R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})\s*$/;
+/* valor no FIM da linha — no meio quase sempre é texto explicativo */
+const VAL_FIM=/(−|-)?\s*R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})\s*$/;
 /* "- Parcela 2/4" vira parcela_atual/total_parcelas */
 function acharParcela(desc){
-  const m=String(desc).match(/[-\u2013]\s*Parcela\s*(\d+)\s*\/\s*(\d+)\s*$/i);
+  const m=String(desc).match(/[-–]\s*Parcela\s*(\d+)\s*\/\s*(\d+)\s*$/i);
   if(!m) return null;
   return { atual:Number(m[1]), total:Number(m[2]), limpa:desc.slice(0,m.index).replace(/[\s-]+$/,"") };
 }
 
 const LEITORES=[
 {
-  id:"nubank_fatura_pdf", nome:"Fatura do cart\u00e3o Nubank", natureza:"cartao",
-  detectar:t=>/nubank|nu pagamentos/i.test(t) && /TRANSA\u00c7\u00d5ES/i.test(t) && /Per\u00edodo vigente/i.test(t),
+  id:"nubank_fatura_pdf", nome:"Fatura do cartão Nubank", natureza:"cartao",
+  detectar:t=>/nubank|nu pagamentos/i.test(t) && /TRANSAÇÕES/i.test(t) && /Período vigente/i.test(t),
   ler(linhas){
     const txt=linhas.join("\n");
-    /* o ano n\u00e3o aparece na linha da compra: vem do vencimento da fatura.
-       Compra em m\u00eas MAIOR que o do vencimento \u00e9 do ano anterior (dez \u2192 fatura de jan). */
+    /* o ano não aparece na linha da compra: vem do vencimento da fatura.
+       Compra em mês MAIOR que o do vencimento é do ano anterior (dez \u2192 fatura de jan). */
     const venc=txt.match(/FATURA\s+(\d{2})\s+([A-Z]{3})\s+(\d{4})/i)
              ||txt.match(/vencimento:\s*(\d{2})\s+([A-Z]{3})\s+(\d{4})/i);
     const mesVenc=venc?MESES_PT[venc[2].toUpperCase()]:null, anoVenc=venc?Number(venc[3]):new Date().getFullYear();
-    const final=(txt.match(/\u2022{2,}\s*(\d{4})/)||[])[1]||null;
+    const final=(txt.match(/•{2,}\s*(\d{4})/)||[])[1]||null;
     const out=[]; let dataAtual=null;
     for(const l of linhas){
       const md=l.match(/^(\d{2})\s+([A-Z]{3})$/i);
@@ -2540,13 +2546,13 @@ const LEITORES=[
       if(!dataAtual) continue;
       const mv=l.match(VAL_FIM); if(!mv) continue;
       const v=parseValorBR(mv[2]); if(v==null||v===0) continue;
-      let desc=l.slice(0,mv.index).replace(/^\u2022+\s*\d{4}\s*/,"").replace(/\s+/g," ").trim();
+      let desc=l.slice(0,mv.index).replace(/^•+\s*\d{4}\s*/,"").replace(/\s+/g," ").trim();
       if(!desc||desc.length<2) continue;
-      if(/^(Total|Pagamento m\u00ednimo|Fatura anterior|Limite|Saldo)/i.test(desc)) continue;
-      /* o pagamento da fatura J\u00c1 aparece como sa\u00edda na conta corrente \u2014
-         cont\u00e1-lo aqui de novo inflaria a renda do m\u00eas */
+      if(/^(Total|Pagamento mínimo|Fatura anterior|Limite|Saldo)/i.test(desc)) continue;
+      /* o pagamento da fatura JÁ aparece como saída na conta corrente —
+         contá-lo aqui de novo inflaria a renda do mês */
       if(/^Pagamentos?\b/i.test(desc)) continue;
-      /* na fatura, compra \u00e9 SA\u00cdDA. Estorno e pagamento vêm com sinal de menos e s\u00e3o entrada. */
+      /* na fatura, compra é SAÍDA. Estorno e pagamento vêm com sinal de menos e são entrada. */
       const negativoNaFatura=!!mv[1];
       const eEstorno=/^Estorno\b/i.test(desc)||/^Pagamento recebido/i.test(desc);
       const valor = (negativoNaFatura||eEstorno) ? Math.abs(v) : -Math.abs(v);
@@ -2555,15 +2561,22 @@ const LEITORES=[
                  parcela_atual:par?par.atual:null, total_parcelas:par?par.total:null,
                  cartao_final:final });
     }
-    const per=txt.match(/Per\u00edodo vigente:\s*(\d{2})\s+([A-Z]{3})\s+a\s+(\d{2})\s+([A-Z]{3})/i);
+    /* a fatura que vence em setembro é paga com o salário de agosto:
+       para o orçamento, ela é gasto de AGOSTO. Competência = mês anterior ao
+       vencimento, independentemente da data de cada compra. */
+    let competencia=null;
+    if(mesVenc){ const mc=mesVenc-1, ac=mc===0?anoVenc-1:anoVenc;
+      competencia=iso(ac, mc===0?12:mc, 1); }
+    const per=txt.match(/Período vigente:\s*(\d{2})\s+([A-Z]{3})\s+a\s+(\d{2})\s+([A-Z]{3})/i);
     const totalTxt=txt.match(/Total a pagar\s*R\$\s*([\d.,]+)/i);
-    return { lancs:out, final_cartao:final,
+    out.forEach(l=>{ l.competencia=competencia; });
+    return { lancs:out, final_cartao:final, competencia,
       periodo: per?{de:per[1]+" "+per[2], ate:per[3]+" "+per[4]}:null,
       total: totalTxt?parseValorBR(totalTxt[1]):null };
   }
 },
 {
-  id:"nubank_fatura_csv", nome:"Fatura do cart\u00e3o Nubank (CSV)", natureza:"cartao",
+  id:"nubank_fatura_csv", nome:"Fatura do cartão Nubank (CSV)", natureza:"cartao",
   detectar:t=>/^\s*date\s*,\s*title\s*,\s*amount/im.test(t),
   ler(linhas){
     const out=[];
@@ -2575,7 +2588,7 @@ const LEITORES=[
       /* mesma regra do PDF: o pagamento da fatura vive na conta corrente */
       if(/^Pagamentos?\b/i.test(desc)) continue;
       const par=acharParcela(desc);
-      /* no CSV do Nubank o sinal \u00e9 invertido: positivo = compra, negativo = pagamento */
+      /* no CSV do Nubank o sinal é invertido: positivo = compra, negativo = pagamento */
       out.push({ data:iso(Number(m[1]),Number(m[2]),Number(m[3])),
                  desc:par?par.limpa:desc, valor:-v,
                  parcela_atual:par?par.atual:null, total_parcelas:par?par.total:null });
@@ -2585,37 +2598,37 @@ const LEITORES=[
 },
 {
   id:"nubank_conta_pdf", nome:"Conta Nubank", natureza:"corrente",
-  detectar:t=>/nubank|nu pagamentos/i.test(t) && /Saldo inicial/i.test(t) && /Movimenta\u00e7\u00f5es/i.test(t),
+  detectar:t=>/nubank|nu pagamentos/i.test(t) && /Saldo inicial/i.test(t) && /Movimentações/i.test(t),
   ler(linhas){
     const txt=linhas.join("\n");
     const num1=re=>{ const m=txt.match(re); return m?parseValorBR(m[1]):null; };
     const saldos={ inicial:num1(/Saldo inicial\s+([\d.]*,\d{2})/i),
-                   final:num1(/Saldo final do per\u00edodo\s+([\d.]*,\d{2})/i) };
+                   final:num1(/Saldo final do período\s+([\d.]*,\d{2})/i) };
     const conta=(txt.match(/Conta\s*\n?\s*(\d{5,}-\d)/i)||[])[1]||null;
-    const ag=(txt.match(/Ag\u00eancia\s*(\d{3,4})/i)||[])[1]||null;
+    const ag=(txt.match(/Agência\s*(\d{3,4})/i)||[])[1]||null;
     const out=[]; let dataAtual=null, sinal=null;
-    /* "Rendimento l\u00edquido +0,15" fica no resumo do topo, fora das se\u00e7\u00f5es de
-       movimenta\u00e7\u00e3o. Sem ele a confer\u00eancia de saldo n\u00e3o fecha por centavos. */
-    const mrend=txt.match(/Rendimento l\u00edquido\s*\+?\s*([\d.]*,\d{2})/i);
-    const mfim=txt.match(/a\s+(\d{2})\s+DE\s+([A-Z\u00c7\u00c3\u00d5]{3,})\s+DE\s+(\d{4})/i);
+    /* "Rendimento líquido +0,15" fica no resumo do topo, fora das seções de
+       movimentação. Sem ele a conferência de saldo não fecha por centavos. */
+    const mrend=txt.match(/Rendimento líquido\s*\+?\s*([\d.]*,\d{2})/i);
+    const mfim=txt.match(/a\s+(\d{2})\s+DE\s+([A-ZÇÃÕ]{3,})\s+DE\s+(\d{4})/i);
     if(mrend&&mfim){
       const mm=MESES_PT[mfim[2].slice(0,3).toUpperCase()];
       if(mm) out.push({ data:iso(Number(mfim[3]),mm,Number(mfim[1])),
-                        desc:"Rendimento l\u00edquido", valor:Math.abs(parseValorBR(mrend[1])) });
+                        desc:"Rendimento líquido", valor:Math.abs(parseValorBR(mrend[1])) });
     }
-    /* a data \u00e9 um cabe\u00e7alho de grupo e o sinal vem da se\u00e7\u00e3o \u2014 os dois valem
-       para todas as linhas seguintes at\u00e9 mudarem */
+    /* a data é um cabeçalho de grupo e o sinal vem da seção — os dois valem
+       para todas as linhas seguintes até mudarem */
     for(const l of linhas){
       const md=l.match(/^(\d{2})\s+([A-Z]{3})\s+(\d{4})\b/i);
       if(md){ const mm=MESES_PT[md[2].toUpperCase()];
         if(mm) dataAtual=iso(Number(md[3]),mm,Number(md[1])); }
-      const sec=l.match(/Total de (entradas|sa\u00eddas)/i);
+      const sec=l.match(/Total de (entradas|saídas)/i);
       if(sec){ sinal = /entradas/i.test(sec[1]) ? 1 : -1; continue; }
       if(!dataAtual||!sinal) continue;
       if(/^(Saldo|Rendimento|CPF|Extrato gerado|Tem alguma|Caso a solu|\d+ de \d+$)/i.test(l)) continue;
       const mv=l.match(/([\d.]*\d,\d{2})\s*$/); if(!mv) continue;
       const v=parseValorBR(mv[1]); if(v==null||v===0) continue;
-      let desc=l.slice(0,mv.index).replace(/\s+/g," ").replace(/[-\u2013\s]+$/,"").trim();
+      let desc=l.slice(0,mv.index).replace(/\s+/g," ").replace(/[-–\s]+$/,"").trim();
       if(!desc||desc.length<3) continue;
       out.push({ data:dataAtual, desc:desc.slice(0,120), valor:sinal*Math.abs(v) });
     }
@@ -2624,8 +2637,8 @@ const LEITORES=[
 },
 ];
 
-/* Escolhe o leitor pelo conte\u00fado. Nenhum reconhecido \u2192 cai no gen\u00e9rico,
-   que \u00e9 o comportamento antigo. */
+/* Escolhe o leitor pelo conteúdo. Nenhum reconhecido \u2192 cai no genérico,
+   que é o comportamento antigo. */
 function lerComLeitor(linhas, brutas, colValor, sinalModo){
   /* linhasDoCSV() troca a vírgula separadora por espaço e quebraria o "30,00".
      Por isso o leitor de CSV recebe a linha CRUA, não a tratada. */
@@ -2665,7 +2678,7 @@ function renderExtratos(){
   if(!isHost){ pagina(`<div class="state">Área restrita.</div>`,""); return; }
   let corpo="";
   const subAbas=(impEtapa==="mes"||impEtapa==="upload")?`<div class="sub-tabs">
-      <button class="sub-tab ${impEtapa==="mes"?"active":""}" onclick="setImpEtapa('mes')">Posi\u00e7\u00e3o do m\u00eas</button>
+      <button class="sub-tab ${impEtapa==="mes"?"active":""}" onclick="setImpEtapa('mes')">Posição do mês</button>
       <button class="sub-tab ${impEtapa==="upload"?"active":""}" onclick="setImpEtapa('upload')">Subir extratos</button>
     </div>`:"";
   if(impEtapa==="mes") corpo=etapaMes();
@@ -2687,39 +2700,39 @@ function renderExtratos(){
       return `<div class="rev-row" style="flex-wrap:wrap">
         <div class="rev-b" style="min-width:180px">
           <div class="rev-n">${esc(l.desc)}</div>
-          <div class="rev-s">${dataBR(l.data)} \u00b7 ${esc(nomeConta(l.conta_id))}${fixo?` \u00b7 <b style="color:${cssv("--brand")}">\u00e9 o seu gasto fixo \u201c${esc(fixo.descricao)}\u201d</b>`:""}${l.eh_transferencia?` \u00b7 <b style="color:${cssv("--teal")}">transfer\u00eancia entre suas contas</b>`:""}</div>
+          <div class="rev-s">${dataBR(l.data)} · ${esc(nomeConta(l.conta_id))}${fixo?` · <b style="color:${cssv("--brand")}">é o seu gasto fixo “${esc(fixo.descricao)}”</b>`:""}${l.eh_transferencia?` · <b style="color:${cssv("--teal")}">transferência entre suas contas</b>`:""}</div>
         </div>
         <div class="rev-v ${l.valor>=0?"pos":"neg"}">${fmt(l.valor)}</div>
         ${l.eh_transferencia
-          ? `<button class="btn-sec" onclick="desfazerTransferencia(${i})">n\u00e3o \u00e9 transfer\u00eancia</button>`
-          : `<select onchange="definirCategoria(${i},this.value)"><option value="">Categoria\u2026</option>
+          ? `<button class="btn-sec" onclick="desfazerTransferencia(${i})">não é transferência</button>`
+          : `<select onchange="definirCategoria(${i},this.value)"><option value="">Categoria…</option>
               ${catsData.filter(k=>(k.tipo==="Receita")===(l.valor>0)).map(k=>`<option value="${k.id}" ${k.id===l.categoria_id?"selected":""}>${esc(k.nome)}</option>`).join("")}</select>`}
-        <input class="rev-obs" placeholder="descri\u00e7\u00e3o (opcional)" value="${esc(l.observacao||"")}"
-               oninput="definirObs(${i},this.value)" aria-label="Descri\u00e7\u00e3o deste lan\u00e7amento">
+        <input class="rev-obs" placeholder="descrição (opcional)" value="${esc(l.observacao||"")}"
+               oninput="definirObs(${i},this.value)" aria-label="Descrição deste lançamento">
       </div>`; };
 
     corpo=`<div class="card">
-      <div class="card-h"><div><div class="ct">2. Classifique os lan\u00e7amentos</div>
-        <div class="cs">${impArquivos.filter(a=>a.conta_id).map(a=>esc(a.nome)).join(" \u00b7 ")||"lan\u00e7amento manual"}</div></div>
+      <div class="card-h"><div><div class="ct">2. Classifique os lançamentos</div>
+        <div class="cs">${impArquivos.filter(a=>a.conta_id).map(a=>esc(a.nome)).join(" · ")||"lançamento manual"}</div></div>
         <button class="btn-sec" onclick="setImpEtapa('upload')">\u2190 voltar aos arquivos</button></div>
       <div class="pill-sum">
         <div class="pill g"><span style="font-size:19px">${svgIcon("check")}</span><div><div class="p-n">${auto}</div><div class="p-t">classificados automaticamente</div></div></div>
-        <div class="pill y"><span style="font-size:19px">?</span><div><div class="p-n">${pend}</div><div class="p-t">precisam de voc\u00ea</div></div></div>
-        <div class="pill b"><span style="font-size:19px">\u21c4</span><div><div class="p-n">${transf}</div><div class="p-t">transfer\u00eancias (n\u00e3o s\u00e3o gasto)</div></div></div>
-        <div class="pill n"><span style="font-size:19px">\u2298</span><div><div class="p-n">${dup}</div><div class="p-t">j\u00e1 existiam</div></div></div>
+        <div class="pill y"><span style="font-size:19px">?</span><div><div class="p-n">${pend}</div><div class="p-t">precisam de você</div></div></div>
+        <div class="pill b"><span style="font-size:19px">⇄</span><div><div class="p-n">${transf}</div><div class="p-t">transferências (não são gasto)</div></div></div>
+        <div class="pill n"><span style="font-size:19px">⊘</span><div><div class="p-n">${dup}</div><div class="p-t">já existiam</div></div></div>
       </div>
       <div class="sub-tabs" style="margin:10px 0 12px">
-        ${[["todos","Todos ("+novos.length+")"],["pendentes","Sem categoria ("+pend+")"],["transferencias","Transfer\u00eancias ("+transf+")"]]
+        ${[["todos","Todos ("+novos.length+")"],["pendentes","Sem categoria ("+pend+")"],["transferencias","Transferências ("+transf+")"]]
           .map(t=>`<button class="sub-tab ${lancFiltro===t[0]?"active":""}" onclick="lancFiltro='${t[0]}';renderExtratos()">${t[1]}</button>`).join("")}
       </div>
       ${so.length?so.slice(0,200).map(linha).join(""):`<div class="empty">Nada nesta lista.</div>`}
       ${so.length>200?`<div class="cap">Mostrando os 200 primeiros de ${so.length}.</div>`:""}
       ${pend?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:12px">
         <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
-        <div>${pend} lan\u00e7amento(s) ainda sem categoria. D\u00e1 para gravar assim, mas eles ficam de fora da an\u00e1lise por categoria.</div></div>`:""}
+        <div>${pend} lançamento(s) ainda sem categoria. Dá para gravar assim, mas eles ficam de fora da análise por categoria.</div></div>`:""}
       <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">
         <button class="btn-sec" onclick="setImpEtapa('upload')">Cancelar</button>
-        <button class="btn-p" onclick="gravarImportacao()" ${offline?"disabled":""}>Gravar ${novos.length} lan\u00e7amento(s)</button>
+        <button class="btn-p" onclick="gravarImportacao()" ${offline?"disabled":""}>Gravar ${novos.length} lançamento(s)</button>
       </div><div id="impMsg2" class="msg"></div></div>`;
   }
   else if(impEtapa==="pronto"){
@@ -2742,12 +2755,12 @@ function renderExtratos(){
     dz.addEventListener("drop",ev=>{ const fs=ev.dataTransfer.files; if(fs&&fs.length) lerArquivos(fs); });
   }
 }
-/* ---------- POSI\u00c7\u00c3O DO M\u00caS ----------
-   O que realmente aconteceu, conta por conta, com a confer\u00eancia que fecha o m\u00eas:
-   saldo inicial + cr\u00e9ditos \u2212 d\u00e9bitos = saldo final.
-   Se n\u00e3o bate, falta extrato \u2014 p\u00e1gina, conta ou dinheiro vivo. */
+/* ---------- POSIÇÃO DO MÊS ----------
+   O que realmente aconteceu, conta por conta, com a conferência que fecha o mês:
+   saldo inicial + créditos − débitos = saldo final.
+   Se não bate, falta extrato — página, conta ou dinheiro vivo. */
 const ESTADOS_MES={ aberto:"em preenchimento", enviado:"enviado para o consultor",
-                    revisao:"em revis\u00e3o", fechado:"fechado" };
+                    revisao:"em revisão", fechado:"fechado" };
 const fechDe = contaId => fechData.find(f=>f.conta_id===contaId)||null;
 const lancsDe = contaId => lancData.filter(l=>l.conta_id===contaId);
 const estadoMes = () => {
@@ -2767,20 +2780,20 @@ function etapaMes(){
 
   if(!lancData.length&&!fechData.length) return `${cabecMes(est)}
     <div class="card"><div class="state"><div class="big">\ud83d\udcc4</div>
-      Nenhum lan\u00e7amento em ${esc(mesLabel(mesAtivo))}.<br>
-      <span style="font-size:12.5px">Suba os extratos das contas ou lance \u00e0 m\u00e3o.</span>
+      Nenhum lançamento em ${esc(mesLabel(mesAtivo))}.<br>
+      <span style="font-size:12.5px">Suba os extratos das contas ou lance à mão.</span>
       <div style="margin-top:14px"><button class="btn-p" onclick="setImpEtapa('upload')">Subir extratos</button></div>
     </div></div>`;
 
   const tiles=`<div class="tiles">
-    ${[["Entradas",r.entradas,"--green","trend"],["Sa\u00eddas",r.saidas,"--rose","card"],
-       ["Gastos fixos",r.fixos,"--slate","home"],["Gastos vari\u00e1veis",r.variaveis,"--amber","cart"]]
+    ${[["Entradas",r.entradas,"--green","trend"],["Saídas",r.saidas,"--rose","card"],
+       ["Gastos fixos",r.fixos,"--slate","home"],["Gastos variáveis",r.variaveis,"--amber","cart"]]
       .map(([l,v,c,ic])=>`<div class="tile"><div class="card-top"><div class="chip" style="background:color-mix(in srgb,${cssv(c)} 15%,transparent);color:${cssv(c)}">${svgIcon(ic)}</div></div>
         <div class="t-label">${l}</div><div class="t-value" style="color:${cssv(c)}">${fmt(v)}</div></div>`).join("")}
     <div class="tile"><div class="card-top"><div class="chip green">${svgIcon("coins")}</div></div>
       <div class="t-label">Sobra realizada</div>
       <div class="t-value" style="color:${r.sobra>=0?cssv("--green"):cssv("--rose")}">${fmt(r.sobra)}</div>
-      <div class="cap" style="margin-top:6px">entradas \u2212 sa\u00eddas deste m\u00eas${r.transf>0?` \u00b7 ${fmt(r.transf)} em transfer\u00eancias n\u00e3o contam`:""}</div></div>
+      <div class="cap" style="margin-top:6px">entradas − saídas deste mês${r.transf>0?` · ${fmt(r.transf)} em transferências não contam`:""}</div></div>
   </div>`;
 
   const cartaoConta=c=>{
@@ -2788,26 +2801,26 @@ function etapaMes(){
     const cor = cf.ok===true?cssv("--green") : cf.ok===false?cssv("--rose") : cssv("--muted");
     return `<div class="card">
       <div class="card-h"><div><div class="ct">${esc(rotuloConta(c))}</div>
-        <div class="cs">${esc(c.banco||"")} \u00b7 ${ls.length} lan\u00e7amento(s) \u00b7 ${esc(NATUREZAS[c.natureza]||"")}</div></div>
-        <div class="c-end"><div class="lbl">situa\u00e7\u00e3o</div><div class="val" style="font-size:14px;color:${cor}">${
-          cf.ok===true?"confere \u2713" : cf.ok===false?"n\u00e3o fecha" : "informe os saldos"}</div></div></div>
+        <div class="cs">${esc(c.banco||"")} · ${ls.length} lançamento(s) · ${esc(NATUREZAS[c.natureza]||"")}</div></div>
+        <div class="c-end"><div class="lbl">situação</div><div class="val" style="font-size:14px;color:${cor}">${
+          cf.ok===true?"confere ✓" : cf.ok===false?"não fecha" : "informe os saldos"}</div></div></div>
       <div class="adm-form">
-        <div><label>Saldo no in\u00edcio do m\u00eas</label><input id="fiIni-${c.id}" type="number" step="0.01"
+        <div><label>Saldo no início do mês</label><input id="fiIni-${c.id}" type="number" step="0.01"
              value="${f&&f.saldo_inicial!=null?f.saldo_inicial:""}" ${travado?"disabled":""} placeholder="0,00"></div>
-        <div><label>Cr\u00e9ditos</label><div class="ro-box">${fmt(cf.cred)}</div></div>
-        <div><label>D\u00e9bitos</label><div class="ro-box">${fmt(cf.deb)}</div></div>
-        <div><label>Saldo no fim do m\u00eas (do extrato)</label><input id="fiFim-${c.id}" type="number" step="0.01"
+        <div><label>Créditos</label><div class="ro-box">${fmt(cf.cred)}</div></div>
+        <div><label>Débitos</label><div class="ro-box">${fmt(cf.deb)}</div></div>
+        <div><label>Saldo no fim do mês (do extrato)</label><input id="fiFim-${c.id}" type="number" step="0.01"
              value="${f&&f.saldo_final!=null?f.saldo_final:""}" ${travado?"disabled":""} placeholder="0,00"></div>
         ${travado?"":`<button class="btn-p" onclick="salvarFechamento('${c.id}')">Conferir</button>`}
       </div>
       ${cf.ok===false?`<div class="alerta" style="background:var(--rose-bg);border:1px solid color-mix(in srgb,${cssv("--rose")} 30%,transparent);margin-top:10px">
         <div class="a-ic" style="background:color-mix(in srgb,${cssv("--rose")} 18%,transparent);color:${cssv("--rose")}">${svgIcon("alert")}</div>
         <div><b>Faltam ${fmt(Math.abs(cf.diferenca))}.</b> O extrato diz que sobrou ${fmt(num(f.saldo_final))},
-          mas somando os lan\u00e7amentos daria ${fmt(cf.esperado)}. Quase sempre \u00e9 <b>p\u00e1gina faltando no extrato</b>,
-          <b>outra conta ainda n\u00e3o importada</b> ou <b>gasto em dinheiro</b>.
-          ${travado?"":`<div class="cli-edit" style="margin-top:8px"><input id="fiJust-${c.id}" placeholder="explique a diferen\u00e7a para fechar assim mesmo" value="${esc((f&&f.justificativa)||"")}">
-            <button class="btn-sec" onclick="salvarFechamento('${c.id}')">Salvar explica\u00e7\u00e3o</button></div>`}</div></div>`:""}
-      ${cf.ok===true?`<div class="cap" style="margin-top:8px">${fmt(num(f.saldo_inicial))} + ${fmt(cf.cred)} \u2212 ${fmt(cf.deb)} = ${fmt(num(f.saldo_final))} \u2713</div>`:""}
+          mas somando os lançamentos daria ${fmt(cf.esperado)}. Quase sempre é <b>página faltando no extrato</b>,
+          <b>outra conta ainda não importada</b> ou <b>gasto em dinheiro</b>.
+          ${travado?"":`<div class="cli-edit" style="margin-top:8px"><input id="fiJust-${c.id}" placeholder="explique a diferença para fechar assim mesmo" value="${esc((f&&f.justificativa)||"")}">
+            <button class="btn-sec" onclick="salvarFechamento('${c.id}')">Salvar explicação</button></div>`}</div></div>`:""}
+      ${cf.ok===true?`<div class="cap" style="margin-top:8px">${fmt(num(f.saldo_inicial))} + ${fmt(cf.cred)} − ${fmt(cf.deb)} = ${fmt(num(f.saldo_final))} ✓</div>`:""}
     </div>`;
   };
 
@@ -2815,10 +2828,10 @@ function etapaMes(){
     contas.every(c=>{ const f=fechDe(c.id); const cf=conferirFechamento(f,lancsDe(c.id));
                       return cf.ok===true || (cf.ok===false && f&&f.justificativa); });
   const acoes = est==="fechado" ? `<div class="alerta g" style="margin-top:14px"><div class="a-ic" style="background:color-mix(in srgb,${cssv("--green")} 18%,transparent);color:${cssv("--green")}">${svgIcon("check")}</div>
-      <div><b>M\u00eas fechado.</b> Vira hist\u00f3rico e n\u00e3o muda mais. O saldo final \u00e9 o inicial de ${esc(mesLabel(mesSeguinte(mesAtivo)))}.</div></div>`
+      <div><b>Mês fechado.</b> Vira histórico e não muda mais. O saldo final é o inicial de ${esc(mesLabel(mesSeguinte(mesAtivo)))}.</div></div>`
     : isConsultor ? `<div style="display:flex;gap:9px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap">
-        <button class="btn-sec" onclick="mudarEstadoMes('revisao')" ${offline?"disabled":""}>Marcar em revis\u00e3o</button>
-        <button class="btn-p" onclick="mudarEstadoMes('fechado')" ${offline?"disabled":""}>Fechar o m\u00eas</button>
+        <button class="btn-sec" onclick="mudarEstadoMes('revisao')" ${offline?"disabled":""}>Marcar em revisão</button>
+        <button class="btn-p" onclick="mudarEstadoMes('fechado')" ${offline?"disabled":""}>Fechar o mês</button>
       </div><div id="mesMsg" class="msg"></div>`
     : `<div style="display:flex;gap:9px;justify-content:flex-end;margin-top:14px;align-items:center;flex-wrap:wrap">
         ${podeEnviar?"":`<span class="cap">Confira os saldos de todas as contas para poder enviar.</span>`}
@@ -2828,8 +2841,8 @@ function etapaMes(){
   return `${cabecMes(est)}${tiles}
     ${r.pendentes?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin:14px 0">
       <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
-      <div>${r.pendentes} lan\u00e7amento(s) sem categoria \u2014 eles entram no total, mas ficam fora da an\u00e1lise por categoria.</div></div>`:""}
-    <div class="eyebrow" style="margin-top:16px">Confer\u00eancia por conta</div>
+      <div>${r.pendentes} lançamento(s) sem categoria — eles entram no total, mas ficam fora da análise por categoria.</div></div>`:""}
+    <div class="eyebrow" style="margin-top:16px">Conferência por conta</div>
     ${contas.length?contas.map(cartaoConta).join(""):`<div class="empty">Nenhuma conta de fluxo cadastrada.</div>`}
     ${acoes}`;
 }
@@ -2853,19 +2866,19 @@ async function salvarFechamento(contaId){
               justificativa:just?String(just).trim()||null:undefined };
   if(reg.justificativa===undefined) delete reg.justificativa;
   const { error }=await sb.from("fechamentos_mensais").upsert(reg,{onConflict:"conta_id,mes_referencia"});
-  if(error){ alert("N\u00e3o consegui salvar: "+error.message); return; }
+  if(error){ alert("Não consegui salvar: "+error.message); return; }
   await carregarMes(); renderExtratos();
 }
 
-/* Muda o estado do m\u00eas inteiro. Ao FECHAR, o saldo final de cada conta vira o
-   saldo inicial do m\u00eas seguinte \u2014 \u00e9 o que d\u00e1 continuidade ao hist\u00f3rico. */
+/* Muda o estado do mês inteiro. Ao FECHAR, o saldo final de cada conta vira o
+   saldo inicial do mês seguinte — é o que dá continuidade ao histórico. */
 async function mudarEstadoMes(novo){
   const msg=document.getElementById("mesMsg");
   const dizer=(t,c)=>{ if(msg){ msg.className="msg "+(c||""); msg.textContent=t; } };
   if(offline||!navigator.onLine){ dizer("Sem internet.","err"); return; }
   const contas=contasData.filter(c=>c.ativa!==false&&c.natureza!=="investimento");
-  if(novo==="fechado"&&!confirm("Fechar "+mesLabel(mesAtivo)+"?\n\nO m\u00eas vira hist\u00f3rico e n\u00e3o pode mais ser alterado.")) return;
-  dizer("Salvando\u2026");
+  if(novo==="fechado"&&!confirm("Fechar "+mesLabel(mesAtivo)+"?\n\nO mês vira histórico e não pode mais ser alterado.")) return;
+  dizer("Salvando…");
   const agora=new Date().toISOString();
   for(const c of contas){
     const f=fechDe(c.id);
@@ -2876,7 +2889,7 @@ async function mudarEstadoMes(novo){
     if(novo==="fechado") reg.fechado_em=agora;
     const { error }=await sb.from("fechamentos_mensais").upsert(reg,{onConflict:"conta_id,mes_referencia"});
     if(error){ dizer("Erro em "+rotuloConta(c)+": "+error.message,"err"); return; }
-    /* o saldo final vira o inicial do m\u00eas seguinte */
+    /* o saldo final vira o inicial do mês seguinte */
     if(novo==="fechado"&&f&&f.saldo_final!=null){
       await sb.from("fechamentos_mensais").upsert({
         cliente_id:perfilData.cliente_id, conta_id:c.id, mes_referencia:dia1(mesSeguinte(mesAtivo)),
@@ -2884,33 +2897,33 @@ async function mudarEstadoMes(novo){
     }
   }
   await carregarMes();
-  dizer(novo==="fechado"?"M\u00eas fechado \u2713":novo==="enviado"?"Enviado ao consultor \u2713":"Marcado em revis\u00e3o \u2713","ok");
+  dizer(novo==="fechado"?"Mês fechado ✓":novo==="enviado"?"Enviado ao consultor ✓":"Marcado em revisão ✓","ok");
   renderExtratos();
 }
 
-/* ---------- LAN\u00c7AMENTO \u00c0 M\u00c3O ----------
+/* ---------- LANÇAMENTO À MÃO ----------
    Para extrato que veio como foto, ou conta sem arquivo nenhum. */
 let manualLinhas=[];
 function etapaManual(){
   const contas=contasData.filter(c=>c.ativa!==false);
   return `<div class="card">
-    <div class="card-h"><div><div class="ct">Lan\u00e7ar \u00e0 m\u00e3o</div>
-      <div class="cs">${esc(mesLabel(mesAtivo))} \u00b7 use quando o extrato veio como foto</div></div>
+    <div class="card-h"><div><div class="ct">Lançar à mão</div>
+      <div class="cs">${esc(mesLabel(mesAtivo))} · use quando o extrato veio como foto</div></div>
       <button class="btn-sec" onclick="setImpEtapa('upload')">\u2190 voltar</button></div>
     <form class="adm-form" onsubmit="addLinhaManual(event)">
       <div><label>Conta *</label><select id="mlConta" required>${contas.map(c=>`<option value="${c.id}">${esc(rotuloConta(c))}</option>`).join("")}</select></div>
       <div><label>Data *</label><input id="mlData" type="date" required value="${dia1(mesAtivo)}" min="${dia1(mesAtivo)}" max="${diaN(mesAtivo)}"></div>
-      <div style="flex:2"><label>Descri\u00e7\u00e3o *</label><input id="mlDesc" required placeholder="Mercado"></div>
+      <div style="flex:2"><label>Descrição *</label><input id="mlDesc" required placeholder="Mercado"></div>
       <div><label>Valor *</label><input id="mlValor" type="number" step="0.01" required placeholder="-120,00"></div>
-      <div><label>Categoria</label><select id="mlCat"><option value="">\u2014</option>${catsData.map(k=>`<option value="${k.id}">${esc(k.nome)}</option>`).join("")}</select></div>
+      <div><label>Categoria</label><select id="mlCat"><option value="">—</option>${catsData.map(k=>`<option value="${k.id}">${esc(k.nome)}</option>`).join("")}</select></div>
       <button class="btn-p" type="submit">Adicionar</button>
     </form>
     <div class="note">Valor <b>negativo</b> para gasto, <b>positivo</b> para entrada.</div>
-    ${manualLinhas.length?`<div class="eyebrow" style="margin-top:14px">${manualLinhas.length} lan\u00e7amento(s) digitados</div>
+    ${manualLinhas.length?`<div class="eyebrow" style="margin-top:14px">${manualLinhas.length} lançamento(s) digitados</div>
       ${manualLinhas.map((l,i)=>`<div class="ap-row">
-        <div class="ap-b"><div class="ap-n">${esc(l.desc)}</div><div class="ap-s">${dataBR(l.data)} \u00b7 ${esc(rotuloConta(contasData.find(c=>c.id===l.conta_id)||{}))}</div></div>
+        <div class="ap-b"><div class="ap-n">${esc(l.desc)}</div><div class="ap-s">${dataBR(l.data)} · ${esc(rotuloConta(contasData.find(c=>c.id===l.conta_id)||{}))}</div></div>
         <div class="ap-v ${l.valor>=0?"pos":"neg"}">${fmt(l.valor)}</div>
-        <button class="ap-del" onclick="manualLinhas.splice(${i},1);renderExtratos()">\u00d7</button></div>`).join("")}
+        <button class="ap-del" onclick="manualLinhas.splice(${i},1);renderExtratos()">×</button></div>`).join("")}
       <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:14px">
         <button class="btn-p" onclick="usarManuais()">Prosseguir com ${manualLinhas.length}</button></div>`:""}
     <div id="mlMsg" class="msg"></div></div>`;
@@ -2931,7 +2944,7 @@ function usarManuais(){
   const porConta={};
   manualLinhas.forEach(l=>{ (porConta[l.conta_id]=porConta[l.conta_id]||[]).push(l); });
   Object.keys(porConta).forEach(cid=>{
-    impArquivos.push({ nome:"lan\u00e7amento manual", manual:true, conta_id:cid, lancs:porConta[cid], motivo:"digitado \u00e0 m\u00e3o" });
+    impArquivos.push({ nome:"lançamento manual", manual:true, conta_id:cid, lancs:porConta[cid], motivo:"digitado à mão" });
   });
   manualLinhas=[];
   irParaRevisao();
@@ -2942,8 +2955,8 @@ function usarManuais(){
    conta é cada um > o que não for identificado exige decisão explícita. */
 let impArquivos=[], mostrarFormConta=false;
 
-const NATUREZAS={ corrente:"Conta corrente / poupan\u00e7a", cartao:"Cart\u00e3o de cr\u00e9dito", investimento:"Investimentos" };
-const rotuloConta = c => (c.apelido||c.banco||"conta")+(c.final_cartao?" \u00b7 final "+c.final_cartao:(c.numero_conta?" \u00b7 n\u00ba "+c.numero_conta:""));
+const NATUREZAS={ corrente:"Conta corrente / poupança", cartao:"Cartão de crédito", investimento:"Investimentos" };
+const rotuloConta = c => (c.apelido||c.banco||"conta")+(c.final_cartao?" · final "+c.final_cartao:(c.numero_conta?" · nº "+c.numero_conta:""));
 
 function etapaUpload(){
   const contas=contasData.filter(c=>c.ativa!==false);
@@ -2953,92 +2966,92 @@ function etapaUpload(){
 
   const formConta=(mostrarFormConta||!contas.length)?`<div class="card">
       <div class="card-h"><div><div class="ct">Cadastrar conta</div>
-        <div class="cs">o n\u00famero (ou o final do cart\u00e3o) \u00e9 o que permite reconhecer o extrato sozinho</div></div></div>
+        <div class="cs">o número (ou o final do cartão) é o que permite reconhecer o extrato sozinho</div></div></div>
       <form class="adm-form" onsubmit="criarConta(event)">
         <div><label>Banco *</label><input id="ctBanco" required placeholder="Banco do Brasil"></div>
         <div><label>Tipo *</label><select id="ctNat" onchange="renderExtratos()">${Object.keys(NATUREZAS).map(k=>`<option value="${k}">${NATUREZAS[k]}</option>`).join("")}</select></div>
-        <div><label>Apelido</label><input id="ctApelido" placeholder="Conta sal\u00e1rio"></div>
-        <div><label>Ag\u00eancia</label><input id="ctAgencia" placeholder="1234"></div>
-        <div><label>N\u00famero da conta</label><input id="ctNumero" placeholder="56789-0"></div>
-        <div><label>4 \u00faltimos d\u00edgitos do cart\u00e3o</label><input id="ctFinal" maxlength="4" inputmode="numeric" placeholder="4412"></div>
+        <div><label>Apelido</label><input id="ctApelido" placeholder="Conta salário"></div>
+        <div><label>Agência</label><input id="ctAgencia" placeholder="1234"></div>
+        <div><label>Número da conta</label><input id="ctNumero" placeholder="56789-0"></div>
+        <div><label>4 últimos dígitos do cartão</label><input id="ctFinal" maxlength="4" inputmode="numeric" placeholder="4412"></div>
         <button class="btn-p" type="submit" ${offline?"disabled":""}>Salvar conta</button>
         ${contas.length?`<button class="btn-sec" type="button" onclick="mostrarFormConta=false;renderExtratos()">Cancelar</button>`:""}
       </form><div id="ctMsg" class="msg"></div>
-      <div class="note">Sem n\u00famero da conta ou final do cart\u00e3o eu n\u00e3o consigo saber de qual conta \u00e9 cada arquivo \u2014 vou ter que perguntar toda vez.</div>
+      <div class="note">Sem número da conta ou final do cartão eu não consigo saber de qual conta é cada arquivo — vou ter que perguntar toda vez.</div>
     </div>`:"";
 
-  if(!contas.length) return `<div class="explica">Antes de subir extrato, cadastre as contas que a pessoa possui \u2014 conta corrente, cart\u00e3o e investimentos.</div>`+formConta;
+  if(!contas.length) return `<div class="explica">Antes de subir extrato, cadastre as contas que a pessoa possui — conta corrente, cartão e investimentos.</div>`+formConta;
 
   const listaContas=`<div class="card"><div class="card-h">
-      <div><div class="ct">Contas cadastradas</div><div class="cs">${contas.length} conta(s) \u00b7 os extratos s\u00e3o reconhecidos por elas</div></div>
-      <button class="btn-sec" onclick="mostrarFormConta=true;renderExtratos()">${svgIcon("plus")} Cadastrar nova conta banc\u00e1ria</button></div>
+      <div><div class="ct">Contas cadastradas</div><div class="cs">${contas.length} conta(s) · os extratos são reconhecidos por elas</div></div>
+      <button class="btn-sec" onclick="mostrarFormConta=true;renderExtratos()">${svgIcon("plus")} Cadastrar nova conta bancária</button></div>
     ${contas.map(c=>`<div class="ap-row">
       <div class="ap-ic" style="background:color-mix(in srgb, ${cssv("--brand")} 14%, transparent);color:${cssv("--brand")}">${svgIcon(c.natureza==="cartao"?"card":c.natureza==="investimento"?"coins":"bank")}</div>
       <div class="ap-b"><div class="ap-n">${esc(rotuloConta(c))}</div>
-        <div class="ap-s">${esc(c.banco||"")} \u00b7 ${esc(NATUREZAS[c.natureza]||"Conta corrente")}${(!c.numero_conta&&!c.final_cartao)?` \u00b7 <span style="color:${cssv("--amber")}">sem n\u00famero \u2014 n\u00e3o d\u00e1 para reconhecer sozinho</span>`:""}</div></div>
+        <div class="ap-s">${esc(c.banco||"")} · ${esc(NATUREZAS[c.natureza]||"Conta corrente")}${(!c.numero_conta&&!c.final_cartao)?` · <span style="color:${cssv("--amber")}">sem número — não dá para reconhecer sozinho</span>`:""}</div></div>
     </div>`).join("")}</div>`;
 
   const zona=`<div class="card"><div class="card-h"><div><div class="ct">Extratos de ${esc(mesLabel(mesAtivo))}</div>
-      <div class="cs">solte todos de uma vez \u2014 conta, cart\u00e3o e investimentos</div></div>
+      <div class="cs">solte todos de uma vez — conta, cartão e investimentos</div></div>
       ${seletorMes()}</div>
     <div class="drop" id="dropZone">
       <div class="d-ic">${svgIcon("upload")}</div>
       <div><b>Arraste os arquivos aqui</b> ou <button class="lnk" onclick="document.getElementById('impFile').click()">escolha no computador</button></div>
-      <div class="cap">PDF, CSV ou Excel salvos do banco \u00b7 v\u00e1rios arquivos de uma vez \u00b7 tudo \u00e9 lido no seu pr\u00f3prio navegador</div>
+      <div class="cap">PDF, CSV ou Excel salvos do banco · vários arquivos de uma vez · tudo é lido no seu próprio navegador</div>
       <input type="file" id="impFile" accept=".pdf,.csv,.txt,.xls,.xlsx" multiple style="display:none" onchange="lerArquivos(this.files)">
     </div><div id="impMsg" class="msg"></div></div>`;
 
   const cartaoArquivo=(a,i)=>{
     if(a.manual) return `<div class="ap-row"><div class="ap-ic" style="background:var(--card2)">\u270e</div>
-      <div class="ap-b"><div class="ap-n">Lan\u00e7amento manual \u2014 ${esc(rotuloConta(contasData.find(c=>c.id===a.conta_id)||{}))}</div>
-        <div class="ap-s">${(a.lancs||[]).length} lan\u00e7amento(s) digitado(s)</div></div>
-      <button class="ap-del" onclick="removerArquivo(${i})" ${offline?"disabled":""}>\u00d7</button></div>`;
+      <div class="ap-b"><div class="ap-n">Lançamento manual — ${esc(rotuloConta(contasData.find(c=>c.id===a.conta_id)||{}))}</div>
+        <div class="ap-s">${(a.lancs||[]).length} lançamento(s) digitado(s)</div></div>
+      <button class="ap-del" onclick="removerArquivo(${i})" ${offline?"disabled":""}>×</button></div>`;
     if(a.conta_id){ const c=contasData.find(x=>x.id===a.conta_id)||{};
       return `<div class="ap-row"><div class="ap-ic" style="background:color-mix(in srgb, ${cssv("--green")} 15%, transparent);color:${cssv("--green")}">${svgIcon("check")}</div>
         <div class="ap-b"><div class="ap-n">${esc(a.nome)} <span class="badge b">${esc(rotuloConta(c))}</span></div>
-          <div class="ap-s">${(a.lancs||[]).length} lan\u00e7amento(s) \u00b7 ${esc(a.motivo||"conta escolhida por voc\u00ea")}</div></div>
-        <button class="ap-del" onclick="removerArquivo(${i})" ${offline?"disabled":""}>\u00d7</button></div>`; }
+          <div class="ap-s">${(a.lancs||[]).length} lançamento(s) · ${esc(a.motivo||"conta escolhida por você")}</div></div>
+        <button class="ap-del" onclick="removerArquivo(${i})" ${offline?"disabled":""}>×</button></div>`; }
     return `<div class="cli-card" style="flex-direction:column;align-items:stretch;border-color:color-mix(in srgb,${cssv("--amber")} 45%,transparent)">
-      <div><div class="cli-n">\u26a0 ${esc(a.nome)} \u2014 de qual conta \u00e9 este extrato?</div>
-        <div class="cli-s" style="margin-top:4px">${esc(a.motivo||"n\u00e3o consegui identificar")}. ${(a.lancs||[]).length} lan\u00e7amento(s) lidos.
+      <div><div class="cli-n">\u26a0 ${esc(a.nome)} — de qual conta é este extrato?</div>
+        <div class="cli-s" style="margin-top:4px">${esc(a.motivo||"não consegui identificar")}. ${(a.lancs||[]).length} lançamento(s) lidos.
           ${a.dica?`Encontrei no arquivo: <b>${esc(a.dica)}</b>.`:""}</div></div>
       <div class="cli-edit" style="margin-top:10px">
         <select id="fixConta-${i}" aria-label="Conta deste extrato">
-          <option value="">Escolher conta\u2026</option>
-          ${contas.map(c=>`<option value="${c.id}">${esc(rotuloConta(c))} \u00b7 ${esc(NATUREZAS[c.natureza]||"")}</option>`).join("")}</select>
+          <option value="">Escolher conta…</option>
+          ${contas.map(c=>`<option value="${c.id}">${esc(rotuloConta(c))} · ${esc(NATUREZAS[c.natureza]||"")}</option>`).join("")}</select>
         <button class="btn-p" style="height:36px;padding:0 14px" onclick="atribuirConta(${i})">Usar esta conta</button>
       </div>
       <div class="cli-acts" style="margin-top:8px;justify-content:flex-start">
-        <button class="btn-sec" onclick="mostrarFormConta=true;renderExtratos()">\u00c9 uma conta nova \u2014 cadastrar</button>
-        <button class="btn-sec" onclick="lancarManual(${i})">Lan\u00e7ar \u00e0 m\u00e3o (extrato \u00e9 foto)</button>
+        <button class="btn-sec" onclick="mostrarFormConta=true;renderExtratos()">É uma conta nova — cadastrar</button>
+        <button class="btn-sec" onclick="lancarManual(${i})">Lançar à mão (extrato é foto)</button>
         <button class="btn-sec btn-del" onclick="removerArquivo(${i})">Seguir sem este arquivo</button>
       </div></div>`;
   };
 
   const lista=impArquivos.length?`<div class="card">
       <div class="card-h"><div><div class="ct">Arquivos lidos</div>
-        <div class="cs">${prontos.length} identificado(s) \u00b7 ${pend.length} aguardando voc\u00ea</div></div></div>
+        <div class="cs">${prontos.length} identificado(s) · ${pend.length} aguardando você</div></div></div>
       ${impArquivos.map(cartaoArquivo).join("")}
       ${pend.length?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:12px">
         <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
-        <div>Seguir sem um extrato deixa o m\u00eas <b>incompleto</b>: a confer\u00eancia de saldo n\u00e3o vai fechar e o gasto do m\u00eas sai menor do que foi de verdade.</div></div>`:""}
+        <div>Seguir sem um extrato deixa o mês <b>incompleto</b>: a conferência de saldo não vai fechar e o gasto do mês sai menor do que foi de verdade.</div></div>`:""}
       <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">
         <button class="btn-sec" onclick="impArquivos=[];renderExtratos()">Limpar tudo</button>
         <button class="btn-p" onclick="irParaRevisao()" ${(!prontos.length||offline)?"disabled":""}>
-          Prosseguir com ${totalLancs} lan\u00e7amento(s)</button>
+          Prosseguir com ${totalLancs} lançamento(s)</button>
       </div></div>`:"";
 
-  return `<div class="explica">A leitura acontece <b>no seu pr\u00f3prio navegador</b> \u2014 o arquivo n\u00e3o sai do computador.
-      O sistema reconhece de qual conta \u00e9 cada extrato pelo n\u00famero cadastrado, tenta classificar sozinho pelas regras
-      j\u00e1 aprendidas e pelos seus gastos fixos, e traz para voc\u00ea o que ficou em d\u00favida. Nada \u00e9 gravado antes da sua revis\u00e3o.</div>
+  return `<div class="explica">A leitura acontece <b>no seu próprio navegador</b> — o arquivo não sai do computador.
+      O sistema reconhece de qual conta é cada extrato pelo número cadastrado, tenta classificar sozinho pelas regras
+      já aprendidas e pelos seus gastos fixos, e traz para você o que ficou em dúvida. Nada é gravado antes da sua revisão.</div>
     ${listaContas}${formConta}${zona}${lista}`;
 }
 
 function seletorMes(){
   return `<div style="display:flex;gap:6px;align-items:center">
-    <button class="btn-sec" style="height:34px;padding:0 10px" onclick="trocarMes('${mesAnterior(mesAtivo)}')">\u2039</button>
+    <button class="btn-sec" style="height:34px;padding:0 10px" onclick="trocarMes('${mesAnterior(mesAtivo)}')">‹</button>
     <span style="font-size:13px;font-weight:700;min-width:130px;text-align:center">${esc(mesLabel(mesAtivo))}</span>
-    <button class="btn-sec" style="height:34px;padding:0 10px" onclick="trocarMes('${mesSeguinte(mesAtivo)}')" ${mesAtivo>=mesHoje()?"disabled":""}>\u203a</button>
+    <button class="btn-sec" style="height:34px;padding:0 10px" onclick="trocarMes('${mesSeguinte(mesAtivo)}')" ${mesAtivo>=mesHoje()?"disabled":""}>›</button>
   </div>`;
 }
 async function trocarMes(m){ mesAtivo=m; await carregarMes(); renderExtratos(); }
@@ -3046,7 +3059,7 @@ async function trocarMes(m){ mesAtivo=m; await carregarMes(); renderExtratos(); 
 function removerArquivo(i){ impArquivos.splice(i,1); renderExtratos(); }
 function atribuirConta(i){
   const sel=document.getElementById("fixConta-"+i); if(!sel||!sel.value) return;
-  impArquivos[i].conta_id=sel.value; impArquivos[i].motivo="conta escolhida por voc\u00ea";
+  impArquivos[i].conta_id=sel.value; impArquivos[i].motivo="conta escolhida por você";
   renderExtratos();
 }
 function lancarManual(i){
@@ -3054,7 +3067,7 @@ function lancarManual(i){
   setImpEtapa("manual");
 }
 
-/* L\u00ea v\u00e1rios arquivos de uma vez e diz de qual conta \u00e9 cada um. */
+/* Lê vários arquivos de uma vez e diz de qual conta é cada um. */
 async function lerArquivos(files){
   const msg=document.getElementById("impMsg");
   const lista=[...(files||[])];
@@ -3062,14 +3075,14 @@ async function lerArquivos(files){
   const dizer=t=>{ if(msg){ msg.className="msg"; msg.textContent=t; } };
   const { data:regras }=await sb.from("regras_classificacao").select("*").eq("cliente_id",perfilData.cliente_id);
   for(const file of lista){
-    dizer("Lendo "+file.name+"\u2026");
+    dizer("Lendo "+file.name+"…");
     try{
       let linhas, brutas=null;
       if(/\.pdf$/i.test(file.name)) linhas=await textoDoPDF(file);
       else { const cru=await file.text(); brutas=cru.split(/\r?\n/).filter(x=>x.trim()); linhas=linhasDoCSV(cru); }
       const texto=linhas.join("\n");
       const lido=lerComLeitor(linhas, brutas);
-      /* o pr\u00f3prio arquivo costuma trazer o n\u00famero da conta \u2014 ajuda a identificar */
+      /* o próprio arquivo costuma trazer o número da conta — ajuda a identificar */
       const idTexto=texto+(lido.conta?(" "+(lido.conta.numero||"")+" "+(lido.conta.agencia||"")):"")
                         +(lido.final_cartao?(" "+lido.final_cartao):"");
       const id=identificarConta(idTexto, contasData);
@@ -3081,19 +3094,19 @@ async function lerArquivos(files){
         periodo:lido.periodo||null, vazio:lancs.length<2 });
     }catch(e){
       impArquivos.push({ nome:file.name, linhas:[], lancs:[], conta_id:null,
-        motivo:"n\u00e3o consegui ler: "+(e.message||e) });
+        motivo:"não consegui ler: "+(e.message||e) });
     }
   }
   if(msg){ msg.className="msg"; msg.textContent=""; }
   renderExtratos();
 }
 
-/* Junta tudo que foi identificado, marca duplicados e vai para a classifica\u00e7\u00e3o. */
+/* Junta tudo que foi identificado, marca duplicados e vai para a classificação. */
 async function irParaRevisao(){
   const msg=document.getElementById("impMsg");
   const prontos=impArquivos.filter(a=>a.conta_id&&(a.lancs||[]).length);
   if(!prontos.length) return;
-  if(msg){ msg.className="msg"; msg.textContent="Conferindo duplicidade\u2026"; }
+  if(msg){ msg.className="msg"; msg.textContent="Conferindo duplicidade…"; }
   const todos=[];
   for(const a of prontos){
     const { data:existentes }=await sb.from("lancamentos").select("hash").eq("conta_id",a.conta_id);
@@ -3106,8 +3119,13 @@ async function irParaRevisao(){
       todos.push(l);
     });
   }
-  /* transfer\u00eancia entre contas do pr\u00f3prio cliente: s\u00f3 com contrapartida */
-  todos.forEach((l,i)=>{ l.id="tmp"+i; l.eh_transferencia=false; });
+  /* Pagamento de fatura na conta corrente NUNCA é gasto quando o cliente tem
+     cartão cadastrado: o gasto já foi contado na fatura daquele mês. Deixá-lo
+     como despesa contaria o cartão duas vezes. */
+  const temCartao=contasData.some(c=>c.natureza==="cartao"&&c.ativa!==false);
+  const ehPagamentoFatura=d=>/pagamento\s+(de\s+)?fatura|pagto\s+fatura|pag\.?\s*fatura/i.test(String(d||""));
+  todos.forEach((l,i)=>{ l.id="tmp"+i;
+    l.eh_transferencia = temCartao && l.valor<0 && ehPagamentoFatura(l.desc); });
   casarTransferencias(todos).forEach(([a,b])=>{ a.eh_transferencia=true; b.eh_transferencia=true;
     a.par=b.id; b.par=a.id; });
   impLinhas=todos;
@@ -3169,7 +3187,7 @@ async function lerArquivo(file){
 }
 function definirCategoria(i,catId){ if(impLinhas[i]){ impLinhas[i].categoria_id=catId||null; impLinhas[i].origem="manual"; renderExtratos(); } }
 function definirObs(i,txt){ if(impLinhas[i]) impLinhas[i].observacao=txt; }
-/* O casamento autom\u00e1tico pode errar: dois pagamentos iguais em dias pr\u00f3ximos.
+/* O casamento automático pode errar: dois pagamentos iguais em dias próximos.
    Desfazer devolve os dois lados para a contagem de gastos. */
 function desfazerTransferencia(i){
   const l=impLinhas[i]; if(!l) return;
@@ -3181,10 +3199,10 @@ function desfazerTransferencia(i){
 async function gravarImportacao(){
   const msg=document.getElementById("impMsg2");
   const dizer=(t,c)=>{ if(msg){ msg.className="msg "+(c||""); msg.textContent=t; } };
-  if(offline||!navigator.onLine){ dizer("Sem internet: n\u00e3o \u00e9 poss\u00edvel gravar agora.","err"); return; }
+  if(offline||!navigator.onLine){ dizer("Sem internet: não é possível gravar agora.","err"); return; }
   const novos=impLinhas.filter(l=>!l.duplicado);
   if(!novos.length){ dizer("Nada novo para gravar.","err"); return; }
-  dizer("Gravando\u2026");
+  dizer("Gravando…");
   try{
     const porConta={};
     novos.forEach(l=>{ (porConta[l.conta_id]=porConta[l.conta_id]||[]).push(l); });
@@ -3194,7 +3212,7 @@ async function gravarImportacao(){
       const arq=impArquivos.find(a=>a.conta_id===contaId);
       const auto=linhas.filter(l=>l.origem==="regra"||l.origem==="fixo").length;
       const { data:imp, error:e1 }=await sb.from("importacoes").insert({
-        cliente_id:perfilData.cliente_id, conta_id:contaId, nome_arquivo:(arq&&arq.nome)||"lan\u00e7amento manual",
+        cliente_id:perfilData.cliente_id, conta_id:contaId, nome_arquivo:(arq&&arq.nome)||"lançamento manual",
         tipo_arquivo:/\.pdf$/i.test((arq&&arq.nome)||"")?"PDF":"CSV", status:"concluido",
         total_lancamentos:linhas.length, total_classificados_auto:auto,
         total_revisao_manual:linhas.length-auto,
@@ -3203,6 +3221,7 @@ async function gravarImportacao(){
       if(e1) throw e1;
       const regs=linhas.map(l=>({ cliente_id:perfilData.cliente_id, conta_id:contaId,
         categoria_id:l.categoria_id||null, importacao_id:imp.id, data:l.data,
+        competencia:l.competencia||(String(l.data).slice(0,7)+"-01"),
         descricao:l.desc, descricao_normalizada:l.normalizada, observacao:l.observacao||null,
         eh_transferencia:!!l.eh_transferencia, valor:l.valor,
         status:l.origem==="manual"?"confirmado_manual":(l.categoria_id?"classificado_auto":"pendente"),
@@ -3216,7 +3235,7 @@ async function gravarImportacao(){
          a conferência do mês montada, em vez de pedir para digitar de novo */
       if(arq&&arq.saldos&&(arq.saldos.inicial!=null||arq.saldos.final!=null)){
         const meses={};
-        linhas.forEach(l=>{ const m=String(l.data).slice(0,7); meses[m]=(meses[m]||0)+1; });
+        linhas.forEach(l=>{ const m=compDe(l); meses[m]=(meses[m]||0)+1; });
         const mes=Object.keys(meses).sort((a,b)=>meses[b]-meses[a])[0];
         if(mes){
           const { error:e3 }=await sb.from("fechamentos_mensais").upsert({
@@ -3229,19 +3248,19 @@ async function gravarImportacao(){
       await salvarModelo(contaId, /\.pdf$/i.test((arq&&arq.nome)||"")?"PDF":"CSV",
         { coluna:"primeiro", sinal:"auto", validado_em:new Date().toISOString().slice(0,10), lancamentos:regs.length });
     }
-    /* aprende com o que voc\u00ea classificou \u00e0 m\u00e3o */
+    /* aprende com o que você classificou à mão */
     const novasRegras=novos.filter(l=>l.origem==="manual"&&l.categoria_id).map(l=>({
       cliente_id:perfilData.cliente_id, padrao_texto:(l.normalizada||normalizarDesc(l.desc)).split(" ").slice(0,3).join(" "),
       categoria_id:l.categoria_id }));
     if(novasRegras.length){
       const { error:er }=await sb.from("regras_classificacao").insert(novasRegras);
-      if(er) console.warn("regras n\u00e3o salvas:", er.message);
+      if(er) console.warn("regras não salvas:", er.message);
     }
     impArquivos=[]; impLinhas=[];
     await carregarMes();
-    dizer(gravados+" lan\u00e7amento(s) gravados \u2713","ok");
+    dizer(gravados+" lançamento(s) gravados ✓","ok");
     setImpEtapa("pronto");
-  }catch(e){ dizer("N\u00e3o consegui gravar: "+(e.message||e),"err"); }
+  }catch(e){ dizer("Não consegui gravar: "+(e.message||e),"err"); }
 }
 
 /* ================= PÁGINA: CLIENTES (consultor) ================= */
@@ -3416,7 +3435,7 @@ async function moverMeuAcesso(clienteId){
   if(offline||!navigator.onLine){ alert("Sem internet."); renderClientes(); return; }
   if(clienteId===meuClienteId) return;
   const nome=(clientesLista.find(c=>c.id===clienteId)||{}).nome||"este cliente";
-  if(!confirm("Ligar o SEU login a "+nome+"?\n\nVoc\u00ea continua vendo todos os clientes pelo seletor do topo \u2014 nada muda no que voc\u00ea enxerga. Serve para liberar o cliente anterior para exclus\u00e3o.")){
+  if(!confirm("Ligar o SEU login a "+nome+"?\n\nVocê continua vendo todos os clientes pelo seletor do topo — nada muda no que você enxerga. Serve para liberar o cliente anterior para exclusão.")){
     renderClientes(); return; }
   const { error }=await sb.from("usuarios").update({cliente_id:clienteId}).eq("id",meuUid);
   if(error){ alert("Erro: "+error.message); renderClientes(); return; }
@@ -3605,7 +3624,7 @@ async function converterResposta(id){
     /* se algo não entrou, o usuário PRECISA saber: fica na tela, com o botão de reenviar à mão */
     if(res.erros.length){
       dizer("Cliente criado, mas isto não entrou — "+res.erros.join("; ")+
-            ". Corrija e use \u201cReenviar para este cliente\u201d logo abaixo.","err");
+            ". Corrija e use “Reenviar para este cliente” logo abaixo.","err");
       return;
     }
     dizer("Cliente criado ✓ "+resumoLancamentos(res.feito)+". Abrindo o cadastro dele...","ok");
@@ -3775,7 +3794,7 @@ function focarCliente(id){
 }
 async function salvarNomeCliente(ev,id){
   ev.preventDefault();
-  if(offline||!navigator.onLine){ alert("Sem internet: n\u00e3o \u00e9 poss\u00edvel renomear agora."); return; }
+  if(offline||!navigator.onLine){ alert("Sem internet: não é possível renomear agora."); return; }
   const nome=document.getElementById("cliNome-"+id).value.trim();
   if(!nome) return;
   const { error }=await sb.from("clientes").update({nome}).eq("id",id);
@@ -3793,7 +3812,7 @@ async function salvarNomeCliente(ev,id){
 async function arquivarCliente(id,arquivar){
   if(offline||!navigator.onLine){ alert("Sem internet."); return; }
   const c=clientesLista.find(x=>x.id===id)||{};
-  if(arquivar && !confirm("Arquivar "+(c.nome||"este cliente")+"?\n\nEle sai do seletor do topo, mas nada \u00e9 apagado \u2014 d\u00e1 para reativar quando quiser.")) return;
+  if(arquivar && !confirm("Arquivar "+(c.nome||"este cliente")+"?\n\nEle sai do seletor do topo, mas nada é apagado — dá para reativar quando quiser.")) return;
   const { error }=await sb.from("clientes").update({ativo:!arquivar}).eq("id",id);
   if(error){ alert("Erro: "+error.message); return; }
   c.ativo=!arquivar;
@@ -3805,15 +3824,15 @@ async function excluirCliente(ev,id){
   ev.preventDefault();
   const msg=document.getElementById("cliMsg-"+id);
   const dizer=(t,cls)=>{ if(msg){ msg.className="msg "+(cls||""); msg.textContent=t; } };
-  if(offline||!navigator.onLine){ dizer("Sem internet: n\u00e3o \u00e9 poss\u00edvel excluir agora.","err"); return; }
+  if(offline||!navigator.onLine){ dizer("Sem internet: não é possível excluir agora.","err"); return; }
   const c=clientesLista.find(x=>x.id===id)||{};
   if(id===meuClienteId || usuariosData.some(u=>u.cliente_id===id && u.role==="consultor")){
-    dizer("Bloqueado: h\u00e1 um acesso de consultor ligado a este cliente. Mova esse acesso na aba Acessos antes.","err"); return; }
+    dizer("Bloqueado: há um acesso de consultor ligado a este cliente. Mova esse acesso na aba Acessos antes.","err"); return; }
   if(document.getElementById("cliConf-"+id).value.trim()!==(c.nome||"").trim()){
-    dizer("O nome digitado n\u00e3o confere \u2014 nada foi apagado.","err"); return; }
+    dizer("O nome digitado não confere — nada foi apagado.","err"); return; }
   dizer("Excluindo...");
   const { error }=await sb.from("clientes").delete().eq("id",id);
-  if(error){ dizer("N\u00e3o consegui excluir: "+error.message,"err"); return; }
+  if(error){ dizer("Não consegui excluir: "+error.message,"err"); return; }
   clientesLista=clientesLista.filter(x=>x.id!==id);
   cliExcluindo=null;
   if(clienteAtivo===id){ clienteAtivo=null; try{ localStorage.removeItem("clienteAtivo"); }catch(e){} }
@@ -4091,7 +4110,7 @@ if("serviceWorker" in navigator){ window.addEventListener("load",()=>{ navigator
   offline = !navigator.onLine;
   try{
     if(!sb){ if(!usarCache()) showLogin(); else showApp(); return; }
-    if(erroDoLink()) return;                      /* link expirado/inv\u00e1lido: explica em vez de quebrar */
+    if(erroDoLink()) return;                      /* link expirado/inválido: explica em vez de quebrar */
     const recuperando=/type=recovery/.test(location.hash||"")||/type=recovery/.test(location.search||"");
     const {data:{session}}=await sb.auth.getSession();
     if(recuperando && session){ modoNovaSenha(true); return; }
