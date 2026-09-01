@@ -496,6 +496,12 @@
       </div>
       <button class="login-btn" id="loginBtn" type="submit">Entrar</button>
     </form>
+    <form id="novaSenhaForm" style="display:none">
+      <div class="lsub" style="margin:0 0 14px">Escolha uma nova senha para entrar no Arca.</div>
+      <div class="field"><label>Nova senha</label><input type="password" id="novaSenha" autocomplete="new-password" minlength="8" required></div>
+      <div class="field"><label>Repita a nova senha</label><input type="password" id="novaSenha2" autocomplete="new-password" minlength="8" required></div>
+      <button class="login-btn" id="novaSenhaBtn" type="submit">Salvar nova senha</button>
+    </form>
   </div>
 </div>
 
@@ -697,11 +703,64 @@ document.getElementById("esqueciBtn").addEventListener("click", async ()=>{
   ok.textContent="Enviamos um link de redefinição para "+email+". Confira sua caixa de entrada.";
   ok.classList.add("show");
 });
+/* ---------- REDEFINIR SENHA ----------
+   O link do e-mail volta para c\u00e1 com um token na URL. O supabase-js consome
+   esse token (detectSessionInUrl) e dispara PASSWORD_RECOVERY \u2014 \u00e9 a\u00ed que
+   precisamos PEDIR a nova senha. Sem isso o link "funciona" e nada acontece. */
+function modoNovaSenha(ligar){
+  const lf=document.getElementById("loginForm"), nf=document.getElementById("novaSenhaForm");
+  if(!lf||!nf) return;
+  lf.style.display = ligar?"none":"";
+  nf.style.display = ligar?"":"none";
+  if(ligar){
+    showLogin();
+    const ok=document.getElementById("loginOk");
+    ok.textContent="Link confirmado. Defina sua nova senha abaixo.";
+    ok.classList.add("show");
+    document.getElementById("loginErr").classList.remove("show");
+  }
+}
+/* O link pode voltar com erro (expirado, j\u00e1 usado, endere\u00e7o n\u00e3o autorizado).
+   Sem isto o usu\u00e1rio v\u00ea uma p\u00e1gina quebrada sem explica\u00e7\u00e3o. */
+function erroDoLink(){
+  const p=new URLSearchParams((location.hash||"").replace(/^#/,""));
+  const q=new URLSearchParams(location.search||"");
+  const cod=p.get("error_code")||q.get("error_code")||p.get("error")||q.get("error");
+  if(!cod) return false;
+  const desc=(p.get("error_description")||q.get("error_description")||"").replace(/\+/g," ");
+  const err=document.getElementById("loginErr");
+  err.textContent = /expired|invalid/i.test(cod+desc)
+    ? "Este link de redefini\u00e7\u00e3o expirou ou j\u00e1 foi usado. Pe\u00e7a um novo em \u201cEsqueci minha senha\u201d."
+    : "N\u00e3o consegui abrir o link: "+(desc||cod);
+  err.classList.add("show");
+  showLogin();
+  try{ history.replaceState(null,"",location.pathname); }catch(e){}
+  return true;
+}
+async function salvarNovaSenha(ev){
+  ev.preventDefault();
+  const err=document.getElementById("loginErr"), ok=document.getElementById("loginOk");
+  const a=document.getElementById("novaSenha").value, b=document.getElementById("novaSenha2").value;
+  err.classList.remove("show"); ok.classList.remove("show");
+  if(a.length<8){ err.textContent="A senha precisa ter pelo menos 8 caracteres."; err.classList.add("show"); return; }
+  if(a!==b){ err.textContent="As duas senhas n\u00e3o s\u00e3o iguais."; err.classList.add("show"); return; }
+  const btn=document.getElementById("novaSenhaBtn");
+  btn.disabled=true; btn.textContent="Salvando\u2026";
+  const { error }=await sb.auth.updateUser({ password:a });
+  btn.disabled=false; btn.textContent="Salvar nova senha";
+  if(error){ err.textContent="N\u00e3o consegui salvar: "+error.message; err.classList.add("show"); return; }
+  try{ history.replaceState(null,"",location.pathname); }catch(e){}
+  modoNovaSenha(false);
+  ok.textContent="Senha alterada \u2713 Entrando\u2026"; ok.classList.add("show");
+  setTimeout(()=>{ showApp(); loadData(); }, 900);
+}
 async function sair(){
   try{ if(sb) await sb.auth.signOut(); }catch(e){}
   try{ localStorage.removeItem(CACHE_KEY); sessionStorage.clear(); }catch(e){}
   location.reload();
 }
+document.getElementById("novaSenhaForm").addEventListener("submit", salvarNovaSenha);
+if(sb&&sb.auth&&sb.auth.onAuthStateChange) sb.auth.onAuthStateChange((ev)=>{ if(ev==="PASSWORD_RECOVERY") modoNovaSenha(true); });
 document.getElementById("logoutBtn").addEventListener("click", sair);
 document.getElementById("sairBtn").addEventListener("click", sair);
 
@@ -1457,7 +1516,9 @@ function renderInicio(){
 }
 
 /* ================= PLANO DE AÇÃO DO MÊS ================= */
-function mesAtualISO(){ const d=new Date(); return new Date(d.getFullYear(),d.getMonth(),1).toISOString().slice(0,10); }
+/* Monta a data à mão: toISOString() converte para UTC e, no último dia do mês,
+   devolveria o mês errado dependendo do fuso. */
+function mesAtualISO(){ return mesHoje()+"-01"; }
 function planoAcaoHTML(){
   const mes=mesAtualISO();
   const itens=planosData.filter(p=>String(p.mes_referencia).slice(0,7)===mes.slice(0,7) && p.status!=="cancelado");
@@ -3758,7 +3819,10 @@ if("serviceWorker" in navigator){ window.addEventListener("load",()=>{ navigator
   offline = !navigator.onLine;
   try{
     if(!sb){ if(!usarCache()) showLogin(); else showApp(); return; }
+    if(erroDoLink()) return;                      /* link expirado/inv\u00e1lido: explica em vez de quebrar */
+    const recuperando=/type=recovery/.test(location.hash||"")||/type=recovery/.test(location.search||"");
     const {data:{session}}=await sb.auth.getSession();
+    if(recuperando && session){ modoNovaSenha(true); return; }
     if(session){ showApp(); loadData(); }
     else if(offline && lerRetrato()){ showApp(); usarCache(); }
     else showLogin();

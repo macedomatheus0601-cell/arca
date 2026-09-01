@@ -2,7 +2,7 @@
    Guarda os arquivos do site em cache; os DADOS ficam em localStorage (ver app).
    Chamadas ao Supabase nunca são cacheadas aqui: quando não há rede, o app usa
    o último retrato salvo e entra em modo somente-consulta. */
-const CACHE = "arca-v9";
+const CACHE = "arca-v10";
 const ARQUIVOS = [
   "./",
   "./index.html",
