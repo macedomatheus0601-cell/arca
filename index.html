@@ -2960,6 +2960,10 @@ function usarManuais(){
    Layout pedido: cadastrar conta > soltar os arquivos > o sistema diz de qual
    conta é cada um > o que não for identificado exige decisão explícita. */
 let impArquivos=[], mostrarFormConta=false;
+/* o formulario se redesenha ao trocar o tipo de conta; sem guardar o que ja
+   foi digitado, o usuario perderia o que escreveu */
+let contaForm={ banco:"", nat:"corrente", apelido:"", agencia:"", numero:"", final:"" };
+function trocarNaturezaConta(v){ contaForm.nat=v; renderExtratos(); }
 
 const NATUREZAS={ corrente:"Conta corrente / poupança", cartao:"Cartão de crédito", investimento:"Investimentos" };
 const rotuloConta = c => (c.apelido||c.banco||"conta")+(c.final_cartao?" · final "+c.final_cartao:(c.numero_conta?" · nº "+c.numero_conta:""));
@@ -2970,20 +2974,27 @@ function etapaUpload(){
   const prontos=impArquivos.filter(a=>a.conta_id);
   const totalLancs=prontos.reduce((n,a)=>n+(a.lancs||[]).length,0);
 
+  /* cada tipo de conta tem o SEU identificador: conta corrente não tem final de
+     cartão, e cartão não tem agência. Mostrar os dois só confunde. */
+  const eCartao=contaForm.nat==="cartao", eInvest=contaForm.nat==="investimento";
+  const comoReconhece = eCartao ? "os 4 últimos dígitos do cartão"
+                      : eInvest ? "o número da conta na corretora"
+                                : "a agência e o número da conta";
   const formConta=(mostrarFormConta||!contas.length)?`<div class="card">
       <div class="card-h"><div><div class="ct">Cadastrar conta</div>
-        <div class="cs">o número (ou o final do cartão) é o que permite reconhecer o extrato sozinho</div></div></div>
+        <div class="cs">é ${comoReconhece} que permite reconhecer o extrato sozinho</div></div></div>
       <form class="adm-form" onsubmit="criarConta(event)">
-        <div><label>Banco *</label><input id="ctBanco" required placeholder="Banco do Brasil"></div>
-        <div><label>Tipo *</label><select id="ctNat" onchange="renderExtratos()">${Object.keys(NATUREZAS).map(k=>`<option value="${k}">${NATUREZAS[k]}</option>`).join("")}</select></div>
-        <div><label>Apelido</label><input id="ctApelido" placeholder="Conta salário"></div>
-        <div><label>Agência</label><input id="ctAgencia" placeholder="1234"></div>
-        <div><label>Número da conta</label><input id="ctNumero" placeholder="56789-0"></div>
-        <div><label>4 últimos dígitos do cartão</label><input id="ctFinal" maxlength="4" inputmode="numeric" placeholder="4412"></div>
+        <div><label>Banco *</label><input id="ctBanco" required placeholder="${eCartao?"Nubank":"Banco do Brasil"}" value="${esc(contaForm.banco)}" oninput="contaForm.banco=this.value"></div>
+        <div><label>Tipo *</label><select id="ctNat" onchange="trocarNaturezaConta(this.value)">${Object.keys(NATUREZAS).map(k=>`<option value="${k}" ${k===contaForm.nat?"selected":""}>${NATUREZAS[k]}</option>`).join("")}</select></div>
+        <div><label>Apelido</label><input id="ctApelido" placeholder="${eCartao?"Cartão Nubank":"Conta salário"}" value="${esc(contaForm.apelido)}" oninput="contaForm.apelido=this.value"></div>
+        ${eCartao
+          ? `<div><label>4 últimos dígitos do cartão</label><input id="ctFinal" maxlength="4" inputmode="numeric" placeholder="4412" value="${esc(contaForm.final)}" oninput="contaForm.final=this.value"></div>`
+          : `${eInvest?"":`<div><label>Agência</label><input id="ctAgencia" placeholder="0001" value="${esc(contaForm.agencia)}" oninput="contaForm.agencia=this.value"></div>`}
+             <div><label>Número da conta</label><input id="ctNumero" placeholder="65508802-0" value="${esc(contaForm.numero)}" oninput="contaForm.numero=this.value"></div>`}
         <button class="btn-p" type="submit" ${offline?"disabled":""}>Salvar conta</button>
         ${contas.length?`<button class="btn-sec" type="button" onclick="mostrarFormConta=false;renderExtratos()">Cancelar</button>`:""}
       </form><div id="ctMsg" class="msg"></div>
-      <div class="note">Sem número da conta ou final do cartão eu não consigo saber de qual conta é cada arquivo — vou ter que perguntar toda vez.</div>
+      <div class="note">Sem ${comoReconhece}, eu não consigo saber de qual conta é cada arquivo — vou ter que perguntar toda vez que você subir um extrato.</div>
     </div>`:"";
 
   if(!contas.length) return `<div class="explica">Antes de subir extrato, cadastre as contas que a pessoa possui — conta corrente, cartão e investimentos.</div>`+formConta;
@@ -3143,7 +3154,7 @@ async function criarConta(ev){
   ev.preventDefault();
   if(bloqueadoOffline("ctMsg")) return;
   const val=id=>{ const el=document.getElementById(id); const t=el?el.value.trim():""; return t||null; };
-  const nat=val("ctNat")||"corrente";
+  const nat=contaForm.nat||"corrente";
   const { error }=await sb.from("contas_bancarias").insert({ cliente_id:perfilData.cliente_id, perfil_id:perfilData.id,
     banco:val("ctBanco"), tipo:NATUREZAS[nat]||"Conta corrente", natureza:nat,
     apelido:val("ctApelido"), agencia:val("ctAgencia"), numero_conta:val("ctNumero"),
@@ -3151,6 +3162,7 @@ async function criarConta(ev){
   const m=document.getElementById("ctMsg");
   if(error){ m.className="msg err"; m.textContent="Erro: "+error.message; return; }
   mostrarFormConta=false;
+  contaForm={ banco:"", nat:"corrente", apelido:"", agencia:"", numero:"", final:"" };
   loadData();
 }
 function trocarContaImp(id){ impConta=id; renderExtratos(); }
