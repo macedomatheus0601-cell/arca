@@ -2357,6 +2357,10 @@ function casarComFixo(dataISO, desc, valor){
    (±R$ 5) dentro de 3 dias. Sem par, é gasto de verdade — conservador de propósito.
    É também o que faz o pagamento da fatura do cartão não contar duas vezes. */
 const ehPagamentoFatura = d => /pagamento\s+(de\s+)?fatura|pagto\s+fatura|pag\.?\s*fatura/i.test(String(d||""));
+/* Escolher esta categoria é a forma MANUAL de dizer "isto é quitação do cartão":
+   o lançamento deixa de contar como gasto, porque as compras já foram contadas
+   dentro da fatura. Nem todo banco escreve "Pagamento de fatura". */
+const catQuitacao = () => (catsData.find(k=>/quita[çc][ãa]o de fatura/i.test(k.nome||""))||{}).id||null;
 function casarTransferencias(lancs, tolValor=5, tolDias=3){
   const diaNum=d=>Math.round(Date.parse(String(d).slice(0,10)+"T00:00:00Z")/86400000);
   const usados=new Set(), pares=[];
@@ -2770,13 +2774,15 @@ function setImpEtapa(e){ impEtapa=e; renderExtratos(); }
 function renderExtratos(){
   if(!isHost){ pagina(`<div class="state">Área restrita.</div>`,""); return; }
   let corpo="";
-  const subAbas=(impEtapa==="mes"||impEtapa==="upload"||impEtapa==="regras")?`<div class="sub-tabs">
+  const subAbas=(impEtapa==="mes"||impEtapa==="upload"||impEtapa==="regras"||impEtapa==="classificar")?`<div class="sub-tabs">
       <button class="sub-tab ${impEtapa==="mes"?"active":""}" onclick="setImpEtapa('mes')">Posição do mês</button>
       <button class="sub-tab ${impEtapa==="upload"?"active":""}" onclick="setImpEtapa('upload')">Subir extratos</button>
+      <button class="sub-tab ${impEtapa==="classificar"?"active":""}" onclick="setImpEtapa('classificar')">Classificar${(() => { const p=lancData.filter(l=>!l.categoria_id&&!l.eh_transferencia&&!l.eh_estorno&&!l.eh_pagamento_fatura).length; return p?" ("+p+")":""; })()}</button>
       <button class="sub-tab ${impEtapa==="regras"?"active":""}" onclick="abrirRegras()">O que o sistema aprendeu${regrasData.length?" ("+regrasData.length+")":""}</button>
     </div>`:"";
   if(impEtapa==="mes") corpo=etapaMes();
   else if(impEtapa==="regras") corpo=etapaRegras();
+  else if(impEtapa==="classificar") corpo=etapaClassificar();
   else if(impEtapa==="manual") corpo=etapaManual();
   else if(impEtapa==="upload") corpo=etapaUpload();
   else if(impEtapa==="revisao"){
@@ -2842,6 +2848,8 @@ function renderExtratos(){
         <div>${pend} lançamento(s) ainda sem categoria. Dá para gravar assim, mas eles ficam de fora da análise por categoria.</div></div>`:""}
       <div style="display:flex;gap:9px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap">
         <button class="btn-sec" onclick="setImpEtapa('upload')">Cancelar</button>
+        ${pend?`<button class="btn-sec" onclick="gravarImportacao(true)" ${offline?"disabled":""}
+           title="Grava tudo agora; você termina de classificar na aba Classificar">Salvar e continuar depois</button>`:""}
         <button class="btn-p" onclick="gravarImportacao()" ${offline?"disabled":""}>Gravar ${novos.length} lançamento(s)</button>
       </div><div id="impMsg2" class="msg"></div></div>`;
   }
@@ -2865,6 +2873,108 @@ function renderExtratos(){
     dz.addEventListener("drop",ev=>{ const fs=ev.dataTransfer.files; if(fs&&fs.length) lerArquivos(fs); });
   }
 }
+/* ---- CLASSIFICAR O QUE JÁ FOI GRAVADO ----
+   O cliente pode gravar o extrato sem terminar a classificação e voltar depois.
+   Sem esta tela, o que ficou pendente ficaria pendente para sempre. */
+function etapaClassificar(){
+  const neutro=l=>l.eh_transferencia||l.eh_estorno||l.eh_pagamento_fatura;
+  const pend=lancData.filter(l=>!l.categoria_id&&!neutro(l));
+  const lista = lancFiltro==="pendentes" ? pend
+              : lancFiltro==="neutros"   ? lancData.filter(neutro)
+              : lancData;
+  const nomeConta=id=>{ const c=contasData.find(x=>x.id===id); return c?rotuloConta(c):"conta"; };
+
+  if(!lancData.length) return `<div class="card"><div class="state"><div class="big">📄</div>
+    Nenhum lançamento gravado em ${esc(mesLabel(mesAtivo))}.<br>
+    <span style="font-size:12.5px">Suba os extratos primeiro.</span>
+    <div style="margin-top:14px"><button class="btn-p" onclick="setImpEtapa('upload')">Subir extratos</button></div></div></div>`;
+
+  const linha=l=>{
+    const marca = l.eh_transferencia ? `<b style="color:${cssv("--teal")}">transferência</b>`
+                : l.eh_estorno       ? `<b style="color:${cssv("--slate")}">compra estornada</b>`
+                : l.eh_pagamento_fatura ? `<b style="color:${cssv("--slate")}">quitação da fatura</b>`
+                : l.status==="confirmado_manual" ? `<span class="badge b">você escolheu</span>`
+                : l.categoria_id     ? `<span class="badge g">automático</span>`
+                                     : `<span class="badge y">sem categoria</span>`;
+    return `<div class="rev-row" style="flex-wrap:wrap">
+      <div class="rev-b" style="min-width:180px">
+        <div class="rev-n">${esc(l.descricao||"")}</div>
+        <div class="rev-s">${dataBR(l.data)} · ${esc(nomeConta(l.conta_id))} ${marca}</div>
+      </div>
+      <div class="rev-v ${num(l.valor)>=0?"pos":"neg"}">${fmt(num(l.valor))}</div>
+      ${neutro(l)
+        ? `<button class="btn-sec" onclick="tirarNeutro('${l.id}')" ${offline?"disabled":""}>voltar a contar</button>`
+        : `<select onchange="salvarCategoriaLanc('${l.id}',this.value)" ${offline?"disabled":""}>
+             <option value="">Categoria…</option>
+             ${catsData.filter(k=>(k.tipo==="Receita")===(num(l.valor)>0)).map(k=>`<option value="${k.id}" ${k.id===l.categoria_id?"selected":""}>${esc(k.nome)}</option>`).join("")}
+           </select>`}
+      <input class="rev-obs" placeholder="descrição (opcional)" value="${esc(l.observacao||"")}"
+             onchange="salvarObsLanc('${l.id}',this.value)" aria-label="Descrição deste lançamento">
+    </div>`;
+  };
+
+  return `<div class="card">
+    <div class="card-h"><div><div class="ct">Classificar — ${esc(mesLabel(mesAtivo))}</div>
+      <div class="cs">${pend.length? pend.length+" ainda sem categoria" : "tudo classificado"} · de ${lancData.length} lançamentos</div></div>
+      ${seletorMes()}</div>
+    ${pend.length?`<div class="track" style="margin-bottom:12px"><div class="fill" style="width:${Math.round((lancData.length-pend.length)/lancData.length*100)}%;background:${cssv("--green")}"></div></div>`:""}
+    <div class="sub-tabs" style="margin:0 0 12px">
+      ${[["pendentes","Falta classificar ("+pend.length+")"],["todos","Todos ("+lancData.length+")"],
+         ["neutros","Não contam ("+lancData.filter(neutro).length+")"]]
+        .map(t=>`<button class="sub-tab ${lancFiltro===t[0]?"active":""}" onclick="lancFiltro='${t[0]}';renderExtratos()">${t[1]}</button>`).join("")}
+    </div>
+    ${lista.length?lista.slice(0,300).map(linha).join(""):`<div class="empty">Nada nesta lista.</div>`}
+    ${lista.length>300?`<div class="cap">Mostrando os 300 primeiros de ${lista.length}.</div>`:""}
+    <div class="note">Cada escolha é salva na hora — pode fechar e voltar depois.
+      Escolher <b>Quitação de fatura</b> tira o lançamento do gasto do mês: as compras já foram contadas dentro da fatura.</div>
+    <div id="clMsg" class="msg"></div></div>`;
+}
+
+async function salvarCategoriaLanc(id, catId){
+  const msg=document.getElementById("clMsg");
+  const dizer=(t,c)=>{ if(msg){ msg.className="msg "+(c||""); msg.textContent=t; } };
+  if(offline||!navigator.onLine){ dizer("Sem internet: a escolha não foi salva.","err"); return; }
+  const l=lancData.find(x=>x.id===id); if(!l) return;
+  const quit = catId && catId===catQuitacao();
+  const upd={ categoria_id:catId||null, status:catId?"confirmado_manual":"pendente",
+              eh_pagamento_fatura:!!quit };
+  const { error }=await sb.from("lancamentos").update(upd).eq("id",id);
+  if(error){ dizer("Não consegui salvar: "+error.message,"err"); return; }
+  Object.assign(l, upd);
+  /* a escolha manual também vira regra para o mês que vem */
+  if(catId && !quit) await aprenderRegra(l.descricao, catId);
+  dizer("Salvo ✓","ok");
+  renderExtratos();
+}
+async function salvarObsLanc(id, txt){
+  if(offline||!navigator.onLine) return;
+  const { error }=await sb.from("lancamentos").update({observacao:txt.trim()||null}).eq("id",id);
+  if(error) return;
+  const l=lancData.find(x=>x.id===id); if(l) l.observacao=txt.trim()||null;
+}
+async function tirarNeutro(id){
+  if(offline||!navigator.onLine){ alert("Sem internet."); return; }
+  const upd={ eh_transferencia:false, eh_estorno:false, eh_pagamento_fatura:false };
+  const { error }=await sb.from("lancamentos").update(upd).eq("id",id);
+  if(error){ alert("Não consegui alterar: "+error.message); return; }
+  const l=lancData.find(x=>x.id===id); if(l) Object.assign(l, upd);
+  renderExtratos();
+}
+/* Uma classificação manual, um padrão aprendido — reforçando se já existir. */
+async function aprenderRegra(desc, catId){
+  const p=padraoDaDescricao(desc); if(!p) return;
+  const velha=regrasData.find(r=>r.padrao_texto===p);
+  if(velha){
+    await sb.from("regras_classificacao").update({ categoria_id:catId,
+      ocorrencias:(Number(velha.ocorrencias)||1)+1, atualizado_em:new Date().toISOString() }).eq("id",velha.id);
+    velha.categoria_id=catId; velha.ocorrencias=(Number(velha.ocorrencias)||1)+1;
+  } else {
+    const { data }=await sb.from("regras_classificacao")
+      .insert({ cliente_id:perfilData.cliente_id, padrao_texto:p, categoria_id:catId }).select();
+    if(data&&data[0]) regrasData.push(data[0]);
+  }
+}
+
 /* ---- REGRAS APRENDIDAS ----
    Cada classificação manual vira memória. Deixar isso visível importa: uma
    regra errada classifica sozinha, todo mês, sem ninguém perceber. */
@@ -3410,7 +3520,13 @@ async function lerArquivo(file){
     msg.className="msg err"; msg.textContent="Não consegui ler o arquivo: "+(e.message||e);
   }
 }
-function definirCategoria(i,catId){ if(impLinhas[i]){ impLinhas[i].categoria_id=catId||null; impLinhas[i].origem="manual"; renderExtratos(); } }
+function definirCategoria(i,catId){
+  const l=impLinhas[i]; if(!l) return;
+  l.categoria_id=catId||null; l.origem="manual";
+  /* escolher "Quitação de fatura" à mão neutraliza o lançamento na hora */
+  l.eh_pagamento_fatura = !!(catId && catId===catQuitacao());
+  renderExtratos();
+}
 function definirObs(i,txt){ if(impLinhas[i]) impLinhas[i].observacao=txt; }
 /* O casamento automático pode errar: dois pagamentos iguais em dias próximos.
    Desfazer devolve os dois lados para a contagem de gastos. */
@@ -3421,7 +3537,7 @@ function desfazerTransferencia(i){
   if(par){ par.eh_transferencia=false; par.par=null; }
   renderExtratos();
 }
-async function gravarImportacao(){
+async function gravarImportacao(continuarDepois){
   const msg=document.getElementById("impMsg2");
   const dizer=(t,c)=>{ if(msg){ msg.className="msg "+(c||""); msg.textContent=t; } };
   if(offline||!navigator.onLine){ dizer("Sem internet: não é possível gravar agora.","err"); return; }
@@ -3430,7 +3546,7 @@ async function gravarImportacao(){
   /* gravar sem classificar é permitido, mas nunca em silêncio: o que fica sem
      categoria some da análise por categoria e ninguém percebe depois */
   const semCat=novos.filter(l=>!l.categoria_id&&!l.eh_transferencia&&!l.eh_estorno&&!l.eh_pagamento_fatura);
-  if(semCat.length){
+  if(semCat.length && !continuarDepois){
     const amostra=semCat.slice(0,3).map(l=>"• "+String(l.desc||"").slice(0,40)+"  "+fmt(l.valor)).join("\n");
     const ok=confirm("Ainda faltam "+semCat.length+" lançamento(s) sem categoria:\n\n"+amostra+
       (semCat.length>3?"\n… e mais "+(semCat.length-3):"")+
@@ -3520,6 +3636,8 @@ async function gravarImportacao(){
     await carregarMes(); await carregarRegras();
     dizer(gravados+" lançamento(s) gravados ✓"+
       (aprendidasAgora?" · "+aprendidasAgora+" regra(s) aprendida(s) para o mês que vem":""),"ok");
+    /* quem escolheu continuar depois vai direto para a lista do que falta */
+    if(continuarDepois && semCat.length){ lancFiltro="pendentes"; setImpEtapa("classificar"); return; }
     setImpEtapa("pronto");
   }catch(e){ dizer("Não consegui gravar: "+(e.message||e),"err"); }
 }
@@ -3530,7 +3648,7 @@ const CATS_PADRAO=[
   ["Moradia","Despesa","Fixa"],["Alimentação","Despesa","Variavel"],["Transporte","Despesa","Variavel"],
   ["Saúde","Despesa","Ambas"],["Educação","Despesa","Ambas"],["Lazer","Despesa","Variavel"],
   ["Vestuário","Despesa","Variavel"],["Barbeiro","Despesa","Variavel"],["Veículo","Despesa","Variavel"],
-  ["Estacionamento","Despesa","Variavel"],
+  ["Estacionamento","Despesa","Variavel"],["Quitação de fatura","Despesa","Fixa"],
   ["Assinaturas","Despesa","Fixa"],["Dívidas","Despesa","Fixa"],
   ["Impostos e tarifas","Despesa","Ambas"],["Outros gastos","Despesa","Variavel"],
   ["Salário","Receita","Fixa"],["Renda extra","Receita","Variavel"],["Rendimentos","Receita","Variavel"],["Transferência","Receita","Ambas"],
