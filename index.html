@@ -1080,6 +1080,7 @@ async function loadData(attempt=1){
     await carregarHistorico();   /* realizado dos meses fechados → alimenta o motor */
     montarEstado(); salvarRetrato(); setPage(currentPage);
     carregarMes();         /* lançamentos e fechamento do mês em foco */
+    carregarRegras();      /* padrões já aprendidos, para a aba de regras */
     carregarModelos();     /* moldes de extrato, em segundo plano */
     carregarRespostas();   /* caixa de entrada do formulário */
     carregarUsuarios();    /* acessos */
@@ -2227,6 +2228,7 @@ let impEtapa="mes", impLinhas=[], impArquivo=null, impConta=null, impCol="primei
 /* ---- mês em foco na aba Lançamentos ---- */
 const mesHoje = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
 let mesAtivo=mesHoje(), lancData=[], fechData=[], lancFiltro="todos";
+let regrasData=[], aprendidasAgora=0;
 /* histórico curto usado pelo motor: o REALIZADO dos meses já fechados é a melhor
    fonte de gasto variável que existe — melhor que qualquer valor declarado. */
 let histLancs=[], histFech=[];
@@ -2665,9 +2667,11 @@ const LEITORES=[
     const mrend=txt.match(/Rendimento líquido\s*\+?\s*([\d.]*,\d{2})/i);
     const mfim=txt.match(/a\s+(\d{2})\s+DE\s+([A-ZÇÃÕ]{3,})\s+DE\s+(\d{4})/i);
     if(mrend&&mfim){
+      const vr=Math.abs(parseValorBR(mrend[1])||0);
       const mm=MESES_PT[mfim[2].slice(0,3).toUpperCase()];
-      if(mm) out.push({ data:iso(Number(mfim[3]),mm,Number(mfim[1])),
-                        desc:"Rendimento líquido", valor:Math.abs(parseValorBR(mrend[1])) });
+      /* rendimento de R$ 0,00 é linha de formulário, não movimento — não polui */
+      if(mm && vr>0) out.push({ data:iso(Number(mfim[3]),mm,Number(mfim[1])),
+                                desc:"Rendimento líquido", valor:vr });
     }
     /* a data é um cabeçalho de grupo e o sinal vem da seção — os dois valem
        para todas as linhas seguintes até mudarem */
@@ -2704,11 +2708,47 @@ function lerComLeitor(linhas, brutas, colValor, sinalModo){
   return { lancs:extrairLancamentos(linhas, colValor||"primeiro", sinalModo||"auto"), leitor:null };
 }
 
+/* ---- o que o sistema memoriza de cada classificação manual ----
+   O padrão precisa ser específico o bastante para não pegar o comerciante
+   errado, e genérico o bastante para reconhecer a mesma compra no mês que vem.
+     "Reino dos Idiomas"        -> REINO IDIOMAS
+     "Ebn *Canva04947"          -> CANVA          (o número muda todo mês)
+     "Uber Uber *Trip Help.U"   -> UBER TRIP      (a repetição some)
+   Intermediários de pagamento não identificam nada: MP, EBN, PAG, KEETABR
+   aparecem na frente de lojas diferentes e são descartados. */
+const GATEWAYS=new Set(["MP","EBN","PAG","PAGS","PAGSEGURO","MERCADOPAGO","MERCPAGO","KEETABR",
+                        "HNA","PIX","TED","DOC","CIELO","REDE","STONE","SUMUP","PAGARME","IUGU","ASAAS"]);
+const PALAVRAS_VAZIAS=new Set(["DE","DA","DO","DOS","DAS","E","COM","LTDA","ME","EIRELI","SA","BR","COM BR"]);
+function padraoDaDescricao(desc){
+  const bruto=normalizarDesc(desc||"").split(" ").filter(Boolean)
+    /* "CANVA04947" -> "CANVA": o codigo colado muda a cada cobranca */
+    .map(w=>w.replace(/\d+$/,"")).filter(Boolean);
+  const limpo=[];
+  for(const w of bruto){
+    if(GATEWAYS.has(w)) continue;
+    if(PALAVRAS_VAZIAS.has(w)) continue;
+    if(w.length<3) continue;
+    if(limpo[limpo.length-1]===w) continue;   /* "UBER UBER" -> "UBER" */
+    limpo.push(w);
+  }
+  const p=limpo.slice(0,2).join(" ");
+  return p.length>=4 ? p : (limpo.slice(0,3).join(" ")||null);
+}
+
+/* A regra casa quando TODAS as suas palavras aparecem na descricao — nao
+   precisa ser trecho continuo. Sem isso, tirar o "dos" de "Reino dos Idiomas"
+   faria a propria regra deixar de reconhecer o lancamento que a criou. */
+function casaRegra(nd, padrao){
+  const p=String(padrao||"").trim().toUpperCase();
+  if(!p) return false;
+  if(nd.includes(p)) return true;
+  return p.split(/\s+/).every(w=>w&&nd.includes(w));
+}
 function classificar(lancs, regras){
   return lancs.map(l=>{
     const nd=normalizarDesc(l.desc);
     let cat=null, origem=null, conf=0;
-    const r=regras.find(x=>nd.includes(String(x.padrao_texto||"").toUpperCase()));
+    const r=regras.find(x=>casaRegra(nd, x.padrao_texto));
     if(r){ cat=r.categoria_id; origem="regra"; conf=0.9; }
     if(!cat){
       /* cruza com os compromissos declarados: mesmo valor (±3%) e descrição parecida */
@@ -2730,11 +2770,13 @@ function setImpEtapa(e){ impEtapa=e; renderExtratos(); }
 function renderExtratos(){
   if(!isHost){ pagina(`<div class="state">Área restrita.</div>`,""); return; }
   let corpo="";
-  const subAbas=(impEtapa==="mes"||impEtapa==="upload")?`<div class="sub-tabs">
+  const subAbas=(impEtapa==="mes"||impEtapa==="upload"||impEtapa==="regras")?`<div class="sub-tabs">
       <button class="sub-tab ${impEtapa==="mes"?"active":""}" onclick="setImpEtapa('mes')">Posição do mês</button>
       <button class="sub-tab ${impEtapa==="upload"?"active":""}" onclick="setImpEtapa('upload')">Subir extratos</button>
+      <button class="sub-tab ${impEtapa==="regras"?"active":""}" onclick="abrirRegras()">O que o sistema aprendeu${regrasData.length?" ("+regrasData.length+")":""}</button>
     </div>`:"";
   if(impEtapa==="mes") corpo=etapaMes();
+  else if(impEtapa==="regras") corpo=etapaRegras();
   else if(impEtapa==="manual") corpo=etapaManual();
   else if(impEtapa==="upload") corpo=etapaUpload();
   else if(impEtapa==="revisao"){
@@ -2823,6 +2865,50 @@ function renderExtratos(){
     dz.addEventListener("drop",ev=>{ const fs=ev.dataTransfer.files; if(fs&&fs.length) lerArquivos(fs); });
   }
 }
+/* ---- REGRAS APRENDIDAS ----
+   Cada classificação manual vira memória. Deixar isso visível importa: uma
+   regra errada classifica sozinha, todo mês, sem ninguém perceber. */
+async function carregarRegras(){
+  if(!perfilData||!sb||offline||!navigator.onLine){ regrasData=[]; return; }
+  const { data, error }=await sb.from("regras_classificacao").select("*")
+    .eq("cliente_id",perfilData.cliente_id).order("ocorrencias",{ascending:false});
+  regrasData=error?[]:(data||[]);
+}
+async function abrirRegras(){ await carregarRegras(); setImpEtapa("regras"); }
+
+function etapaRegras(){
+  const nomeCat=id=>{ const k=catsData.find(x=>x.id===id); return k?k.nome:"(categoria removida)"; };
+  if(!regrasData.length) return `<div class="card"><div class="state"><div class="big">🧠</div>
+    Nada aprendido ainda.<br><span style="font-size:12.5px">Toda vez que você escolher a categoria de um lançamento à mão,
+    o sistema guarda o padrão do nome e usa no mês seguinte.</span></div></div>`;
+
+  return `<div class="card"><div class="card-h">
+      <div><div class="ct">O que o sistema aprendeu ${help("Cada regra veio de uma escolha sua. Quando um lançamento novo contém o padrão, ele já chega classificado. Se uma regra estiver errada, apague — ela seguiria classificando sozinha todo mês.")}</div>
+        <div class="cs">${regrasData.length} padrão(ões) · usados automaticamente nas próximas importações</div></div></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th style="text-align:left">Quando o nome contém</th><th style="text-align:left">Classifica como</th><th>Vezes</th><th></th></tr></thead>
+      <tbody>${regrasData.map(r=>`<tr>
+        <td style="text-align:left"><code style="font-size:12px">${esc(r.padrao_texto||"")}</code></td>
+        <td style="text-align:left">${esc(nomeCat(r.categoria_id))}</td>
+        <td>${Number(r.ocorrencias)||1}</td>
+        <td><button class="btn-sec btn-del" style="height:28px;font-size:11.5px;padding:0 10px"
+             onclick="apagarRegra('${r.id}')" ${offline?"disabled":""}>Apagar</button></td></tr>`).join("")}
+      </tbody></table></div>
+    <div class="note">O padrão é montado a partir do nome que veio do banco, sem números e sem os intermediários de
+      pagamento (MP, EBN, PAG...), que aparecem na frente de lojas diferentes e não identificam ninguém.
+      Ex.: <code>Ebn *Canva04947</code> vira <code>CANVA</code>, e reconhece a cobrança do mês que vem mesmo com outro número.</div>
+    <div id="rgMsg" class="msg"></div></div>`;
+}
+async function apagarRegra(id){
+  if(offline||!navigator.onLine){ alert("Sem internet."); return; }
+  const r=regrasData.find(x=>x.id===id)||{};
+  if(!confirm("Apagar a regra \u201c"+(r.padrao_texto||"")+"\u201d?\n\nOs lançamentos já classificados não mudam. Só deixa de classificar sozinho daqui pra frente.")) return;
+  const { error }=await sb.from("regras_classificacao").delete().eq("id",id);
+  if(error){ alert("Não consegui apagar: "+error.message); return; }
+  regrasData=regrasData.filter(x=>x.id!==id);
+  renderExtratos();
+}
+
 /* ---------- POSIÇÃO DO MÊS ----------
    O que realmente aconteceu, conta por conta, com a conferência que fecha o mês:
    saldo inicial + créditos − débitos = saldo final.
@@ -3402,16 +3488,38 @@ async function gravarImportacao(){
         { coluna:"primeiro", sinal:"auto", validado_em:new Date().toISOString().slice(0,10), lancamentos:regs.length });
     }
     /* aprende com o que você classificou à mão */
-    const novasRegras=novos.filter(l=>l.origem==="manual"&&l.categoria_id).map(l=>({
-      cliente_id:perfilData.cliente_id, padrao_texto:(l.normalizada||normalizarDesc(l.desc)).split(" ").slice(0,3).join(" "),
-      categoria_id:l.categoria_id }));
-    if(novasRegras.length){
-      const { error:er }=await sb.from("regras_classificacao").insert(novasRegras);
-      if(er) console.warn("regras não salvas:", er.message);
+    /* aprende com o que foi classificado à mão: uma regra por padrão, sem
+       duplicar. Repetir a mesma escolha reforça a regra em vez de criar outra. */
+    const aprender={};
+    novos.filter(l=>l.origem==="manual"&&l.categoria_id).forEach(l=>{
+      const p=padraoDaDescricao(l.desc);
+      if(p) aprender[p]=l.categoria_id;   /* a última escolha do mês prevalece */
+    });
+    const padroes=Object.keys(aprender);
+    if(padroes.length){
+      const { data:jaTem }=await sb.from("regras_classificacao")
+        .select("id,padrao_texto,ocorrencias,categoria_id").eq("cliente_id",perfilData.cliente_id);
+      const mapa={}; (jaTem||[]).forEach(r=>{ mapa[r.padrao_texto]=r; });
+      const criar=[];
+      for(const p of padroes){
+        const velha=mapa[p];
+        if(velha){
+          const { error:eu }=await sb.from("regras_classificacao")
+            .update({ categoria_id:aprender[p], ocorrencias:(Number(velha.ocorrencias)||1)+1,
+                      atualizado_em:new Date().toISOString() }).eq("id",velha.id);
+          if(eu) console.warn("regra não reforçada:", eu.message);
+        } else criar.push({ cliente_id:perfilData.cliente_id, padrao_texto:p, categoria_id:aprender[p] });
+      }
+      if(criar.length){
+        const { error:er }=await sb.from("regras_classificacao").insert(criar);
+        if(er) console.warn("regras não salvas:", er.message);
+      }
+      aprendidasAgora=padroes.length;
     }
     impArquivos=[]; impLinhas=[];
-    await carregarMes();
-    dizer(gravados+" lançamento(s) gravados ✓","ok");
+    await carregarMes(); await carregarRegras();
+    dizer(gravados+" lançamento(s) gravados ✓"+
+      (aprendidasAgora?" · "+aprendidasAgora+" regra(s) aprendida(s) para o mês que vem":""),"ok");
     setImpEtapa("pronto");
   }catch(e){ dizer("Não consegui gravar: "+(e.message||e),"err"); }
 }
@@ -3422,6 +3530,7 @@ const CATS_PADRAO=[
   ["Moradia","Despesa","Fixa"],["Alimentação","Despesa","Variavel"],["Transporte","Despesa","Variavel"],
   ["Saúde","Despesa","Ambas"],["Educação","Despesa","Ambas"],["Lazer","Despesa","Variavel"],
   ["Vestuário","Despesa","Variavel"],["Barbeiro","Despesa","Variavel"],["Veículo","Despesa","Variavel"],
+  ["Estacionamento","Despesa","Variavel"],
   ["Assinaturas","Despesa","Fixa"],["Dívidas","Despesa","Fixa"],
   ["Impostos e tarifas","Despesa","Ambas"],["Outros gastos","Despesa","Variavel"],
   ["Salário","Receita","Fixa"],["Renda extra","Receita","Variavel"],["Rendimentos","Receita","Variavel"],["Transferência","Receita","Ambas"],
