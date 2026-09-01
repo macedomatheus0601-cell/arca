@@ -1467,7 +1467,7 @@ function duasLinhasChart(a,b,corA,corB,nomeA,nomeB){
    consultor= você: enxerga tudo e gerencia todos os clientes           */
 const PAPEIS={
   consultor:{ l:"Consultor", d:"Acesso total: todos os clientes, cadastros e importações." },
-  host:{      l:"Cliente (edita)", d:"Vê os próprios dados, importa extratos e marca o plano de ação." },
+  host:{      l:"Cliente (edita)", d:"Sobe os extratos, classifica os lançamentos, confere os saldos e envia o mês para você. Não fecha o mês." },
   leitor:{    l:"Cliente (só consulta)", d:"Vê os próprios dados, sem poder alterar nada." },
 };
 const PAGES=[
@@ -2830,9 +2830,15 @@ function etapaMes(){
   const acoes = est==="fechado" ? `<div class="alerta g" style="margin-top:14px"><div class="a-ic" style="background:color-mix(in srgb,${cssv("--green")} 18%,transparent);color:${cssv("--green")}">${svgIcon("check")}</div>
       <div><b>Mês fechado.</b> Vira histórico e não muda mais. O saldo final é o inicial de ${esc(mesLabel(mesSeguinte(mesAtivo)))}.</div></div>`
     : isConsultor ? `<div style="display:flex;gap:9px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap">
+        ${est!=="aberto"?`<button class="btn-sec" onclick="mudarEstadoMes('aberto')" ${offline?"disabled":""}
+           title="Reabre o mês para o cliente corrigir">Devolver ao cliente</button>`:""}
         <button class="btn-sec" onclick="mudarEstadoMes('revisao')" ${offline?"disabled":""}>Marcar em revisão</button>
         <button class="btn-p" onclick="mudarEstadoMes('fechado')" ${offline?"disabled":""}>Fechar o mês</button>
       </div><div id="mesMsg" class="msg"></div>`
+    : est!=="aberto" ? `<div class="alerta" style="background:var(--card2);margin-top:14px">
+        <div class="a-ic" style="background:color-mix(in srgb,${cssv("--brand")} 15%,transparent);color:${cssv("--brand")}">${svgIcon("check")}</div>
+        <div><b>Enviado ao seu consultor.</b> Ele está conferindo. Se precisar corrigir alguma coisa,
+          é só pedir que ele devolve o mês para você.</div></div>`
     : `<div style="display:flex;gap:9px;justify-content:flex-end;margin-top:14px;align-items:center;flex-wrap:wrap">
         ${podeEnviar?"":`<span class="cap">Confira os saldos de todas as contas para poder enviar.</span>`}
         <button class="btn-p" onclick="mudarEstadoMes('enviado')" ${(!podeEnviar||offline)?"disabled":""}>Enviar para o consultor</button>
