@@ -2248,7 +2248,7 @@ async function carregarHistorico(){
   const desde=d.toISOString().slice(0,10);
   const cid=perfilData.cliente_id;
   const [lr,fr]=await Promise.all([
-    sb.from("lancamentos").select("conta_id,data,competencia,valor,categoria_id,descricao,eh_transferencia")
+    sb.from("lancamentos").select("conta_id,data,competencia,valor,categoria_id,descricao,eh_transferencia,eh_estorno")
       .eq("cliente_id",cid).gte("data",desde),
     sb.from("fechamentos_mensais").select("*").eq("cliente_id",cid).order("mes_referencia",{ascending:false}),
   ]);
@@ -2370,13 +2370,63 @@ function casarTransferencias(lancs, tolValor=5, tolDias=3){
   return pares;
 }
 
+/* ---- compra estornada ----
+   Compra e estorno do MESMO valor na MESMA conta se anulam. No total dá na
+   mesma, mas cada uma infla a sua categoria: R$ 160 em "Vestuário" que nunca
+   foram gastos. Marcar os dois lados tira o ruído sem sumir com o extrato. */
+function casarEstornos(lancs, tol=0.01){
+  const usados=new Set(), pares=[];
+  lancs.filter(l=>num(l.valor)>0).forEach(cred=>{
+    if(usados.has(cred.id)) return;
+    const alvo=num(cred.valor);
+    const deb=lancs.find(d=>!usados.has(d.id)&&d.id!==cred.id&&num(d.valor)<0
+      && d.conta_id===cred.conta_id
+      && Math.abs(Math.abs(num(d.valor))-alvo)<=tol);
+    if(deb){ usados.add(cred.id); usados.add(deb.id); pares.push([deb,cred]); }
+  });
+  return pares;
+}
+
+/* ---- os gastos fixos declarados apareceram no extrato? ----
+   Responde "subi um extrato, o que ainda falta". Casa por nome, valor e dia,
+   e aponta quando o valor veio diferente do combinado. */
+function conciliarFixos(lancs){
+  const norm=t=>normalizarDesc(t||"");
+  const tokens=t=>norm(t).split(" ").filter(w=>w.length>=4);
+  const cands=(lancs||[]).filter(l=>num(l.valor)<0 && !l.eh_transferencia && !l.eh_estorno);
+  const usados=new Set();
+  return compsData.filter(c=>c.tipo==="despesa").map(c=>{
+    const alvo=num(c.valor), tk=tokens(c.descricao);
+    let melhor=null, nota=0;
+    cands.forEach(l=>{
+      if(usados.has(l.id)) return;
+      const v=Math.abs(num(l.valor)), nd=norm(l.descricao||l.desc);
+      let n=0;
+      const dif = alvo>0 ? Math.abs(v-alvo)/alvo : 1;
+      if(dif<=0.02) n+=5; else if(dif<=0.10) n+=3; else if(dif<=0.25) n+=1;
+      n += tk.filter(w=>nd.includes(w)).length*3;
+      if(c.dia_vencimento && l.data &&
+         Math.abs(Number(String(l.data).slice(8,10))-Number(c.dia_vencimento))<=3) n+=2;
+      if(n>nota){ nota=n; melhor=l; }
+    });
+    if(melhor && nota>=4){
+      usados.add(melhor.id);
+      const v=Math.abs(num(melhor.valor)), dif=v-alvo;
+      return { comp:c, lanc:melhor, achou:true, dif,
+               alerta: alvo>0 && Math.abs(dif)/alvo>0.10 };
+    }
+    return { comp:c, lanc:null, achou:false };
+  });
+}
+
 /* ---- o que REALMENTE aconteceu no mês ---- */
 function resumoMes(lancs){
-  const reais=(lancs||[]).filter(l=>!l.eh_transferencia);
-  let entradas=0, fixos=0, variaveis=0, transf=0;
+  const reais=(lancs||[]).filter(l=>!l.eh_transferencia&&!l.eh_estorno);
+  let entradas=0, fixos=0, variaveis=0, transf=0, estornado=0;
   const porCategoria={};
   (lancs||[]).forEach(l=>{
     const v=num(l.valor);
+    if(l.eh_estorno){ if(v<0) estornado+=Math.abs(v); return; }
     if(l.eh_transferencia){ transf+=Math.abs(v); return; }
     if(v>0){ entradas+=v; return; }
     const gasto=-v;
@@ -2385,9 +2435,9 @@ function resumoMes(lancs){
     porCategoria[k]=(porCategoria[k]||0)+gasto;
   });
   const saidas=fixos+variaveis;
-  return { entradas, saidas, fixos, variaveis, transf, sobra:entradas-saidas,
+  return { entradas, saidas, fixos, variaveis, transf, estornado, sobra:entradas-saidas,
            porCategoria, total:reais.length,
-           pendentes:(lancs||[]).filter(l=>!l.categoria_id&&!l.eh_transferencia).length };
+           pendentes:(lancs||[]).filter(l=>!l.categoria_id&&!l.eh_transferencia&&!l.eh_estorno).length };
 }
 
 /* ---- a conferência que fecha o mês ----
@@ -2690,17 +2740,26 @@ function renderExtratos(){
     const pend=novos.filter(l=>!l.categoria_id&&!l.eh_transferencia).length;
     const dup=impLinhas.length-novos.length;
     const transf=novos.filter(l=>l.eh_transferencia).length;
+    const estor=novos.filter(l=>l.eh_estorno).length;
     const nomeConta=id=>{ const c=contasData.find(x=>x.id===id); return c?rotuloConta(c):"conta"; };
-    const so=lancFiltro==="pendentes"?novos.filter(l=>!l.categoria_id&&!l.eh_transferencia)
+    const so=lancFiltro==="pendentes"?novos.filter(l=>!l.categoria_id&&!l.eh_transferencia&&!l.eh_estorno)
             :lancFiltro==="transferencias"?novos.filter(l=>l.eh_transferencia)
+            :lancFiltro==="estornos"?novos.filter(l=>l.eh_estorno)
+            :lancFiltro==="automaticos"?novos.filter(l=>l.categoria_id&&l.origem!=="manual")
             :novos;
 
     const linha=(l)=>{ const i=impLinhas.indexOf(l);
       const fixo=l.valor<0?casarComFixo(l.data,l.desc,l.valor):null;
+      /* deixa explícito o que o sistema decidiu sozinho e por quê */
+      const selo = l.origem==="manual" ? `<span class="badge b">você escolheu</span>`
+                 : l.origem==="regra"  ? `<span class="badge g">automático · regra aprendida</span>`
+                 : l.origem==="fixo"   ? `<span class="badge g">automático · bate com gasto fixo</span>`
+                 : l.categoria_id      ? `<span class="badge g">automático</span>`
+                                       : `<span class="badge y">sem categoria</span>`;
       return `<div class="rev-row" style="flex-wrap:wrap">
         <div class="rev-b" style="min-width:180px">
           <div class="rev-n">${esc(l.desc)}</div>
-          <div class="rev-s">${dataBR(l.data)} · ${esc(nomeConta(l.conta_id))}${fixo?` · <b style="color:${cssv("--brand")}">é o seu gasto fixo “${esc(fixo.descricao)}”</b>`:""}${l.eh_transferencia?` · <b style="color:${cssv("--teal")}">transferência entre suas contas</b>`:""}</div>
+          <div class="rev-s">${dataBR(l.data)} · ${esc(nomeConta(l.conta_id))} ${selo}${fixo?` · <b style="color:${cssv("--brand")}">é o seu gasto fixo “${esc(fixo.descricao)}”</b>`:""}${l.eh_transferencia?` · <b style="color:${cssv("--teal")}">transferência entre suas contas</b>`:""}${l.eh_estorno?` · <b style="color:${cssv("--slate")}">compra estornada — não conta</b>`:""}</div>
         </div>
         <div class="rev-v ${l.valor>=0?"pos":"neg"}">${fmt(l.valor)}</div>
         ${l.eh_transferencia
@@ -2719,10 +2778,13 @@ function renderExtratos(){
         <div class="pill g"><span style="font-size:19px">${svgIcon("check")}</span><div><div class="p-n">${auto}</div><div class="p-t">classificados automaticamente</div></div></div>
         <div class="pill y"><span style="font-size:19px">?</span><div><div class="p-n">${pend}</div><div class="p-t">precisam de você</div></div></div>
         <div class="pill b"><span style="font-size:19px">⇄</span><div><div class="p-n">${transf}</div><div class="p-t">transferências (não são gasto)</div></div></div>
+        <div class="pill n"><span style="font-size:19px">⇋</span><div><div class="p-n">${estor}</div><div class="p-t">compra + estorno (se anulam)</div></div></div>
         <div class="pill n"><span style="font-size:19px">⊘</span><div><div class="p-n">${dup}</div><div class="p-t">já existiam</div></div></div>
       </div>
       <div class="sub-tabs" style="margin:10px 0 12px">
-        ${[["todos","Todos ("+novos.length+")"],["pendentes","Sem categoria ("+pend+")"],["transferencias","Transferências ("+transf+")"]]
+        ${[["todos","Todos ("+novos.length+")"],["pendentes","Sem categoria ("+pend+")"],
+           ["automaticos","Classificados sozinho ("+auto+")"],
+           ["transferencias","Transferências ("+transf+")"],["estornos","Estornados ("+estor+")"]]
           .map(t=>`<button class="sub-tab ${lancFiltro===t[0]?"active":""}" onclick="lancFiltro='${t[0]}';renderExtratos()">${t[1]}</button>`).join("")}
       </div>
       ${so.length?so.slice(0,200).map(linha).join(""):`<div class="empty">Nada nesta lista.</div>`}
@@ -2793,7 +2855,7 @@ function etapaMes(){
     <div class="tile"><div class="card-top"><div class="chip green">${svgIcon("coins")}</div></div>
       <div class="t-label">Sobra realizada</div>
       <div class="t-value" style="color:${r.sobra>=0?cssv("--green"):cssv("--rose")}">${fmt(r.sobra)}</div>
-      <div class="cap" style="margin-top:6px">entradas − saídas deste mês${r.transf>0?` · ${fmt(r.transf)} em transferências não contam`:""}</div></div>
+      <div class="cap" style="margin-top:6px">entradas − saídas deste mês${r.transf>0?` · ${fmt(r.transf)} em transferências não contam`:""}${r.estornado>0?` · ${fmt(r.estornado)} em compras estornadas não contam`:""}</div></div>
   </div>`;
 
   const cartaoConta=c=>{
@@ -2848,10 +2910,53 @@ function etapaMes(){
     ${r.pendentes?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin:14px 0">
       <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
       <div>${r.pendentes} lançamento(s) sem categoria — eles entram no total, mas ficam fora da análise por categoria.</div></div>`:""}
+    <div class="eyebrow" style="margin-top:16px">Gastos fixos: o que apareceu e o que falta</div>
+    ${painelFixos(lancData)}
     <div class="eyebrow" style="margin-top:16px">Conferência por conta</div>
     ${contas.length?contas.map(cartaoConta).join(""):`<div class="empty">Nenhuma conta de fluxo cadastrada.</div>`}
     ${acoes}`;
 }
+/* Checklist dos gastos fixos declarados contra o que apareceu no extrato.
+   Sem isto, "subi um extrato" e "o mês está completo" viram a mesma coisa. */
+function painelFixos(lancs){
+  const conc=conciliarFixos(lancs);
+  if(!conc.length) return `<div class="card"><div class="empty">Nenhum gasto fixo cadastrado para conferir.
+    Lance-os em <b>Clientes &rarr; Renda e gastos</b> — é contra eles que o extrato é cruzado.</div></div>`;
+  const achou=conc.filter(x=>x.achou), falta=conc.filter(x=>!x.achou);
+  const divergente=achou.filter(x=>x.alerta);
+  const totalPrev=conc.reduce((a,x)=>a+num(x.comp.valor),0);
+  const totalAchado=achou.reduce((a,x)=>a+Math.abs(num(x.lanc.valor)),0);
+
+  const linha=x=>{
+    const prev=num(x.comp.valor);
+    if(!x.achou) return `<div class="rrow">
+      <span class="rr-n"><span style="color:${cssv("--rose")}">●</span> ${esc(x.comp.descricao||"gasto fixo")}
+        ${x.comp.dia_vencimento?`<span style="color:var(--muted);font-size:11px">· vence dia ${x.comp.dia_vencimento}</span>`:""}</span>
+      <span class="rr-v" style="color:${cssv("--rose")}">${fmt(prev)} · não encontrado</span></div>`;
+    const v=Math.abs(num(x.lanc.valor));
+    const cor=x.alerta?cssv("--amber"):cssv("--green");
+    return `<div class="rrow">
+      <span class="rr-n"><span style="color:${cor}">●</span> ${esc(x.comp.descricao||"gasto fixo")}
+        <span style="color:var(--muted);font-size:11px">· ${esc(String(x.lanc.descricao||x.lanc.desc||"").slice(0,38))} em ${dataBR(x.lanc.data)}</span></span>
+      <span class="rr-v" style="color:${cor}">${fmt(v)}${x.alerta?` <span style="font-size:11px">(previsto ${fmt(prev)})</span>`:""}</span></div>`;
+  };
+
+  return `<div class="card"><div class="card-h">
+      <div><div class="ct">Gastos fixos deste mês ${help("Cada gasto fixo que você cadastrou é procurado no extrato pelo nome, pelo valor e pelo dia do vencimento. O que não for encontrado provavelmente está num extrato que ainda não foi importado — ou não foi pago.")}</div>
+        <div class="cs">${achou.length} de ${conc.length} encontrados no extrato</div></div>
+      <div class="c-end"><div class="lbl">previsto no mês</div><div class="val">${fmt(totalPrev)}</div></div></div>
+    <div class="track" style="margin-bottom:12px"><div class="fill" style="width:${conc.length?Math.round(achou.length/conc.length*100):0}%;background:${cssv("--green")}"></div></div>
+    ${conc.map(linha).join("")}
+    ${falta.length?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:12px">
+      <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
+      <div><b>${falta.length} gasto(s) fixo(s) não apareceram</b> (${fmt(falta.reduce((a,x)=>a+num(x.comp.valor),0))}).
+        Quase sempre é <b>extrato de outra conta que ainda não foi importado</b> — se ele é pago em outro banco ou no cartão, suba aquele arquivo também.
+        Se realmente não foi pago, vale conferir com o cliente.</div></div>`:""}
+    ${divergente.length?`<div class="cap" style="margin-top:8px">${divergente.length} gasto(s) vieram com valor diferente do cadastrado — vale atualizar o cadastro se a mudança for permanente.</div>`:""}
+    ${achou.length?`<div class="cap" style="margin-top:6px">Encontrado no extrato: ${fmt(totalAchado)} de ${fmt(totalPrev)} previstos.</div>`:""}
+  </div>`;
+}
+
 function cabecMes(est){
   const cor = est==="fechado"?cssv("--green") : est==="aberto"?cssv("--muted") : cssv("--amber");
   return `<div class="card"><div class="card-h">
@@ -3145,6 +3250,10 @@ async function irParaRevisao(){
     l.eh_transferencia = temCartao && l.valor<0 && ehPagamentoFatura(l.desc); });
   casarTransferencias(todos).forEach(([a,b])=>{ a.eh_transferencia=true; b.eh_transferencia=true;
     a.par=b.id; b.par=a.id; });
+  /* compra + estorno de mesmo valor: as duas se anulam */
+  todos.forEach(l=>{ l.eh_estorno=false; });
+  casarEstornos(todos.filter(l=>!l.eh_transferencia)).forEach(([d,c])=>{
+    d.eh_estorno=true; c.eh_estorno=true; d.par=c.id; c.par=d.id; });
   impLinhas=todos;
   if(msg) msg.textContent="";
   setImpEtapa("revisao");
@@ -3241,7 +3350,7 @@ async function gravarImportacao(){
         categoria_id:l.categoria_id||null, importacao_id:imp.id, data:l.data,
         competencia:l.competencia||(String(l.data).slice(0,7)+"-01"),
         descricao:l.desc, descricao_normalizada:l.normalizada, observacao:l.observacao||null,
-        eh_transferencia:!!l.eh_transferencia, valor:l.valor,
+        eh_transferencia:!!l.eh_transferencia, eh_estorno:!!l.eh_estorno, valor:l.valor,
         status:l.origem==="manual"?"confirmado_manual":(l.categoria_id?"classificado_auto":"pendente"),
         hash:l.hash }));
       for(let i=0;i<regs.length;i+=200){
@@ -3286,7 +3395,8 @@ let abaCliente="respostas", respostasData=[], respostaAberta=null;
 const CATS_PADRAO=[
   ["Moradia","Despesa","Fixa"],["Alimentação","Despesa","Variavel"],["Transporte","Despesa","Variavel"],
   ["Saúde","Despesa","Ambas"],["Educação","Despesa","Ambas"],["Lazer","Despesa","Variavel"],
-  ["Vestuário","Despesa","Variavel"],["Assinaturas","Despesa","Fixa"],["Dívidas","Despesa","Fixa"],
+  ["Vestuário","Despesa","Variavel"],["Barbeiro","Despesa","Variavel"],
+  ["Assinaturas","Despesa","Fixa"],["Dívidas","Despesa","Fixa"],
   ["Impostos e tarifas","Despesa","Ambas"],["Outros gastos","Despesa","Variavel"],
   ["Salário","Receita","Fixa"],["Renda extra","Receita","Variavel"],["Rendimentos","Receita","Variavel"],["Transferência","Receita","Ambas"],
 ];
