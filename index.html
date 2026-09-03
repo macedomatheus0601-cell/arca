@@ -2412,7 +2412,34 @@ function conciliarFixos(lancs){
   const tokens=t=>norm(t).split(" ").filter(w=>w.length>=4);
   const cands=(lancs||[]).filter(l=>num(l.valor)<0 && !l.eh_transferencia && !l.eh_estorno && !l.eh_pagamento_fatura);
   const usados=new Set();
-  return compsData.filter(c=>c.tipo==="despesa").map(c=>{
+
+  /* ---- caminho 1: pela CATEGORIA ----
+     "Assinaturas R$ 207" não é uma linha só no extrato: é Apple + Claro +
+     Google + Canva. Procurar o valor exato nunca acha. O certo é somar tudo
+     que foi classificado naquela categoria e comparar com o previsto.
+     Vários gastos fixos podem cair na mesma categoria (aluguel e condomínio
+     em Moradia), por isso a comparação é feita por categoria, não por linha —
+     senão o mesmo lançamento seria contado duas vezes. */
+  const fixosDespesa=compsData.filter(c=>c.tipo==="despesa");
+  const grupos={};
+  fixosDespesa.filter(c=>c.categoria_id).forEach(c=>{
+    (grupos[c.categoria_id]=grupos[c.categoria_id]||[]).push(c);
+  });
+  const porCategoria=Object.keys(grupos).map(catId=>{
+    const cat=catsData.find(k=>k.id===catId)||{};
+    const doGrupo=cands.filter(l=>l.categoria_id===catId);
+    doGrupo.forEach(l=>usados.add(l.id));
+    const previsto=grupos[catId].reduce((a,c)=>a+num(c.valor),0);
+    const realizado=doGrupo.reduce((a,l)=>a+Math.abs(num(l.valor)),0);
+    const dif=realizado-previsto;
+    const tol=Math.max(30, previsto*0.10);
+    return { catId, nome:cat.nome||"(categoria removida)", fixos:grupos[catId],
+             lancs:doGrupo, previsto, realizado, dif,
+             status: !doGrupo.length ? "nenhum" : Math.abs(dif)<=tol ? "ok" : dif>0 ? "sobra" : "falta" };
+  }).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),"pt-BR"));
+
+  /* ---- caminho 2: gasto fixo SEM categoria, casado linha a linha ---- */
+  const soltos=fixosDespesa.filter(c=>!c.categoria_id).map(c=>{
     const alvo=num(c.valor), tk=tokens(c.descricao);
     let melhor=null, nota=0;
     cands.forEach(l=>{
@@ -2434,6 +2461,7 @@ function conciliarFixos(lancs){
     }
     return { comp:c, lanc:null, achou:false };
   });
+  return { porCategoria, soltos };
 }
 
 /* ---- o que REALMENTE aconteceu no mês ---- */
@@ -3152,6 +3180,10 @@ function etapaMes(){
        ["Gastos fixos",r.fixos,"--slate","home"],["Gastos variáveis",r.variaveis,"--amber","cart"]]
       .map(([l,v,c,ic])=>`<div class="tile"><div class="card-top"><div class="chip" style="background:color-mix(in srgb,${cssv(c)} 15%,transparent);color:${cssv(c)}">${svgIcon(ic)}</div></div>
         <div class="t-label">${l}</div><div class="t-value" style="color:${cssv(c)}">${fmt(v)}</div></div>`).join("")}
+    ${r.quitacao>0?`<div class="tile"><div class="card-top"><div class="chip" style="background:var(--card2);color:${cssv("--slate")}">${svgIcon("card")}</div></div>
+      <div class="t-label">Quitação de fatura</div>
+      <div class="t-value" style="color:${cssv("--slate")}">${fmt(r.quitacao)}</div>
+      <div class="cap" style="margin-top:6px">saiu da conta, mas <b>não é gasto deste mês</b> — as compras foram contadas na fatura</div></div>`:""}
     <div class="tile"><div class="card-top"><div class="chip green">${svgIcon("coins")}</div></div>
       <div class="t-label">Sobra realizada</div>
       <div class="t-value" style="color:${r.sobra>=0?cssv("--green"):cssv("--rose")}">${fmt(r.sobra)}</div>
@@ -3219,15 +3251,44 @@ function etapaMes(){
 /* Checklist dos gastos fixos declarados contra o que apareceu no extrato.
    Sem isto, "subi um extrato" e "o mês está completo" viram a mesma coisa. */
 function painelFixos(lancs){
-  const conc=conciliarFixos(lancs);
-  if(!conc.length) return `<div class="card"><div class="empty">Nenhum gasto fixo cadastrado para conferir.
+  const { porCategoria, soltos } = conciliarFixos(lancs);
+  if(!porCategoria.length && !soltos.length) return `<div class="card"><div class="empty">Nenhum gasto fixo cadastrado para conferir.
     Lance-os em <b>Clientes &rarr; Renda e gastos</b> — é contra eles que o extrato é cruzado.</div></div>`;
-  const achou=conc.filter(x=>x.achou), falta=conc.filter(x=>!x.achou);
-  const divergente=achou.filter(x=>x.alerta);
-  const totalPrev=conc.reduce((a,x)=>a+num(x.comp.valor),0);
-  const totalAchado=achou.reduce((a,x)=>a+Math.abs(num(x.lanc.valor)),0);
 
-  const linha=x=>{
+  const CORES={ ok:cssv("--green"), sobra:cssv("--amber"), falta:cssv("--amber"), nenhum:cssv("--rose") };
+  const previstoTotal = porCategoria.reduce((a,g)=>a+g.previsto,0) + soltos.reduce((a,x)=>a+num(x.comp.valor),0);
+  const realizadoTotal = porCategoria.reduce((a,g)=>a+g.realizado,0)
+                       + soltos.filter(x=>x.achou).reduce((a,x)=>a+Math.abs(num(x.lanc.valor)),0);
+  const okCount = porCategoria.filter(g=>g.status==="ok").length + soltos.filter(x=>x.achou&&!x.alerta).length;
+  const total = porCategoria.length + soltos.length;
+  const problemas = porCategoria.filter(g=>g.status!=="ok").length + soltos.filter(x=>!x.achou||x.alerta).length;
+
+  /* Um gasto fixo declarado quase nunca é UMA linha do extrato: "Assinaturas
+     R$ 207" é Apple + Claro + Google somados. Por isso a conferência é feita
+     pela soma da categoria, e não procurando o valor exato. */
+  const linhaCat=g=>{
+    const cor=CORES[g.status];
+    const rotulo = g.status==="nenhum" ? "nada classificado"
+                 : g.status==="ok"     ? "confere"
+                 : g.status==="sobra"  ? "+"+fmt(g.dif).replace("R$ ","R$ ")+" acima"
+                                       : fmt(Math.abs(g.dif))+" a menos";
+    const quais = g.lancs.length
+      ? g.lancs.slice(0,8).map(l=>esc(String(l.descricao||"").slice(0,26))+" "+fmt(Math.abs(num(l.valor))))
+          .join(" · ") + (g.lancs.length>8?` · +${g.lancs.length-8}`:"")
+      : "nenhum lançamento nesta categoria neste mês";
+    return `<div style="padding:10px 0;border-top:1px solid var(--border)">
+      <div class="rrow" style="padding:0">
+        <span class="rr-n"><span style="color:${cor}">●</span> <b>${esc(g.nome)}</b>
+          <span style="color:var(--muted);font-size:11px">· ${g.fixos.length} gasto(s) fixo(s) · ${g.lancs.length} lançamento(s)</span></span>
+        <span class="rr-v" style="color:${cor}">${fmt(g.realizado)} <span style="color:var(--muted);font-weight:600;font-size:11.5px">de ${fmt(g.previsto)}</span>
+          <span style="font-size:11px;margin-left:5px">${rotulo}</span></span>
+      </div>
+      <div class="cap" style="margin-top:3px">${quais}</div>
+      ${g.fixos.length>1?`<div class="cap" style="color:var(--muted)">soma de: ${g.fixos.map(c=>esc(c.descricao||"")+" "+fmt(num(c.valor))).join(" + ")}</div>`:""}
+    </div>`;
+  };
+
+  const linhaSolto=x=>{
     const prev=num(x.comp.valor);
     if(!x.achou) return `<div class="rrow">
       <span class="rr-n"><span style="color:${cssv("--rose")}">●</span> ${esc(x.comp.descricao||"gasto fixo")}
@@ -3241,19 +3302,34 @@ function painelFixos(lancs){
       <span class="rr-v" style="color:${cor}">${fmt(v)}${x.alerta?` <span style="font-size:11px">(previsto ${fmt(prev)})</span>`:""}</span></div>`;
   };
 
+  const semNada = porCategoria.filter(g=>g.status==="nenhum");
+  const faltando = porCategoria.filter(g=>g.status==="falta");
+  const sobrando = porCategoria.filter(g=>g.status==="sobra");
+  const naoAchados = soltos.filter(x=>!x.achou);
+
   return `<div class="card"><div class="card-h">
-      <div><div class="ct">Gastos fixos deste mês ${help("Cada gasto fixo que você cadastrou é procurado no extrato pelo nome, pelo valor e pelo dia do vencimento. O que não for encontrado provavelmente está num extrato que ainda não foi importado — ou não foi pago.")}</div>
-        <div class="cs">${achou.length} de ${conc.length} encontrados no extrato</div></div>
-      <div class="c-end"><div class="lbl">previsto no mês</div><div class="val">${fmt(totalPrev)}</div></div></div>
-    <div class="track" style="margin-bottom:12px"><div class="fill" style="width:${conc.length?Math.round(achou.length/conc.length*100):0}%;background:${cssv("--green")}"></div></div>
-    ${conc.map(linha).join("")}
-    ${falta.length?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:12px">
+      <div><div class="ct">Gastos fixos deste mês ${help("Cada gasto fixo cadastrado é conferido contra o que foi CLASSIFICADO na categoria dele — somando todos os lançamentos, porque um gasto fixo raramente é uma linha só do extrato. Gasto fixo sem categoria é procurado linha a linha, pelo nome e pelo valor.")}</div>
+        <div class="cs">${okCount} de ${total} conferem${problemas?` · ${problemas} para olhar`:""}</div></div>
+      <div class="c-end"><div class="lbl">classificado / previsto</div>
+        <div class="val" style="font-size:15px">${fmt(realizadoTotal)} <span style="color:var(--muted);font-size:12.5px">de ${fmt(previstoTotal)}</span></div></div></div>
+    <div class="track" style="margin-bottom:4px"><div class="fill" style="width:${total?Math.round(okCount/total*100):0}%;background:${cssv("--green")}"></div></div>
+
+    ${porCategoria.length?`<div class="eyebrow" style="margin-top:12px">Por categoria</div>${porCategoria.map(linhaCat).join("")}`:""}
+    ${soltos.length?`<div class="eyebrow" style="margin-top:14px">Sem categoria definida ${help("Estes gastos fixos não têm categoria no cadastro, então são procurados linha a linha no extrato. Defina a categoria deles em Clientes → Renda e gastos para a conferência ficar mais confiável.")}</div>${soltos.map(linhaSolto).join("")}`:""}
+
+    ${(semNada.length||naoAchados.length)?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:12px">
       <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
-      <div><b>${falta.length} gasto(s) fixo(s) não apareceram</b> (${fmt(falta.reduce((a,x)=>a+num(x.comp.valor),0))}).
-        Quase sempre é <b>extrato de outra conta que ainda não foi importado</b> — se ele é pago em outro banco ou no cartão, suba aquele arquivo também.
-        Se realmente não foi pago, vale conferir com o cliente.</div></div>`:""}
-    ${divergente.length?`<div class="cap" style="margin-top:8px">${divergente.length} gasto(s) vieram com valor diferente do cadastrado — vale atualizar o cadastro se a mudança for permanente.</div>`:""}
-    ${achou.length?`<div class="cap" style="margin-top:6px">Encontrado no extrato: ${fmt(totalAchado)} de ${fmt(totalPrev)} previstos.</div>`:""}
+      <div><b>${semNada.length+naoAchados.length} gasto(s) fixo(s) sem nada correspondente</b>
+        (${fmt(semNada.reduce((a,g)=>a+g.previsto,0)+naoAchados.reduce((a,x)=>a+num(x.comp.valor),0))}):
+        ${esc(semNada.map(g=>g.nome).concat(naoAchados.map(x=>x.comp.descricao||"")).join(", "))}.
+        Ou o extrato daquela conta ainda não foi importado, ou os lançamentos ainda não foram classificados nessa categoria.</div></div>`:""}
+
+    ${faltando.length?`<div class="cap" style="margin-top:8px"><b style="color:${cssv("--amber")}">Falta classificar:</b>
+      ${faltando.map(g=>esc(g.nome)+" ("+fmt(Math.abs(g.dif))+" a menos)").join(" · ")} —
+      provavelmente há lançamentos desta categoria ainda sem classificação, ou o extrato da conta que os paga não subiu.</div>`:""}
+    ${sobrando.length?`<div class="cap" style="margin-top:6px"><b style="color:${cssv("--amber")}">Passou do previsto:</b>
+      ${sobrando.map(g=>esc(g.nome)+" (+"+fmt(g.dif)+")").join(" · ")} —
+      ou entrou algo que não é fixo nessa categoria, ou o valor cadastrado está desatualizado.</div>`:""}
   </div>`;
 }
 
@@ -3733,13 +3809,14 @@ async function gravarImportacao(continuarDepois){
 /* ================= PÁGINA: CLIENTES (consultor) ================= */
 let abaCliente="respostas", respostasData=[], respostaAberta=null;
 const CATS_PADRAO=[
-  ["Moradia","Despesa","Fixa"],["Alimentação","Despesa","Variavel"],["Transporte","Despesa","Variavel"],
-  ["Saúde","Despesa","Ambas"],["Educação","Despesa","Ambas"],["Lazer","Despesa","Variavel"],
-  ["Vestuário","Despesa","Variavel"],["Barbeiro","Despesa","Variavel"],["Veículo","Despesa","Variavel"],
-  ["Estacionamento","Despesa","Variavel"],["Quitação de fatura","Despesa","Fixa"],
+  ["Moradia","Despesa","Fixa"],["Alimentação","Despesa","Variavel"],["Combustível","Despesa","Variavel"],
+  ["Educação","Despesa","Ambas"],["Lazer","Despesa","Variavel"],
+  ["Barbeiro","Despesa","Variavel"],["Veículo","Despesa","Variavel"],
+  ["Estacionamento","Despesa","Variavel"],["Investimento","Despesa","Variavel"],
+  ["Quitação de fatura","Despesa","Fixa"],
   ["Crisma","Despesa","Variavel"],["Estorno","Despesa","Ambas"],
   ["Assinaturas","Despesa","Fixa"],["Dívidas","Despesa","Fixa"],
-  ["Impostos e tarifas","Despesa","Ambas"],["Outros gastos","Despesa","Variavel"],
+  ["Outros gastos","Despesa","Variavel"],
   ["Salário","Receita","Fixa"],["Renda extra","Receita","Variavel"],["Estorno","Receita","Ambas"],["Rendimentos","Receita","Variavel"],["Transferência","Receita","Ambas"],
 ];
 function setAbaCliente(a){ abaCliente=a; cliEditando=null; cliExcluindo=null; renderClientes(); }
@@ -4141,8 +4218,7 @@ async function gravarFinancasDaResposta(R, cliId, perId){
   /* liga cada gasto do formulário a uma categoria pelo texto */
   const adivinhar=t=>{ const s=normalizarDesc(t);
     if(/MORADIA|ALUGUEL|CASA|CONDOMIN|LUZ|AGUA|GAS|INTERNET/.test(s)) return catId("Moradia");
-    if(/SAUDE|PLANO|REMEDIO|FARMAC/.test(s)) return catId("Saúde");
-    if(/TRANSPORTE|CARRO|COMBUST|UBER|ONIBUS/.test(s)) return catId("Transporte");
+    if(/TRANSPORTE|CARRO|COMBUST|POSTO|UBER|ONIBUS/.test(s)) return catId("Combustível");
     if(/EDUCA|ESCOLA|FACULD|CURSO/.test(s)) return catId("Educação");
     if(/ASSINAT|STREAMING|ACADEMIA|APP/.test(s)) return catId("Assinaturas");
     if(/ALIMENT|MERCADO|SUPERMERC/.test(s)) return catId("Alimentação");
