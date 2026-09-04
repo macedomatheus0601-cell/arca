@@ -1164,8 +1164,18 @@ function trajetoriaMetas(n=24, extra=0){
   const s=metas.map(m=>{ const ini=Math.min(m.atual,m.alvo), falta=Math.max(0,m.alvo-m.atual);
     return { id:m.id, nome:m.nome, cor:m.cor, ic:m.ic, alvo:m.alvo, atual:m.atual,
              inicio:ini, saldo:ini, falta, mes:falta<=0.01?0:null, pontos:[ini] }; });
+  /* mesma regra do planoAlocacao: a dívida cara vem antes das metas, senão o
+     gráfico prometeria um dinheiro que na verdade está pagando juro */
+  const dv=saldoDividaCara();
+  let devendo=dv?dv.saldo:0, mesQuitou=null;
   for(let i=1;i<=H;i++){
     let disp=Math.max(0, proj[i]?proj[i].sobra:0);
+    if(dv&&devendo>0){
+      devendo*=(1+dv.taxa);
+      const paga=Math.min(disp,devendo);
+      devendo-=paga; disp-=paga;
+      if(devendo<=0.01&&mesQuitou===null) mesQuitou=i;
+    }
     for(const it of s){
       if(it.falta>0.01 && disp>0){
         const usa=Math.min(disp,it.falta);
@@ -1175,6 +1185,7 @@ function trajetoriaMetas(n=24, extra=0){
       if(i<=n) it.pontos.push(it.saldo);
     }
   }
+  s.dividaAntes = dv ? { nome:dv.nome, mes:mesQuitou } : null;
   return s;
 }
 /* Uma linha por meta, cada uma com seu próprio alvo. Começa no zero porque
@@ -1207,12 +1218,31 @@ function metasChart(series, n){
       series.map(sr=>tipLinha(sr.cor, sr.nome,
         fmt(sr.pontos[i]) + (sr.pontos[i]>=sr.alvo-0.01?" ✓":" de "+fmtK(sr.alvo)))).join("") };
 }
+/* ---- a sobra vai primeiro para a dívida cara ----
+   O cartão de foco diz "quite o rotativo antes de investir" — e a projeção
+   mostrava as metas sendo financiadas normalmente, como se a dívida a 289% ao
+   ano não existisse. As duas telas discordavam. Aqui elas passam a concordar:
+   enquanto houver dívida mais cara que qualquer aplicação, a sobra vai para
+   ela, e as metas começam depois. É também o que é matematicamente certo. */
+function saldoDividaCara(){
+  const d=dividaCara();
+  if(!d) return null;
+  return { saldo:num(d.saldo_devedor), taxa:num(d.taxa_juros_mensal), nome:d.descricao||"dívida" };
+}
 function planoAlocacao(extra=0, horizonte=120){
   const itens=metas.map(m=>({nome:m.nome,cor:m.cor,ic:m.ic,falta:Math.max(0,m.alvo-m.atual),mes:null}));
   const proj=projetar(horizonte,extra);
+  const dv=saldoDividaCara();
+  let devendo=dv?dv.saldo:0;
   for(let i=1;i<=horizonte;i++){
     let disp=proj[i]?proj[i].sobra:0;
-    if(disp<=0) continue;
+    if(disp<=0){ if(dv&&devendo>0) devendo*=(1+dv.taxa); continue; }
+    if(dv&&devendo>0){
+      devendo*=(1+dv.taxa);              /* a dívida cresce antes do pagamento do mês */
+      const paga=Math.min(disp,devendo);
+      devendo-=paga; disp-=paga;
+      if(disp<=0) continue;              /* o mês inteiro foi para a dívida */
+    }
     for(const it of itens){
       if(it.mes!==null||it.falta<=0) continue;
       if(disp<=0) break;
@@ -1662,6 +1692,13 @@ function renderInicio(){
         <span><span class="ln" style="background:repeating-linear-gradient(90deg,var(--muted) 0 5px,transparent 5px 11px)"></span> alvo de cada meta</span>
         <span style="color:var(--muted)">passe o mouse para ver mês a mês</span></div>
       <div class="chart-host" id="hIni">${ch.svg}</div>
+      ${traj.dividaAntes?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:12px">
+        <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
+        <div><b>As metas começam depois de quitar ${esc(String(traj.dividaAntes.nome).toLowerCase())}.</b>
+          ${traj.dividaAntes.mes!==null
+            ? `A sobra vai toda para ela até ${labelMes(traj.dividaAntes.mes)}; depois disso passa a alimentar as metas.`
+            : `No ritmo atual a sobra não dá conta nem dos juros — as metas não saem do lugar enquanto essa dívida existir.`}
+          Enquanto ela custa mais do que qualquer aplicação rende, guardar antes de quitar é perder dinheiro.</div></div>`:""}
       <div class="cap">Cada meta parte do que já foi guardado <b>nela</b>, não do seu saldo total.
         A <b>reserva de emergência não entra</b>: ela existe para cobrir imprevistos, e usá-la numa meta te deixaria descoberto.
         Atualize o quanto já guardou em cada meta na aba <b>Metas</b>.</div></div>`
@@ -1872,7 +1909,7 @@ function renderMetas(){
       </div></div></div>`;
 
   const linha=`<div class="eyebrow">Quando cada meta é alcançada</div>
-    <div class="card"><div class="card-h"><div><div class="ct">Linha do tempo ${help(T.linhaTempo)}</div><div class="cs">no ritmo atual de ${fmt(F.sobra)}/mês, seguindo a ordem de prioridade</div></div></div>
+    <div class="card"><div class="card-h"><div><div class="ct">Linha do tempo ${help(T.linhaTempo)}</div><div class="cs">no ritmo atual de ${fmt(F.sobra)}/mês, seguindo a ordem de prioridade${dividaCara()?" — e só depois de quitar a dívida cara":""}</div></div></div>
       <div class="legend"><span><span class="sw" style="background:${cssv("--card2")};border:1px solid ${cssv("--border-strong")}"></span> caminho até a meta</span><span><span class="sw" style="background:${cssv("--brand")}"></span> tempo até ser alcançada</span></div>
       ${timelineSvg(plano)}</div>`;
 
@@ -3521,11 +3558,21 @@ async function mudarEstadoMes(novo){
     if(novo==="fechado") reg.fechado_em=agora;
     const { error }=await sb.from("fechamentos_mensais").upsert(reg,{onConflict:"conta_id,mes_referencia"});
     if(error){ dizer("Erro em "+rotuloConta(c)+": "+error.message,"err"); return; }
-    /* o saldo final vira o inicial do mês seguinte */
+    /* O saldo final vira o inicial do mês seguinte. Só que o mês seguinte pode
+       JÁ existir e já ter sido enviado ou fechado — mandar status:"aberto" às
+       cegas reabriria um mês fechado sem ninguém pedir. */
     if(novo==="fechado"&&f&&f.saldo_final!=null){
-      await sb.from("fechamentos_mensais").upsert({
-        cliente_id:perfilData.cliente_id, conta_id:c.id, mes_referencia:dia1(mesSeguinte(mesAtivo)),
-        saldo_inicial:f.saldo_final, status:"aberto" },{onConflict:"conta_id,mes_referencia",ignoreDuplicates:false});
+      const prox=dia1(mesSeguinte(mesAtivo));
+      const { data:jaExiste }=await sb.from("fechamentos_mensais")
+        .select("id,status").eq("conta_id",c.id).eq("mes_referencia",prox).limit(1);
+      const linha=(jaExiste||[])[0];
+      if(linha){
+        await sb.from("fechamentos_mensais").update({ saldo_inicial:f.saldo_final }).eq("id",linha.id);
+      } else {
+        await sb.from("fechamentos_mensais").insert({
+          cliente_id:perfilData.cliente_id, conta_id:c.id, mes_referencia:prox,
+          saldo_inicial:f.saldo_final, status:"aberto" });
+      }
     }
   }
   await carregarMes();
