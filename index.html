@@ -429,6 +429,20 @@
              color:var(--text2); font-size:12.5px; font-weight:650; padding:0 13px; }
   .btn-sec:hover { border-color:var(--brand); color:var(--brand); }
   .btn-del { color:var(--rose); border-color:color-mix(in srgb,var(--rose) 30%,transparent); }
+  .fx-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:11px; }
+  .fx-card { background:var(--card2); border:1px solid var(--border); border-radius:14px; padding:13px 14px;
+             cursor:pointer; transition:border-color .15s, box-shadow .15s; }
+  .fx-card:hover { border-color:var(--border-strong); }
+  .fx-card.open { background:var(--card); border-color:var(--brand); box-shadow:0 0 0 2px color-mix(in srgb,var(--brand) 14%,transparent); }
+  .fx-top { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  .fx-nome { font-size:13.5px; font-weight:730; display:flex; align-items:center; gap:6px; }
+  .fx-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .fx-val { font-size:15px; font-weight:780; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .fx-sub { font-size:11px; color:var(--muted); margin-top:2px; }
+  .fx-bar { height:6px; border-radius:99px; background:var(--ro-bg); margin-top:9px; overflow:hidden; position:relative; }
+  .fx-fill { height:100%; border-radius:99px; }
+  .fx-tag { font-size:10.5px; font-weight:750; padding:2px 7px; border-radius:99px; white-space:nowrap; }
+  .fx-det { margin-top:11px; padding-top:10px; border-top:1px solid var(--border); cursor:default; }
   .cli-acts { display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
   .cli-card.arq { opacity:.62; }
   .cli-edit { display:flex; gap:8px; align-items:center; flex:1; min-width:0; flex-wrap:wrap; }
@@ -2239,6 +2253,7 @@ let impEtapa="mes", impLinhas=[], impArquivo=null, impConta=null, impCol="primei
 const mesHoje = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
 let mesAtivo=mesHoje(), lancData=[], fechData=[], lancFiltro="todos";
 let regrasData=[], aprendidasAgora=0, generalizadasAgora=[], novaCatAberta=false;
+let fixoAberto=null, filtroCat="";   /* categoria expandida no painel · filtro da aba Classificar */
 /* histórico curto usado pelo motor: o REALIZADO dos meses já fechados é a melhor
    fonte de gasto variável que existe — melhor que qualquer valor declarado. */
 let histLancs=[], histFech=[];
@@ -2923,9 +2938,17 @@ function renderExtratos(){
 function etapaClassificar(){
   const neutro=l=>l.eh_transferencia||l.eh_estorno||l.eh_pagamento_fatura;
   const pend=lancData.filter(l=>!l.categoria_id&&!neutro(l));
-  const lista = lancFiltro==="pendentes" ? pend
-              : lancFiltro==="neutros"   ? lancData.filter(neutro)
-              : lancData;
+  const feitos=lancData.filter(l=>l.categoria_id&&!neutro(l));
+  let lista = lancFiltro==="pendentes" ? pend
+            : lancFiltro==="feitos"    ? feitos
+            : lancFiltro==="neutros"   ? lancData.filter(neutro)
+            : lancData;
+  /* conferir o que já foi classificado é tão importante quanto classificar:
+     é aqui que se pega a regra que aprendeu errado */
+  if(filtroCat) lista=lista.filter(l=>l.categoria_id===filtroCat);
+  const usadas=[...new Set(lancData.filter(l=>l.categoria_id).map(l=>l.categoria_id))]
+    .map(id=>catsData.find(k=>k.id===id)).filter(Boolean)
+    .sort((a,b)=>String(a.nome).localeCompare(String(b.nome),"pt-BR"));
   const nomeConta=id=>{ const c=contasData.find(x=>x.id===id); return c?rotuloConta(c):"conta"; };
 
   if(!lancData.length) return `<div class="card"><div class="state"><div class="big">📄</div>
@@ -2963,10 +2986,18 @@ function etapaClassificar(){
       ${seletorMes()}</div>
     ${pend.length?`<div class="track" style="margin-bottom:12px"><div class="fill" style="width:${Math.round((lancData.length-pend.length)/lancData.length*100)}%;background:${cssv("--green")}"></div></div>`:""}
     <div class="sub-tabs" style="margin:0 0 12px">
-      ${[["pendentes","Falta classificar ("+pend.length+")"],["todos","Todos ("+lancData.length+")"],
-         ["neutros","Não contam ("+lancData.filter(neutro).length+")"]]
+      ${[["pendentes","Falta classificar ("+pend.length+")"],["feitos","Já classificados ("+feitos.length+")"],
+         ["todos","Todos ("+lancData.length+")"],["neutros","Não contam ("+lancData.filter(neutro).length+")"]]
         .map(t=>`<button class="sub-tab ${lancFiltro===t[0]?"active":""}" onclick="lancFiltro='${t[0]}';renderExtratos()">${t[1]}</button>`).join("")}
     </div>
+    ${usadas.length?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+      <span class="cap">Ver só a categoria:</span>
+      <select class="cli-sel" style="height:34px;max-width:230px" onchange="filtroCat=this.value;renderExtratos()">
+        <option value="">Todas as categorias</option>
+        ${usadas.map(k=>`<option value="${k.id}" ${k.id===filtroCat?"selected":""}>${esc(k.nome)} (${lancData.filter(l=>l.categoria_id===k.id).length})</option>`).join("")}
+      </select>
+      ${filtroCat?`<button class="btn-sec" style="height:34px" onclick="filtroCat='';renderExtratos()">limpar</button>`:""}
+    </div>`:""}
     ${lista.length?lista.slice(0,300).map(linha).join(""):`<div class="empty">Nada nesta lista.</div>`}
     ${lista.length>300?`<div class="cap">Mostrando os 300 primeiros de ${lista.length}.</div>`:""}
     ${formCategoria()}
@@ -3238,7 +3269,19 @@ function etapaMes(){
         <button class="btn-p" onclick="mudarEstadoMes('enviado')" ${(!podeEnviar||offline)?"disabled":""}>Enviar para o consultor</button>
       </div><div id="mesMsg" class="msg"></div>`;
 
-  return `${cabecMes(est)}${tiles}
+  /* Pagamento de fatura que ficou contando como gasto: acontece quando o
+     extrato foi importado antes de a conta de cartão existir. Em vez de
+     corrigir escondido, mostra e deixa o consultor decidir. */
+  const quitPerdidas=lancData.filter(l=>num(l.valor)<0 && !l.eh_pagamento_fatura && !l.eh_transferencia
+                                     && ehPagamentoFatura(l.descricao));
+  const avisoQuit = quitPerdidas.length ? `<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin:14px 0">
+      <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
+      <div><b>${quitPerdidas.length} pagamento(s) de fatura contando como gasto</b>
+        (${fmt(quitPerdidas.reduce((a,l)=>a+Math.abs(num(l.valor)),0))}).
+        As compras já foram contadas dentro da fatura — deixar assim conta o cartão duas vezes no mês.
+        <div style="margin-top:8px"><button class="btn-p" style="height:34px" onclick="marcarQuitacoes()" ${offline?"disabled":""}>Tirar do gasto do mês</button></div></div></div>` : "";
+
+  return `${cabecMes(est)}${tiles}${avisoQuit}
     ${r.pendentes?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin:14px 0">
       <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
       <div>${r.pendentes} lançamento(s) sem categoria — eles entram no total, mas ficam fora da análise por categoria.</div></div>`:""}
@@ -3256,82 +3299,109 @@ function painelFixos(lancs){
     Lance-os em <b>Clientes &rarr; Renda e gastos</b> — é contra eles que o extrato é cruzado.</div></div>`;
 
   const CORES={ ok:cssv("--green"), sobra:cssv("--amber"), falta:cssv("--amber"), nenhum:cssv("--rose") };
+  const ROTULO={ ok:"confere", sobra:"acima do previsto", falta:"falta aparecer", nenhum:"nada classificado" };
   const previstoTotal = porCategoria.reduce((a,g)=>a+g.previsto,0) + soltos.reduce((a,x)=>a+num(x.comp.valor),0);
   const realizadoTotal = porCategoria.reduce((a,g)=>a+g.realizado,0)
                        + soltos.filter(x=>x.achou).reduce((a,x)=>a+Math.abs(num(x.lanc.valor)),0);
   const okCount = porCategoria.filter(g=>g.status==="ok").length + soltos.filter(x=>x.achou&&!x.alerta).length;
   const total = porCategoria.length + soltos.length;
-  const problemas = porCategoria.filter(g=>g.status!=="ok").length + soltos.filter(x=>!x.achou||x.alerta).length;
 
-  /* Um gasto fixo declarado quase nunca é UMA linha do extrato: "Assinaturas
-     R$ 207" é Apple + Claro + Google somados. Por isso a conferência é feita
-     pela soma da categoria, e não procurando o valor exato. */
-  const linhaCat=g=>{
-    const cor=CORES[g.status];
-    const rotulo = g.status==="nenhum" ? "nada classificado"
-                 : g.status==="ok"     ? "confere"
-                 : g.status==="sobra"  ? "+"+fmt(g.dif).replace("R$ ","R$ ")+" acima"
-                                       : fmt(Math.abs(g.dif))+" a menos";
-    const quais = g.lancs.length
-      ? g.lancs.slice(0,8).map(l=>esc(String(l.descricao||"").slice(0,26))+" "+fmt(Math.abs(num(l.valor))))
-          .join(" · ") + (g.lancs.length>8?` · +${g.lancs.length-8}`:"")
-      : "nenhum lançamento nesta categoria neste mês";
-    return `<div style="padding:10px 0;border-top:1px solid var(--border)">
-      <div class="rrow" style="padding:0">
-        <span class="rr-n"><span style="color:${cor}">●</span> <b>${esc(g.nome)}</b>
-          <span style="color:var(--muted);font-size:11px">· ${g.fixos.length} gasto(s) fixo(s) · ${g.lancs.length} lançamento(s)</span></span>
-        <span class="rr-v" style="color:${cor}">${fmt(g.realizado)} <span style="color:var(--muted);font-weight:600;font-size:11.5px">de ${fmt(g.previsto)}</span>
-          <span style="font-size:11px;margin-left:5px">${rotulo}</span></span>
+  /* Cada categoria é um cartão: clicar abre os lançamentos que a compõem e
+     permite mover qualquer um para outra categoria ali mesmo — é olhando a
+     lista que se percebe o que entrou no lugar errado. */
+  const cardCat=g=>{
+    const cor=CORES[g.status], aberto=fixoAberto===g.catId;
+    const pct=g.previsto>0?Math.min(140,Math.round(g.realizado/g.previsto*100)):0;
+    return `<div class="fx-card ${aberto?"open":""}" onclick="abrirFixo('${g.catId}')">
+      <div class="fx-top">
+        <div class="fx-nome"><span class="fx-dot" style="background:${cor}"></span>${esc(g.nome)}</div>
+        <div class="fx-val" style="color:${cor}">${fmt(g.realizado)}</div>
       </div>
-      <div class="cap" style="margin-top:3px">${quais}</div>
-      ${g.fixos.length>1?`<div class="cap" style="color:var(--muted)">soma de: ${g.fixos.map(c=>esc(c.descricao||"")+" "+fmt(num(c.valor))).join(" + ")}</div>`:""}
+      <div class="fx-top" style="margin-top:1px">
+        <div class="fx-sub">${g.fixos.length} fixo(s) · ${g.lancs.length} lançamento(s)</div>
+        <div class="fx-sub">de ${fmt(g.previsto)}</div>
+      </div>
+      <div class="fx-bar"><div class="fx-fill" style="width:${Math.min(100,pct)}%;background:${cor}"></div></div>
+      <div class="fx-top" style="margin-top:7px">
+        <span class="fx-tag" style="background:color-mix(in srgb,${cor} 15%,transparent);color:${cor}">
+          ${ROTULO[g.status]}${g.status==="sobra"?" +"+fmt(g.dif):g.status==="falta"?" "+fmt(Math.abs(g.dif)):""}</span>
+        <span class="fx-sub">${aberto?"▴ fechar":"▾ ver lançamentos"}</span>
+      </div>
+      ${aberto?`<div class="fx-det" onclick="event.stopPropagation()">
+        ${g.fixos.length>1?`<div class="cap" style="margin-bottom:8px">Previsto = ${g.fixos.map(c=>esc(c.descricao||"")+" "+fmt(num(c.valor))).join(" + ")}</div>`:""}
+        ${g.lancs.length? g.lancs.map(l=>linhaEditavel(l)).join("")
+          : `<div class="empty" style="padding:10px">Nenhum lançamento nesta categoria neste mês.
+             ${g.status==="nenhum"?"O extrato da conta que paga isto pode não ter subido, ou os lançamentos ainda não foram classificados aqui.":""}</div>`}
+      </div>`:""}
     </div>`;
   };
 
-  const linhaSolto=x=>{
+  /* linha compacta, com o dropdown para corrigir sem sair da tela */
+  const linhaEditavel=l=>`<div class="rev-row" style="padding:7px 0;flex-wrap:wrap">
+      <div class="rev-b" style="min-width:150px">
+        <div class="rev-n">${esc(l.descricao||"")}</div>
+        <div class="rev-s">${dataBR(l.data)}${l.observacao?" · "+esc(l.observacao):""}</div>
+      </div>
+      <div class="rev-v neg">${fmt(num(l.valor))}</div>
+      <select onchange="salvarCategoriaLanc('${l.id}',this.value)" ${offline?"disabled":""}>
+        <option value="">Sem categoria</option>
+        ${catsData.filter(k=>k.tipo==="Despesa").map(k=>`<option value="${k.id}" ${k.id===l.categoria_id?"selected":""}>${esc(k.nome)}</option>`).join("")}
+      </select>
+    </div>`;
+
+  const cardSolto=x=>{
     const prev=num(x.comp.valor);
-    if(!x.achou) return `<div class="rrow">
-      <span class="rr-n"><span style="color:${cssv("--rose")}">●</span> ${esc(x.comp.descricao||"gasto fixo")}
-        ${x.comp.dia_vencimento?`<span style="color:var(--muted);font-size:11px">· vence dia ${x.comp.dia_vencimento}</span>`:""}</span>
-      <span class="rr-v" style="color:${cssv("--rose")}">${fmt(prev)} · não encontrado</span></div>`;
-    const v=Math.abs(num(x.lanc.valor));
-    const cor=x.alerta?cssv("--amber"):cssv("--green");
-    return `<div class="rrow">
-      <span class="rr-n"><span style="color:${cor}">●</span> ${esc(x.comp.descricao||"gasto fixo")}
-        <span style="color:var(--muted);font-size:11px">· ${esc(String(x.lanc.descricao||x.lanc.desc||"").slice(0,38))} em ${dataBR(x.lanc.data)}</span></span>
-      <span class="rr-v" style="color:${cor}">${fmt(v)}${x.alerta?` <span style="font-size:11px">(previsto ${fmt(prev)})</span>`:""}</span></div>`;
+    const cor = !x.achou ? CORES.nenhum : x.alerta ? CORES.sobra : CORES.ok;
+    const v = x.achou ? Math.abs(num(x.lanc.valor)) : 0;
+    return `<div class="fx-card" style="cursor:default">
+      <div class="fx-top">
+        <div class="fx-nome"><span class="fx-dot" style="background:${cor}"></span>${esc(x.comp.descricao||"gasto fixo")}</div>
+        <div class="fx-val" style="color:${cor}">${x.achou?fmt(v):"—"}</div>
+      </div>
+      <div class="fx-top" style="margin-top:1px">
+        <div class="fx-sub">${x.achou?esc(String(x.lanc.descricao||"").slice(0,30))+" · "+dataBR(x.lanc.data):"sem categoria no cadastro"}</div>
+        <div class="fx-sub">de ${fmt(prev)}</div>
+      </div>
+      <div class="fx-bar"><div class="fx-fill" style="width:${prev>0?Math.min(100,Math.round(v/prev*100)):0}%;background:${cor}"></div></div>
+      <div style="margin-top:7px"><span class="fx-tag" style="background:color-mix(in srgb,${cor} 15%,transparent);color:${cor}">
+        ${x.achou?(x.alerta?"valor diferente":"confere"):"não encontrado"}</span></div>
+    </div>`;
   };
 
   const semNada = porCategoria.filter(g=>g.status==="nenhum");
   const faltando = porCategoria.filter(g=>g.status==="falta");
   const sobrando = porCategoria.filter(g=>g.status==="sobra");
   const naoAchados = soltos.filter(x=>!x.achou);
+  const pctGeral = previstoTotal>0?Math.min(100,Math.round(realizadoTotal/previstoTotal*100)):0;
 
   return `<div class="card"><div class="card-h">
-      <div><div class="ct">Gastos fixos deste mês ${help("Cada gasto fixo cadastrado é conferido contra o que foi CLASSIFICADO na categoria dele — somando todos os lançamentos, porque um gasto fixo raramente é uma linha só do extrato. Gasto fixo sem categoria é procurado linha a linha, pelo nome e pelo valor.")}</div>
-        <div class="cs">${okCount} de ${total} conferem${problemas?` · ${problemas} para olhar`:""}</div></div>
+      <div><div class="ct">Gastos fixos deste mês ${help("Cada gasto fixo é conferido contra a SOMA de tudo que foi classificado na categoria dele — um gasto fixo raramente é uma linha só do extrato. Clique num cartão para ver e corrigir os lançamentos que o compõem.")}</div>
+        <div class="cs">${okCount} de ${total} conferem · clique num cartão para ver o que entrou</div></div>
       <div class="c-end"><div class="lbl">classificado / previsto</div>
         <div class="val" style="font-size:15px">${fmt(realizadoTotal)} <span style="color:var(--muted);font-size:12.5px">de ${fmt(previstoTotal)}</span></div></div></div>
-    <div class="track" style="margin-bottom:4px"><div class="fill" style="width:${total?Math.round(okCount/total*100):0}%;background:${cssv("--green")}"></div></div>
+    <div class="track" style="margin-bottom:14px"><div class="fill" style="width:${pctGeral}%;background:${cssv("--brand")}"></div></div>
 
-    ${porCategoria.length?`<div class="eyebrow" style="margin-top:12px">Por categoria</div>${porCategoria.map(linhaCat).join("")}`:""}
-    ${soltos.length?`<div class="eyebrow" style="margin-top:14px">Sem categoria definida ${help("Estes gastos fixos não têm categoria no cadastro, então são procurados linha a linha no extrato. Defina a categoria deles em Clientes → Renda e gastos para a conferência ficar mais confiável.")}</div>${soltos.map(linhaSolto).join("")}`:""}
+    ${porCategoria.length?`<div class="fx-grid">${porCategoria.map(cardCat).join("")}</div>`:""}
 
-    ${(semNada.length||naoAchados.length)?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:12px">
+    ${soltos.length?`<div class="eyebrow" style="margin-top:16px">Sem categoria no cadastro ${help("Estes gastos fixos não têm categoria definida, então são procurados linha a linha pelo nome e pelo valor. Defina a categoria deles em Clientes → Renda e gastos para a conferência somar direito.")}</div>
+      <div class="fx-grid">${soltos.map(cardSolto).join("")}</div>`:""}
+
+    ${(semNada.length||naoAchados.length)?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:14px">
       <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
       <div><b>${semNada.length+naoAchados.length} gasto(s) fixo(s) sem nada correspondente</b>
         (${fmt(semNada.reduce((a,g)=>a+g.previsto,0)+naoAchados.reduce((a,x)=>a+num(x.comp.valor),0))}):
         ${esc(semNada.map(g=>g.nome).concat(naoAchados.map(x=>x.comp.descricao||"")).join(", "))}.
-        Ou o extrato daquela conta ainda não foi importado, ou os lançamentos ainda não foram classificados nessa categoria.</div></div>`:""}
+        Ou o extrato daquela conta não subiu, ou os lançamentos ainda não foram classificados nessa categoria.</div></div>`:""}
 
-    ${faltando.length?`<div class="cap" style="margin-top:8px"><b style="color:${cssv("--amber")}">Falta classificar:</b>
-      ${faltando.map(g=>esc(g.nome)+" ("+fmt(Math.abs(g.dif))+" a menos)").join(" · ")} —
-      provavelmente há lançamentos desta categoria ainda sem classificação, ou o extrato da conta que os paga não subiu.</div>`:""}
-    ${sobrando.length?`<div class="cap" style="margin-top:6px"><b style="color:${cssv("--amber")}">Passou do previsto:</b>
+    ${faltando.length?`<div class="cap" style="margin-top:10px"><b style="color:${cssv("--amber")}">Falta aparecer:</b>
+      ${faltando.map(g=>esc(g.nome)+" ("+fmt(Math.abs(g.dif))+")").join(" · ")} —
+      abra o cartão para ver o que já entrou e o que está faltando.</div>`:""}
+    ${sobrando.length?`<div class="cap" style="margin-top:6px"><b style="color:${cssv("--amber")}">Acima do previsto:</b>
       ${sobrando.map(g=>esc(g.nome)+" (+"+fmt(g.dif)+")").join(" · ")} —
-      ou entrou algo que não é fixo nessa categoria, ou o valor cadastrado está desatualizado.</div>`:""}
+      ou entrou algo que não é fixo, ou o valor cadastrado está desatualizado.</div>`:""}
   </div>`;
 }
+function abrirFixo(catId){ fixoAberto = fixoAberto===catId ? null : catId; renderExtratos(); }
 
 function cabecMes(est){
   const cor = est==="fechado"?cssv("--green") : est==="aberto"?cssv("--muted") : cssv("--amber");
@@ -3341,6 +3411,18 @@ function cabecMes(est){
     ${seletorMes()}</div></div>`;
 }
 
+/* Marca de uma vez os pagamentos de fatura que ficaram contando como gasto. */
+async function marcarQuitacoes(){
+  if(offline||!navigator.onLine){ alert("Sem internet."); return; }
+  const alvo=lancData.filter(l=>num(l.valor)<0 && !l.eh_pagamento_fatura && !l.eh_transferencia
+                             && ehPagamentoFatura(l.descricao));
+  if(!alvo.length) return;
+  const { error }=await sb.from("lancamentos")
+    .update({ eh_pagamento_fatura:true }).in("id", alvo.map(l=>l.id));
+  if(error){ alert("Não consegui alterar: "+error.message); return; }
+  alvo.forEach(l=>{ l.eh_pagamento_fatura=true; });
+  renderExtratos();
+}
 async function salvarFechamento(contaId){
   if(offline||!navigator.onLine){ alert("Sem internet."); return; }
   const v=id=>{ const el=document.getElementById(id); return el?numOuNulo(el.value):null; };
