@@ -4667,18 +4667,32 @@ async function vincularLogin(ev){
 }
 function abaFinancas(){
   const rec=compsData.filter(c=>c.tipo==="receita"), des=compsData.filter(c=>c.tipo==="despesa");
-  const linha=c=>`<div class="ap-row">
+  /* A categoria de cada gasto fixo é o que liga o cadastro ao extrato: é por
+     ela que o painel "Gastos fixos do mês" soma os lançamentos. Sem mostrar e
+     deixar corrigir aqui, o mapeamento fica invisível e nunca fecha. */
+  const semCat=des.filter(c=>!c.categoria_id).length;
+  const linha=c=>`<div class="ap-row" style="flex-wrap:wrap">
       <div class="ap-ic" style="background:color-mix(in srgb, ${c.tipo==="receita"?cssv("--green"):cssv("--rose")} 15%, transparent);color:${c.tipo==="receita"?cssv("--green"):cssv("--rose")}">${svgIcon(c.tipo==="receita"?"trend":"card")}</div>
-      <div class="ap-b"><div class="ap-n">${esc(c.descricao||"")} ${c.eh_divida?'<span class="badge r" style="font-size:9.5px">dívida</span>':""}${c.essencial===false?'<span class="badge n" style="font-size:9.5px">supérfluo</span>':""}</div>
-        <div class="ap-s">${c.dia_vencimento?"todo dia "+c.dia_vencimento:""}${c.total_parcelas?" · "+(c.parcela_atual||0)+"/"+c.total_parcelas+"x":""}</div></div>
+      <div class="ap-b"><div class="ap-n">${esc(c.descricao||"")} ${c.eh_divida?'<span class="badge r" style="font-size:9.5px">dívida</span>':""}${c.essencial===false?'<span class="badge n" style="font-size:9.5px">supérfluo</span>':""}${(!c.categoria_id&&c.tipo==="despesa")?'<span class="badge y" style="font-size:9.5px">sem categoria</span>':""}</div>
+        <div class="ap-s">${c.dia_vencimento?"todo dia "+c.dia_vencimento:"sem dia fixo"}${c.total_parcelas?" · "+(c.parcela_atual||0)+"/"+c.total_parcelas+"x":""}</div></div>
       <div class="ap-v">${fmt(num(c.valor))}</div>
+      <select class="cli-sel" style="height:32px;font-size:12px;max-width:190px"
+              onchange="salvarCategoriaComp('${c.id}',this.value)" ${offline?"disabled":""}
+              aria-label="Categoria de ${esc(c.descricao||"")}">
+        <option value="">Sem categoria</option>
+        ${catsData.filter(k=>k.tipo===(c.tipo==="receita"?"Receita":"Despesa"))
+          .map(k=>`<option value="${k.id}" ${k.id===c.categoria_id?"selected":""}>${esc(k.nome)}</option>`).join("")}
+      </select>
       <button class="ap-del" onclick="removerComp('${c.id}')" ${offline?"disabled":""}>×</button></div>`;
   return `<div class="card"><div class="card-h"><div><div class="ct">Entradas</div><div class="cs">salário e outras rendas</div></div>
       <div class="c-end"><div class="lbl">total</div><div class="val">${fmt(F.renda)}</div></div></div>
       ${rec.map(linha).join("")||`<div class="empty">Nenhuma entrada cadastrada.</div>`}</div>
     <div class="card"><div class="card-h"><div><div class="ct">Gastos fixos</div><div class="cs">contas que se repetem todo mês</div></div>
       <div class="c-end"><div class="lbl">total</div><div class="val">${fmt(F.fixos)}</div></div></div>
-      ${des.map(linha).join("")||`<div class="empty">Nenhum gasto fixo cadastrado.</div>`}</div>
+      ${des.map(linha).join("")||`<div class="empty">Nenhum gasto fixo cadastrado.</div>`}
+      ${semCat?`<div class="note"><b>${semCat} gasto(s) fixo(s) sem categoria.</b> É pela categoria que o painel
+        <b>Gastos fixos do mês</b> soma os lançamentos do extrato — sem ela, o gasto é procurado linha a linha
+        pelo nome e pelo valor, o que falha quando ele é composto por várias cobranças (Assinaturas, por exemplo).</div>`:""}</div>
     <div class="card"><div class="card-h"><div><div class="ct">Adicionar entrada ou gasto</div></div></div>
       <form class="adm-form" onsubmit="adicionarComp(event)">
         <div><label>Tipo</label><select id="cpTipo"><option value="despesa">Gasto fixo</option><option value="receita">Entrada</option></select></div>
@@ -4707,6 +4721,16 @@ async function adicionarComp(ev){
   const m=document.getElementById("cpMsg");
   if(error){ m.className="msg err"; m.textContent="Erro: "+error.message; return; }
   loadData();
+}
+/* Muda a categoria de um gasto fixo. O painel do mês recalcula na hora:
+   é a mesma lista compsData que ele usa para agrupar. */
+async function salvarCategoriaComp(id, catId){
+  if(offline||!navigator.onLine){ alert("Sem internet."); return; }
+  const { error }=await sb.from("compromissos_recorrentes")
+    .update({ categoria_id:catId||null }).eq("id",id);
+  if(error){ alert("Não consegui salvar: "+error.message); return; }
+  const c=compsData.find(x=>x.id===id); if(c) c.categoria_id=catId||null;
+  montarEstado(); salvarRetrato(); renderClientes();
 }
 async function removerComp(id){
   if(offline||!navigator.onLine){ alert("Sem internet."); return; }
