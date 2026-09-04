@@ -1514,7 +1514,7 @@ const PAGES=[
   {id:"projecao", label:"Projeção", titulo:"Projeção",            icon:"trend", render:renderProjecao, papeis:["consultor","host","leitor"]},
   {id:"investir", label:"Investir", titulo:"Seus investimentos",  icon:"coins", render:renderInvestir, papeis:["consultor","host","leitor"]},
   {id:"extratos", label:"Lançamentos", curto:"Lançar", titulo:"Lançamentos do mês", icon:"upload",render:renderExtratos, papeis:["consultor","host"]},
-  {id:"clientes", label:"Clientes", titulo:"Gestão de clientes",  icon:"users", render:renderClientes, papeis:["consultor"]},
+  {id:"clientes", label:"Cadastro", curto:"Cadastro", titulo:"Cadastro",  icon:"users", render:renderClientes, papeis:["consultor","host"]},
 ];
 const meuPapel = () => isConsultor ? "consultor" : (isHost ? "host" : "leitor");
 const paginasVisiveis = () => PAGES.filter(p=>p.papeis.includes(meuPapel()) && (!p.quando||p.quando()));
@@ -3952,7 +3952,7 @@ async function gravarImportacao(continuarDepois){
 }
 
 /* ================= PÁGINA: CLIENTES (consultor) ================= */
-let abaCliente="respostas", respostasData=[], respostaAberta=null;
+let abaCliente="respostas", respostasData=[], respostaAberta=null, compEditando=null;
 const CATS_PADRAO=[
   ["Moradia","Despesa","Fixa"],["Alimentação","Despesa","Variavel"],["Combustível","Despesa","Variavel"],
   ["Educação","Despesa","Ambas"],["Lazer","Despesa","Variavel"],
@@ -3965,16 +3965,23 @@ const CATS_PADRAO=[
   ["Outros gastos","Despesa","Variavel"],
   ["Salário","Receita","Fixa"],["Renda extra","Receita","Variavel"],["Outras Receitas","Receita","Variavel"],["Estorno","Receita","Ambas"],["Rendimentos","Receita","Variavel"],["Transferência","Receita","Ambas"],
 ];
-function setAbaCliente(a){ abaCliente=a; cliEditando=null; cliExcluindo=null; renderClientes(); }
+function setAbaCliente(a){ abaCliente=a; cliEditando=null; cliExcluindo=null; compEditando=null; renderClientes(); }
 function renderClientes(){
-  if(!isConsultor){ pagina(`<div class="state">Área exclusiva do consultor.</div>`,""); return; }
+  if(!isHost){ pagina(`<div class="state">Área restrita.</div>`,""); return; }
   const nNovas=respostasData.filter(r=>r.status==="nova").length;
   const nEspera=usuariosData.filter(u=>u.ativo===false).length;
-  const tabs=[["respostas","Respostas do formulário"+(nNovas?" ("+nNovas+")":"")],["lista","Meus clientes"],
-              ["novo","Novo cliente"],["dados","Dados do cliente"],["financas","Renda e gastos"],["metas","Metas e dívidas"],
-              ["acessos","Acessos"+(nEspera?" ("+nEspera+")":"")],["premissas","Premissas"]];
+  /* O cliente que edita mexe no PRÓPRIO cadastro: renda, gastos e metas.
+     Gestão de clientes, acessos e premissas continuam só do consultor. */
+  const tabs = isConsultor
+    ? [["respostas","Respostas do formulário"+(nNovas?" ("+nNovas+")":"")],["lista","Meus clientes"],
+       ["novo","Novo cliente"],["dados","Dados do cliente"],["financas","Renda e gastos"],["metas","Metas e dívidas"],
+       ["acessos","Acessos"+(nEspera?" ("+nEspera+")":"")],["premissas","Premissas"]]
+    : [["financas","Renda e gastos"],["metas","Metas e dívidas"],["dados","Meus dados"]];
+  if(!isConsultor && !tabs.some(t=>t[0]===abaCliente)) abaCliente="financas";
   const tabsH=`<div class="sub-tabs">${tabs.map(t=>`<button class="sub-tab ${abaCliente===t[0]?"active":""}" onclick="setAbaCliente('${t[0]}')">${t[1]}</button>`).join("")}</div>`;
   let corpo="";
+  const soConsultor=["respostas","premissas","acessos","lista","novo"];
+  if(!isConsultor && soConsultor.includes(abaCliente)) abaCliente="financas";
   if(abaCliente==="respostas") corpo=abaRespostas();
   else if(abaCliente==="premissas") corpo=abaPremissas();
   else if(abaCliente==="acessos") corpo=abaAcessos();
@@ -3984,7 +3991,11 @@ function renderClientes(){
   else if(abaCliente==="dados")    corpo=abaDados();
   else if(abaCliente==="financas") corpo=abaFinancas();
   else if(abaCliente==="metas")    corpo=abaMetasDividas();
-  pagina(`<div class="explica">Área do consultor: aqui você <b>cadastra clientes</b> e lança os dados que vieram do formulário de onboarding. Use o seletor no topo para trocar de cliente — todas as outras abas passam a mostrar os dados dele.</div>${tabsH}${corpo}`,
+  const explica = isConsultor
+    ? `<div class="explica">Área do consultor: aqui você <b>cadastra clientes</b> e lança os dados que vieram do formulário de onboarding. Use o seletor no topo para trocar de cliente — todas as outras abas passam a mostrar os dados dele.</div>`
+    : `<div class="explica">Aqui ficam os seus <b>dados de base</b>: quanto entra, os gastos que se repetem todo mês e as suas metas. É contra eles que o extrato é conferido — manter isso em dia é o que faz o resto funcionar.</div>`;
+  if(!isConsultor){ pagina(explica+tabsH+corpo, railResumo()); return; }
+  pagina(explica+`${tabsH}${corpo}`,
     rcard("Modo consultor","users",cssv("--brand"),
       `<div class="rrow"><span class="rr-n">Clientes ativos</span><span class="rr-v">${clientesAtivos().length}</span></div>
        ${clientesLista.length>clientesAtivos().length?`<div class="rrow"><span class="rr-n">Arquivados</span><span class="rr-v">${clientesLista.length-clientesAtivos().length}</span></div>`:""}
@@ -4671,7 +4682,18 @@ function abaFinancas(){
      ela que o painel "Gastos fixos do mês" soma os lançamentos. Sem mostrar e
      deixar corrigir aqui, o mapeamento fica invisível e nunca fecha. */
   const semCat=des.filter(c=>!c.categoria_id).length;
-  const linha=c=>`<div class="ap-row" style="flex-wrap:wrap">
+  const linha=c=>{
+    if(compEditando===c.id) return `<div class="ap-row" style="flex-wrap:wrap;background:var(--card2)">
+      <form class="adm-form" style="flex:1 1 100%" onsubmit="salvarComp(event,'${c.id}')">
+        <div style="flex:2"><label>Descrição</label><input id="edC-desc-${c.id}" required value="${esc(c.descricao||"")}"></div>
+        <div><label>Valor</label><input id="edC-val-${c.id}" type="number" step="0.01" min="0" required value="${num(c.valor)}"></div>
+        <div><label>Dia do mês</label><input id="edC-dia-${c.id}" type="number" min="1" max="31" value="${c.dia_vencimento||""}" placeholder="sem dia fixo"></div>
+        <button class="btn-p" type="submit" ${offline?"disabled":""}>Salvar</button>
+        <button class="btn-sec" type="button" onclick="compEditando=null;renderClientes()">Cancelar</button>
+      </form></div>`;
+    return linhaComp(c);
+  };
+  const linhaComp=c=>`<div class="ap-row" style="flex-wrap:wrap">
       <div class="ap-ic" style="background:color-mix(in srgb, ${c.tipo==="receita"?cssv("--green"):cssv("--rose")} 15%, transparent);color:${c.tipo==="receita"?cssv("--green"):cssv("--rose")}">${svgIcon(c.tipo==="receita"?"trend":"card")}</div>
       <div class="ap-b"><div class="ap-n">${esc(c.descricao||"")} ${c.eh_divida?'<span class="badge r" style="font-size:9.5px">dívida</span>':""}${c.essencial===false?'<span class="badge n" style="font-size:9.5px">supérfluo</span>':""}${(!c.categoria_id&&c.tipo==="despesa")?'<span class="badge y" style="font-size:9.5px">sem categoria</span>':""}</div>
         <div class="ap-s">${c.dia_vencimento?"todo dia "+c.dia_vencimento:"sem dia fixo"}${c.total_parcelas?" · "+(c.parcela_atual||0)+"/"+c.total_parcelas+"x":""}</div></div>
@@ -4683,6 +4705,8 @@ function abaFinancas(){
         ${catsData.filter(k=>k.tipo===(c.tipo==="receita"?"Receita":"Despesa"))
           .map(k=>`<option value="${k.id}" ${k.id===c.categoria_id?"selected":""}>${esc(k.nome)}</option>`).join("")}
       </select>
+      <button class="btn-sec" style="height:30px;font-size:11.5px;padding:0 10px"
+              onclick="compEditando='${c.id}';renderClientes()" ${offline?"disabled":""}>editar</button>
       <button class="ap-del" onclick="removerComp('${c.id}')" ${offline?"disabled":""}>×</button></div>`;
   return `<div class="card"><div class="card-h"><div><div class="ct">Entradas</div><div class="cs">salário e outras rendas</div></div>
       <div class="c-end"><div class="lbl">total</div><div class="val">${fmt(F.renda)}</div></div></div>
@@ -4724,6 +4748,22 @@ async function adicionarComp(ev){
 }
 /* Muda a categoria de um gasto fixo. O painel do mês recalcula na hora:
    é a mesma lista compsData que ele usa para agrupar. */
+/* Editar nome, valor e dia sem precisar apagar e recriar — apagar perderia
+   a categoria já mapeada e as parcelas em andamento. */
+async function salvarComp(ev, id){
+  ev.preventDefault();
+  if(offline||!navigator.onLine){ alert("Sem internet."); return; }
+  const v=x=>{ const el=document.getElementById(x); return el?el.value.trim():""; };
+  const desc=v("edC-desc-"+id), valor=numOuNulo(v("edC-val-"+id)), dia=diaVenc(v("edC-dia-"+id));
+  if(!desc){ alert("A descrição não pode ficar vazia."); return; }
+  if(valor==null||valor<0){ alert("Informe um valor válido."); return; }
+  const upd={ descricao:desc, valor, dia_vencimento:dia };
+  const { error }=await sb.from("compromissos_recorrentes").update(upd).eq("id",id);
+  if(error){ alert("Não consegui salvar: "+error.message); return; }
+  const c=compsData.find(x=>x.id===id); if(c) Object.assign(c, upd);
+  compEditando=null;
+  montarEstado(); salvarRetrato(); renderClientes();
+}
 async function salvarCategoriaComp(id, catId){
   if(offline||!navigator.onLine){ alert("Sem internet."); return; }
   const { error }=await sb.from("compromissos_recorrentes")
