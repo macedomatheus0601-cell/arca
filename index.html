@@ -429,7 +429,19 @@
              color:var(--text2); font-size:12.5px; font-weight:650; padding:0 13px; }
   .btn-sec:hover { border-color:var(--brand); color:var(--brand); }
   .btn-del { color:var(--rose); border-color:color-mix(in srgb,var(--rose) 30%,transparent); }
-  .fx-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:11px; }
+  /* align-items:start impede que abrir um cartão estique os vizinhos da linha */
+  .fx-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:11px; align-items:start; }
+  /* resumo do mês: cartões compactos, todos da mesma altura */
+  .mtiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(158px,1fr)); gap:11px; }
+  .mtile { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 15px;
+           box-shadow:var(--shadow); display:flex; flex-direction:column; gap:2px; }
+  .mtile .mt-top { display:flex; align-items:center; gap:8px; }
+  .mtile .mt-ic { width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .mtile .mt-ic svg { width:16px; height:16px; }
+  .mtile .mt-l { font-size:11.5px; color:var(--text2); font-weight:640; }
+  .mtile .mt-v { font-size:23px; font-weight:790; letter-spacing:-.7px; margin-top:6px; font-variant-numeric:tabular-nums; }
+  .mtile .mt-s { font-size:10.5px; color:var(--muted); margin-top:auto; padding-top:7px; line-height:1.4; }
+  .mtile.neutro { background:var(--card2); border-style:dashed; }
   .fx-card { background:var(--card2); border:1px solid var(--border); border-radius:14px; padding:13px 14px;
              cursor:pointer; transition:border-color .15s, box-shadow .15s; }
   .fx-card:hover { border-color:var(--border-strong); }
@@ -2505,9 +2517,19 @@ function resumoMes(lancs){
 /* ---- a conferência que fecha o mês ----
    saldo inicial + créditos − débitos = saldo final.
    Se não fecha, falta extrato: página faltando, outra conta, ou dinheiro vivo. */
-function conferirFechamento(fech, lancsDaConta){
+function conferirFechamento(fech, lancsDaConta, natureza){
   const cred=lancsDaConta.filter(l=>num(l.valor)>0).reduce((a,l)=>a+num(l.valor),0);
   const deb =lancsDaConta.filter(l=>num(l.valor)<0).reduce((a,l)=>a-num(l.valor),0);
+  /* CARTÃO NÃO TEM SALDO. O que existe é o total da fatura, e a conferência é
+     outra: a soma das compras menos os estornos tem que dar o valor da fatura.
+     Cobrar saldo inicial e final de um cartão é pedir um dado que não existe. */
+  if(natureza==="cartao"){
+    const total=Math.round((deb-cred)*100)/100;
+    const informado=fech&&fech.saldo_final!=null?num(fech.saldo_final):null;
+    if(informado==null) return { ok:null, cartao:true, cred, deb, total, esperado:total, diferenca:null };
+    const diferenca=Math.round((informado-total)*100)/100;
+    return { ok:Math.abs(diferenca)<0.01, cartao:true, cred, deb, total, esperado:total, diferenca };
+  }
   const ini=fech&&fech.saldo_inicial!=null?num(fech.saldo_inicial):null;
   const fim=fech&&fech.saldo_final!=null?num(fech.saldo_final):null;
   if(ini==null||fim==null) return { ok:null, cred, deb, esperado:null, diferenca:null };
@@ -3206,52 +3228,81 @@ function etapaMes(){
       <div style="margin-top:14px"><button class="btn-p" onclick="setImpEtapa('upload')">Subir extratos</button></div>
     </div></div>`;
 
-  const tiles=`<div class="tiles">
-    ${[["Entradas",r.entradas,"--green","trend"],["Saídas",r.saidas,"--rose","card"],
-       ["Gastos fixos",r.fixos,"--slate","home"],["Gastos variáveis",r.variaveis,"--amber","cart"]]
-      .map(([l,v,c,ic])=>`<div class="tile"><div class="card-top"><div class="chip" style="background:color-mix(in srgb,${cssv(c)} 15%,transparent);color:${cssv(c)}">${svgIcon(ic)}</div></div>
-        <div class="t-label">${l}</div><div class="t-value" style="color:${cssv(c)}">${fmt(v)}</div></div>`).join("")}
-    ${r.quitacao>0?`<div class="tile"><div class="card-top"><div class="chip" style="background:var(--card2);color:${cssv("--slate")}">${svgIcon("card")}</div></div>
-      <div class="t-label">Quitação de fatura</div>
-      <div class="t-value" style="color:${cssv("--slate")}">${fmt(r.quitacao)}</div>
-      <div class="cap" style="margin-top:6px">saiu da conta, mas <b>não é gasto deste mês</b> — as compras foram contadas na fatura</div></div>`:""}
-    <div class="tile"><div class="card-top"><div class="chip green">${svgIcon("coins")}</div></div>
-      <div class="t-label">Sobra realizada</div>
-      <div class="t-value" style="color:${r.sobra>=0?cssv("--green"):cssv("--rose")}">${fmt(r.sobra)}</div>
-      <div class="cap" style="margin-top:6px">entradas − saídas deste mês${r.transf>0?` · ${fmt(r.transf)} em transferências não contam`:""}${r.estornado>0?` · ${fmt(r.estornado)} em compras estornadas não contam`:""}</div></div>
+  const cartao=(lbl,val,cor,ic,sub,neutro)=>`<div class="mtile ${neutro?"neutro":""}">
+      <div class="mt-top"><div class="mt-ic" style="background:color-mix(in srgb,${cor} 14%,transparent);color:${cor}">${svgIcon(ic)}</div>
+        <div class="mt-l">${lbl}</div></div>
+      <div class="mt-v" style="color:${cor}">${fmt(val)}</div>
+      ${sub?`<div class="mt-s">${sub}</div>`:""}</div>`;
+
+  const naoContam=[ r.transf>0?fmt(r.transf)+" em transferências":null,
+                    r.estornado>0?fmt(r.estornado)+" em estornos":null ].filter(Boolean).join(" · ");
+  const tiles=`<div class="mtiles">
+    ${cartao("Entradas", r.entradas, cssv("--green"), "trend", "")}
+    ${cartao("Saídas", r.saidas, cssv("--rose"), "card",
+             "fixos "+fmt(r.fixos)+" + variáveis "+fmt(r.variaveis))}
+    ${cartao("Gastos fixos", r.fixos, cssv("--slate"), "home", "")}
+    ${cartao("Gastos variáveis", r.variaveis, cssv("--amber"), "cart", "")}
+    ${r.quitacao>0?cartao("Quitação de fatura", r.quitacao, cssv("--slate"), "card",
+             "saiu da conta, mas <b>não é gasto deste mês</b> — as compras já foram contadas na fatura", true):""}
+    ${cartao("Sobra realizada", r.sobra, r.sobra>=0?cssv("--green"):cssv("--rose"), "coins",
+             naoContam?"não entram no cálculo: "+naoContam:"entradas − saídas deste mês")}
   </div>`;
 
   const cartaoConta=c=>{
-    const f=fechDe(c.id), ls=lancsDe(c.id), cf=conferirFechamento(f,ls);
+    const f=fechDe(c.id), ls=lancsDe(c.id), cf=conferirFechamento(f,ls,c.natureza);
     const cor = cf.ok===true?cssv("--green") : cf.ok===false?cssv("--rose") : cssv("--muted");
+    const situacao = cf.ok===true?"confere ✓" : cf.ok===false?"não fecha"
+                   : cf.cartao?"sem conferência" : "informe os saldos";
+
+    /* Cartão de crédito não tem saldo — tem total de fatura. Pedir saldo
+       inicial e final de um cartão é pedir um dado que não existe. */
+    const campos = cf.cartao
+      ? `<div class="adm-form">
+          <div><label>Compras do período</label><div class="ro-box">${fmt(cf.deb)}</div></div>
+          <div><label>Estornos</label><div class="ro-box">${fmt(cf.cred)}</div></div>
+          <div><label>Total da fatura (calculado)</label><div class="ro-box" style="font-weight:750">${fmt(cf.total)}</div></div>
+          <div><label>Total impresso na fatura <span style="color:var(--muted)">(opcional)</span></label>
+            <input id="fiFim-${c.id}" type="number" step="0.01" value="${f&&f.saldo_final!=null?f.saldo_final:""}"
+                   ${travado?"disabled":""} placeholder="confere se quiser"></div>
+          ${travado?"":`<button class="btn-p" onclick="salvarFechamento('${c.id}')">Conferir</button>`}
+        </div>
+        <div class="cap" style="margin-top:8px">${cf.ok===true
+          ? `O total lido bate com o impresso na fatura ✓`
+          : cf.ok===false
+            ? `<b style="color:${cssv("--rose")}">Diferença de ${fmt(Math.abs(cf.diferenca))}</b> entre o total lido (${fmt(cf.total)}) e o que você informou. Pode faltar página da fatura.`
+            : `Cartão não tem saldo: a conferência aqui é o total da fatura. Se quiser checar, digite o valor impresso — mas não é obrigatório para enviar o mês.`}</div>`
+      : `<div class="adm-form">
+          <div><label>Saldo no início do mês</label><input id="fiIni-${c.id}" type="number" step="0.01"
+               value="${f&&f.saldo_inicial!=null?f.saldo_inicial:""}" ${travado?"disabled":""} placeholder="0,00"></div>
+          <div><label>Créditos</label><div class="ro-box">${fmt(cf.cred)}</div></div>
+          <div><label>Débitos</label><div class="ro-box">${fmt(cf.deb)}</div></div>
+          <div><label>Saldo no fim do mês (do extrato)</label><input id="fiFim-${c.id}" type="number" step="0.01"
+               value="${f&&f.saldo_final!=null?f.saldo_final:""}" ${travado?"disabled":""} placeholder="0,00"></div>
+          ${travado?"":`<button class="btn-p" onclick="salvarFechamento('${c.id}')">Conferir</button>`}
+        </div>
+        ${cf.ok===false?`<div class="alerta" style="background:var(--rose-bg);border:1px solid color-mix(in srgb,${cssv("--rose")} 30%,transparent);margin-top:10px">
+          <div class="a-ic" style="background:color-mix(in srgb,${cssv("--rose")} 18%,transparent);color:${cssv("--rose")}">${svgIcon("alert")}</div>
+          <div><b>Faltam ${fmt(Math.abs(cf.diferenca))}.</b> O extrato diz que sobrou ${fmt(num(f.saldo_final))},
+            mas somando os lançamentos daria ${fmt(cf.esperado)}. Quase sempre é <b>página faltando no extrato</b>,
+            <b>outra conta ainda não importada</b> ou <b>gasto em dinheiro</b>.
+            ${travado?"":`<div class="cli-edit" style="margin-top:8px"><input id="fiJust-${c.id}" placeholder="explique a diferença para fechar assim mesmo" value="${esc((f&&f.justificativa)||"")}">
+              <button class="btn-sec" onclick="salvarFechamento('${c.id}')">Salvar explicação</button></div>`}</div></div>`:""}
+        ${cf.ok===true?`<div class="cap" style="margin-top:8px">${fmt(num(f.saldo_inicial))} + ${fmt(cf.cred)} − ${fmt(cf.deb)} = ${fmt(num(f.saldo_final))} ✓</div>`:""}`;
+
     return `<div class="card">
       <div class="card-h"><div><div class="ct">${esc(rotuloConta(c))}</div>
         <div class="cs">${esc(c.banco||"")} · ${ls.length} lançamento(s) · ${esc(NATUREZAS[c.natureza]||"")}</div></div>
-        <div class="c-end"><div class="lbl">situação</div><div class="val" style="font-size:14px;color:${cor}">${
-          cf.ok===true?"confere ✓" : cf.ok===false?"não fecha" : "informe os saldos"}</div></div></div>
-      <div class="adm-form">
-        <div><label>Saldo no início do mês</label><input id="fiIni-${c.id}" type="number" step="0.01"
-             value="${f&&f.saldo_inicial!=null?f.saldo_inicial:""}" ${travado?"disabled":""} placeholder="0,00"></div>
-        <div><label>Créditos</label><div class="ro-box">${fmt(cf.cred)}</div></div>
-        <div><label>Débitos</label><div class="ro-box">${fmt(cf.deb)}</div></div>
-        <div><label>Saldo no fim do mês (do extrato)</label><input id="fiFim-${c.id}" type="number" step="0.01"
-             value="${f&&f.saldo_final!=null?f.saldo_final:""}" ${travado?"disabled":""} placeholder="0,00"></div>
-        ${travado?"":`<button class="btn-p" onclick="salvarFechamento('${c.id}')">Conferir</button>`}
-      </div>
-      ${cf.ok===false?`<div class="alerta" style="background:var(--rose-bg);border:1px solid color-mix(in srgb,${cssv("--rose")} 30%,transparent);margin-top:10px">
-        <div class="a-ic" style="background:color-mix(in srgb,${cssv("--rose")} 18%,transparent);color:${cssv("--rose")}">${svgIcon("alert")}</div>
-        <div><b>Faltam ${fmt(Math.abs(cf.diferenca))}.</b> O extrato diz que sobrou ${fmt(num(f.saldo_final))},
-          mas somando os lançamentos daria ${fmt(cf.esperado)}. Quase sempre é <b>página faltando no extrato</b>,
-          <b>outra conta ainda não importada</b> ou <b>gasto em dinheiro</b>.
-          ${travado?"":`<div class="cli-edit" style="margin-top:8px"><input id="fiJust-${c.id}" placeholder="explique a diferença para fechar assim mesmo" value="${esc((f&&f.justificativa)||"")}">
-            <button class="btn-sec" onclick="salvarFechamento('${c.id}')">Salvar explicação</button></div>`}</div></div>`:""}
-      ${cf.ok===true?`<div class="cap" style="margin-top:8px">${fmt(num(f.saldo_inicial))} + ${fmt(cf.cred)} − ${fmt(cf.deb)} = ${fmt(num(f.saldo_final))} ✓</div>`:""}
+        <div class="c-end"><div class="lbl">situação</div><div class="val" style="font-size:14px;color:${cor}">${situacao}</div></div></div>
+      ${campos}
     </div>`;
   };
 
+  /* Só as contas de fluxo travam o envio. Cartão não tem saldo para conferir —
+     exigir isso deixaria o mês preso para sempre. */
+  const deFluxo=contas.filter(c=>c.natureza!=="cartao");
   const podeEnviar = isHost && !isConsultor && est==="aberto" && contas.length &&
-    contas.every(c=>{ const f=fechDe(c.id); const cf=conferirFechamento(f,lancsDe(c.id));
-                      return cf.ok===true || (cf.ok===false && f&&f.justificativa); });
+    deFluxo.every(c=>{ const f=fechDe(c.id); const cf=conferirFechamento(f,lancsDe(c.id),c.natureza);
+                       return cf.ok===true || (cf.ok===false && f&&f.justificativa); });
   const acoes = est==="fechado" ? `<div class="alerta g" style="margin-top:14px"><div class="a-ic" style="background:color-mix(in srgb,${cssv("--green")} 18%,transparent);color:${cssv("--green")}">${svgIcon("check")}</div>
       <div><b>Mês fechado.</b> Vira histórico e não muda mais. O saldo final é o inicial de ${esc(mesLabel(mesSeguinte(mesAtivo)))}.</div></div>`
     : isConsultor ? `<div style="display:flex;gap:9px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap">
@@ -3265,7 +3316,7 @@ function etapaMes(){
         <div><b>Enviado ao seu consultor.</b> Ele está conferindo. Se precisar corrigir alguma coisa,
           é só pedir que ele devolve o mês para você.</div></div>`
     : `<div style="display:flex;gap:9px;justify-content:flex-end;margin-top:14px;align-items:center;flex-wrap:wrap">
-        ${podeEnviar?"":`<span class="cap">Confira os saldos de todas as contas para poder enviar.</span>`}
+        ${podeEnviar?"":`<span class="cap">Confira o saldo ${deFluxo.length>1?"das contas":"da conta"} para poder enviar${contas.some(c=>c.natureza==="cartao")?" — o cartão não precisa":""}.</span>`}
         <button class="btn-p" onclick="mudarEstadoMes('enviado')" ${(!podeEnviar||offline)?"disabled":""}>Enviar para o consultor</button>
       </div><div id="mesMsg" class="msg"></div>`;
 
@@ -3298,7 +3349,9 @@ function painelFixos(lancs){
   if(!porCategoria.length && !soltos.length) return `<div class="card"><div class="empty">Nenhum gasto fixo cadastrado para conferir.
     Lance-os em <b>Clientes &rarr; Renda e gastos</b> — é contra eles que o extrato é cruzado.</div></div>`;
 
-  const CORES={ ok:cssv("--green"), sobra:cssv("--amber"), falta:cssv("--amber"), nenhum:cssv("--rose") };
+  /* Sobrar e faltar sao coisas diferentes: um e excesso, o outro e lacuna.
+     Cores distintas evitam o "tudo amarelo" que nao diz nada. */
+  const CORES={ ok:cssv("--green"), sobra:cssv("--amber"), falta:cssv("--teal"), nenhum:cssv("--slate") };
   const ROTULO={ ok:"confere", sobra:"acima do previsto", falta:"falta aparecer", nenhum:"nada classificado" };
   const previstoTotal = porCategoria.reduce((a,g)=>a+g.previsto,0) + soltos.reduce((a,x)=>a+num(x.comp.valor),0);
   const realizadoTotal = porCategoria.reduce((a,g)=>a+g.realizado,0)
@@ -3386,14 +3439,14 @@ function painelFixos(lancs){
     ${soltos.length?`<div class="eyebrow" style="margin-top:16px">Sem categoria no cadastro ${help("Estes gastos fixos não têm categoria definida, então são procurados linha a linha pelo nome e pelo valor. Defina a categoria deles em Clientes → Renda e gastos para a conferência somar direito.")}</div>
       <div class="fx-grid">${soltos.map(cardSolto).join("")}</div>`:""}
 
-    ${(semNada.length||naoAchados.length)?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:14px">
-      <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
+    ${(semNada.length||naoAchados.length)?`<div class="alerta" style="background:var(--card2);border:1px solid var(--border-strong);margin-top:14px">
+      <div class="a-ic" style="background:color-mix(in srgb,${cssv("--slate")} 16%,transparent);color:${cssv("--slate")}">${svgIcon("alert")}</div>
       <div><b>${semNada.length+naoAchados.length} gasto(s) fixo(s) sem nada correspondente</b>
         (${fmt(semNada.reduce((a,g)=>a+g.previsto,0)+naoAchados.reduce((a,x)=>a+num(x.comp.valor),0))}):
         ${esc(semNada.map(g=>g.nome).concat(naoAchados.map(x=>x.comp.descricao||"")).join(", "))}.
         Ou o extrato daquela conta não subiu, ou os lançamentos ainda não foram classificados nessa categoria.</div></div>`:""}
 
-    ${faltando.length?`<div class="cap" style="margin-top:10px"><b style="color:${cssv("--amber")}">Falta aparecer:</b>
+    ${faltando.length?`<div class="cap" style="margin-top:10px"><b style="color:${cssv("--teal")}">Falta aparecer:</b>
       ${faltando.map(g=>esc(g.nome)+" ("+fmt(Math.abs(g.dif))+")").join(" · ")} —
       abra o cartão para ver o que já entrou e o que está faltando.</div>`:""}
     ${sobrando.length?`<div class="cap" style="margin-top:6px"><b style="color:${cssv("--amber")}">Acima do previsto:</b>
