@@ -2459,9 +2459,12 @@ function conciliarFixos(lancs){
     const previsto=grupos[catId].reduce((a,c)=>a+num(c.valor),0);
     const realizado=doGrupo.reduce((a,l)=>a+Math.abs(num(l.valor)),0);
     const dif=realizado-previsto;
-    const tol=Math.max(30, previsto*0.10);
+    /* Gasto FIXO que se move deixa de ser fixo. A tolerancia aqui e so de
+       arredondamento (R$ 1) — 10% num gasto de R$ 207 escondia R$ 20 de
+       diferenca e mostrava "confere", que e justamente o que nao era. */
+    const tol=1;
     return { catId, nome:cat.nome||"(categoria removida)", fixos:grupos[catId],
-             lancs:doGrupo, previsto, realizado, dif,
+             lancs:doGrupo, previsto, realizado, dif, tol,
              status: !doGrupo.length ? "nenhum" : Math.abs(dif)<=tol ? "ok" : dif>0 ? "sobra" : "falta" };
   }).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),"pt-BR"));
 
@@ -2483,8 +2486,7 @@ function conciliarFixos(lancs){
     if(melhor && nota>=4){
       usados.add(melhor.id);
       const v=Math.abs(num(melhor.valor)), dif=v-alvo;
-      return { comp:c, lanc:melhor, achou:true, dif,
-               alerta: alvo>0 && Math.abs(dif)/alvo>0.10 };
+      return { comp:c, lanc:melhor, achou:true, dif, alerta: Math.abs(dif)>1 };
     }
     return { comp:c, lanc:null, achou:false };
   });
@@ -3378,13 +3380,14 @@ function painelFixos(lancs){
         <div class="fx-val" style="color:${cor}">${fmt(g.realizado)}</div>
       </div>
       <div class="fx-top" style="margin-top:1px">
-        <div class="fx-sub">${g.fixos.length} fixo(s) · ${g.lancs.length} lançamento(s)</div>
+        <div class="fx-sub">${g.fixos.length===1?"1 gasto fixo":g.fixos.length+" gastos fixos"} · ${g.lancs.length===1?"1 lançamento":g.lancs.length+" lançamentos"}</div>
         <div class="fx-sub">de ${fmt(g.previsto)}</div>
       </div>
-      <div class="fx-bar"><div class="fx-fill" style="width:${Math.min(100,pct)}%;background:${cor}"></div></div>
+      <div class="fx-bar"><div class="fx-fill" style="width:${Math.min(100,pct)}%;background:${cor}"></div>
+        ${pct>100?`<div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,${cor} 0 4px,transparent 4px 8px);opacity:.55"></div>`:""}</div>
       <div class="fx-top" style="margin-top:7px">
         <span class="fx-tag" style="background:color-mix(in srgb,${cor} 15%,transparent);color:${cor}">
-          ${ROTULO[g.status]}${g.status==="sobra"?" +"+fmt(g.dif):g.status==="falta"?" "+fmt(Math.abs(g.dif)):""}</span>
+          ${ROTULO[g.status]}${g.status==="sobra"?" +"+fmt(g.dif):g.status==="falta"?" "+fmt(Math.abs(g.dif)):""}${g.status==="sobra"&&g.previsto>0?" ("+Math.round(g.dif/g.previsto*100)+"%)":""}</span>
         <span class="fx-sub">${aberto?"▴ fechar":"▾ ver lançamentos"}</span>
       </div>
       ${aberto?`<div class="fx-det" onclick="event.stopPropagation()">
