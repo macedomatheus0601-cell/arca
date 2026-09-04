@@ -2509,7 +2509,13 @@ function resumoMes(lancs){
     porCategoria[k]=(porCategoria[k]||0)+gasto;
   });
   const saidas=fixos+variaveis;
-  return { entradas, saidas, fixos, variaveis, transf, estornado, quitacao, sobra:entradas-saidas,
+  /* Duas perguntas diferentes, dois numeros:
+       sobra       = entradas - saidas do MES (competencia). Diz se o mes fechou
+                     no azul, contando a fatura no mes em que ela foi gerada.
+       sobraCaixa  = o que sobrou de dinheiro NA CONTA, ja descontado o pagamento
+                     da fatura anterior. E o saldo que a pessoa ve no banco. */
+  return { entradas, saidas, fixos, variaveis, transf, estornado, quitacao,
+           sobra:entradas-saidas, sobraCaixa:entradas-saidas-quitacao,
            porCategoria, total:reais.length,
            pendentes:(lancs||[]).filter(l=>!l.categoria_id&&!neutro(l)).length };
 }
@@ -3244,8 +3250,11 @@ function etapaMes(){
     ${cartao("Gastos variáveis", r.variaveis, cssv("--amber"), "cart", "")}
     ${r.quitacao>0?cartao("Quitação de fatura", r.quitacao, cssv("--slate"), "card",
              "saiu da conta, mas <b>não é gasto deste mês</b> — as compras já foram contadas na fatura", true):""}
-    ${cartao("Sobra realizada", r.sobra, r.sobra>=0?cssv("--green"):cssv("--rose"), "coins",
-             naoContam?"não entram no cálculo: "+naoContam:"entradas − saídas deste mês")}
+    ${cartao("Sobra do mês", r.sobra, r.sobra>=0?cssv("--green"):cssv("--rose"), "coins",
+             "entradas − saídas deste mês, contando a fatura na competência dela"
+             +(naoContam?" · fora do cálculo: "+naoContam:""))}
+    ${r.quitacao>0?cartao("Sobrou em caixa", r.sobraCaixa, r.sobraCaixa>=0?cssv("--green"):cssv("--rose"), "bank",
+             "dinheiro que de fato ficou na conta, já descontado o pagamento da fatura de "+fmt(r.quitacao)):""}
   </div>`;
 
   const cartaoConta=c=>{
@@ -3351,7 +3360,7 @@ function painelFixos(lancs){
 
   /* Sobrar e faltar sao coisas diferentes: um e excesso, o outro e lacuna.
      Cores distintas evitam o "tudo amarelo" que nao diz nada. */
-  const CORES={ ok:cssv("--green"), sobra:cssv("--amber"), falta:cssv("--teal"), nenhum:cssv("--slate") };
+  const CORES={ ok:cssv("--green"), sobra:cssv("--rose"), falta:cssv("--teal"), nenhum:cssv("--slate") };
   const ROTULO={ ok:"confere", sobra:"acima do previsto", falta:"falta aparecer", nenhum:"nada classificado" };
   const previstoTotal = porCategoria.reduce((a,g)=>a+g.previsto,0) + soltos.reduce((a,x)=>a+num(x.comp.valor),0);
   const realizadoTotal = porCategoria.reduce((a,g)=>a+g.realizado,0)
@@ -3449,7 +3458,7 @@ function painelFixos(lancs){
     ${faltando.length?`<div class="cap" style="margin-top:10px"><b style="color:${cssv("--teal")}">Falta aparecer:</b>
       ${faltando.map(g=>esc(g.nome)+" ("+fmt(Math.abs(g.dif))+")").join(" · ")} —
       abra o cartão para ver o que já entrou e o que está faltando.</div>`:""}
-    ${sobrando.length?`<div class="cap" style="margin-top:6px"><b style="color:${cssv("--amber")}">Acima do previsto:</b>
+    ${sobrando.length?`<div class="cap" style="margin-top:6px"><b style="color:${cssv("--rose")}">Acima do previsto:</b>
       ${sobrando.map(g=>esc(g.nome)+" (+"+fmt(g.dif)+")").join(" · ")} —
       ou entrou algo que não é fixo, ou o valor cadastrado está desatualizado.</div>`:""}
   </div>`;
