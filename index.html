@@ -3250,11 +3250,9 @@ function etapaMes(){
     ${cartao("Gastos variáveis", r.variaveis, cssv("--amber"), "cart", "")}
     ${r.quitacao>0?cartao("Quitação de fatura", r.quitacao, cssv("--slate"), "card",
              "saiu da conta, mas <b>não é gasto deste mês</b> — as compras já foram contadas na fatura", true):""}
-    ${cartao("Sobra do mês", r.sobra, r.sobra>=0?cssv("--green"):cssv("--rose"), "coins",
-             "entradas − saídas deste mês, contando a fatura na competência dela"
+    ${cartao("Sobrou em caixa", r.sobraCaixa, r.sobraCaixa>=0?cssv("--green"):cssv("--rose"), "coins",
+             (r.quitacao>0?"já descontado o pagamento da fatura de "+fmt(r.quitacao):"entradas − saídas deste mês")
              +(naoContam?" · fora do cálculo: "+naoContam:""))}
-    ${r.quitacao>0?cartao("Sobrou em caixa", r.sobraCaixa, r.sobraCaixa>=0?cssv("--green"):cssv("--rose"), "bank",
-             "dinheiro que de fato ficou na conta, já descontado o pagamento da fatura de "+fmt(r.quitacao)):""}
   </div>`;
 
   const cartaoConta=c=>{
