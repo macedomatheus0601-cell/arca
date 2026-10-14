@@ -3018,7 +3018,58 @@ function classificar(lancs, regras){
     return {...l, categoria_id:cat, origem, conf, normalizada:nd};
   });
 }
-function setImpEtapa(e){ impEtapa=e; renderExtratos(); }
+function setImpEtapa(e){ impEtapa=e; renderExtratos();
+  if(e==="upload") carregarEnviados().then(()=>{ if(impEtapa==="upload") renderExtratos(); }); }
+
+/* ---- arquivos já gravados: listar e apagar ----
+   Subiu o arquivo errado, ou da conta errada? Apaga o arquivo inteiro: todos
+   os lançamentos que vieram dele, e a conferência que ele montou. */
+let envData=[], envExcluindo=null;
+async function carregarEnviados(){
+  if(!perfilData||!sb||offline||!navigator.onLine){ envData=[]; return; }
+  const { data, error }=await sb.from("importacoes").select("*").eq("cliente_id",perfilData.cliente_id);
+  envData=error?[]:(data||[]).sort((a,b)=>String(b.criado_em||"").localeCompare(String(a.criado_em||""))).slice(0,30);
+}
+async function excluirEnvio(id){
+  /* busca o elemento a cada vez: a tela é redesenhada no meio do caminho */
+  const dizer=(t,c)=>{ const msg=document.getElementById("envMsg"); if(msg){ msg.className="msg "+(c||""); msg.textContent=t; } };
+  if(offline||!navigator.onLine){ dizer("Sem internet: não é possível apagar agora.","err"); return; }
+  const imp=envData.find(x=>x.id===id); if(!imp) return;
+  const conta=contasData.find(c=>c.id===imp.conta_id)||{};
+  const { data:ls, error:e0 }=await sb.from("lancamentos").select("id,data,competencia,conta_id").eq("importacao_id",id);
+  if(e0){ dizer("Não consegui ler o arquivo: "+e0.message,"err"); return; }
+  /* mês de cada lançamento, do jeito que a conferência usa: cartão pela
+     competência, conta pela data do extrato */
+  const mesDe=l=>conta.natureza==="cartao"?String(l.competencia||l.data).slice(0,7):String(l.data).slice(0,7);
+  const meses=[...new Set((ls||[]).map(mesDe))];
+  /* mês fechado é histórico: não se apaga por baixo */
+  const { data:fs }=await sb.from("fechamentos_mensais").select("*").eq("conta_id",imp.conta_id);
+  const travado=(fs||[]).find(f=>meses.includes(String(f.mes_referencia).slice(0,7))&&f.status==="fechado");
+  if(travado){ dizer("Este arquivo tem lançamentos de "+mesLabel(String(travado.mes_referencia).slice(0,7))+
+    ", que já foi fechado. Peça ao consultor para reabrir o mês antes de apagar.","err"); envExcluindo=null; return; }
+  dizer("Apagando…");
+  const { error:e1 }=await sb.from("lancamentos").delete().eq("importacao_id",id);
+  if(e1){ dizer("Não consegui apagar: "+e1.message,"err"); return; }
+  const { error:e2 }=await sb.from("importacoes").delete().eq("id",id);
+  if(e2) console.warn("registro do arquivo não apagado:", e2.message);
+  /* a conferência que o arquivo montou sai junto — mas só se não sobrou
+     nenhum lançamento daquela conta naquele mês vindo de outro arquivo */
+  for(const m of meses){
+    const f=(fs||[]).find(x=>String(x.mes_referencia).slice(0,7)===m); if(!f) continue;
+    let q=sb.from("lancamentos").select("id").eq("conta_id",imp.conta_id);
+    q = conta.natureza==="cartao" ? q.eq("competencia",m+"-01") : q.gte("data",m+"-01").lte("data",diaN(m));
+    const { data:resto }=await q.limit(1);
+    if((resto||[]).length) continue;
+    const { error:e3 }=await sb.from("fechamentos_mensais")
+      .update({ saldo_inicial:null, saldo_final:null, periodo_ini:null, periodo_fim:null, diferenca:null })
+      .eq("id",f.id);
+    if(e3) console.warn("conferência não limpa:", e3.message);
+  }
+  envExcluindo=null;
+  await Promise.all([carregarEnviados(), carregarMes(), carregarHistorico()]);
+  montarEstado(); renderExtratos();
+  dizer((ls||[]).length+" lançamento(s) de "+imp.nome_arquivo+" apagados. Pode subir o arquivo certo.","ok");
+}
 function renderExtratos(){
   if(!isHost){ pagina(`<div class="state">Área restrita.</div>`,""); return; }
   let corpo="";
@@ -3951,7 +4002,29 @@ function etapaUpload(){
   return `<div class="explica">A leitura acontece <b>no seu próprio navegador</b> — o arquivo não sai do computador.
       O sistema reconhece de qual conta é cada extrato pelo número cadastrado, tenta classificar sozinho pelas regras
       já aprendidas e pelos seus gastos fixos, e traz para você o que ficou em dúvida. Nada é gravado antes da sua revisão.</div>
-    ${listaContas}${formConta}${zona}${lista}`;
+    ${listaContas}${formConta}${zona}${lista}${listaEnviados()}`;
+}
+function listaEnviados(){
+  if(!envData.length) return "";
+  const linha=e=>{
+    const c=contasData.find(x=>x.id===e.conta_id)||{};
+    const quando=e.criado_em?new Date(e.criado_em).toLocaleDateString("pt-BR"):"";
+    if(envExcluindo===e.id) return `<div class="ap-row" style="flex-wrap:wrap;background:var(--rose-bg)">
+      <div class="ap-b"><div class="ap-n">Apagar ${esc(e.nome_arquivo)}?</div>
+        <div class="ap-s" style="white-space:normal">Os ${e.total_lancamentos||0} lançamento(s) que vieram deste arquivo saem do sistema, inclusive as categorias que você deu a eles. As regras aprendidas continuam.</div></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-sec" onclick="envExcluindo=null;renderExtratos()">Cancelar</button>
+        <button class="btn-p" style="background:${cssv("--rose")}" onclick="excluirEnvio('${e.id}')" ${offline?"disabled":""}>Apagar</button></div></div>`;
+    return `<div class="ap-row">
+      <div class="ap-ic" style="background:var(--card2)">${svgIcon(c.natureza==="cartao"?"card":"bank")}</div>
+      <div class="ap-b"><div class="ap-n">${esc(e.nome_arquivo)}</div>
+        <div class="ap-s">${esc(rotuloConta(c))} · ${e.total_lancamentos||0} lançamento(s)${quando?" · enviado em "+quando:""}</div></div>
+      <button class="ap-del" title="Apagar este arquivo" aria-label="Apagar ${esc(e.nome_arquivo)}"
+        onclick="envExcluindo='${e.id}';renderExtratos()" ${offline?"disabled":""}>×</button></div>`;
+  };
+  return `<div class="card"><div class="card-h"><div><div class="ct">Arquivos já enviados</div>
+      <div class="cs">subiu o arquivo errado? apague e suba de novo</div></div></div>
+    ${envData.map(linha).join("")}<div id="envMsg" class="msg"></div></div>`;
 }
 
 function seletorMes(){
