@@ -1114,6 +1114,7 @@ async function loadData(attempt=1){
     offline=false; dadosDe=null;
     montarEstado(); salvarRetrato(); barraOffline(); setPage(currentPage);
     await carregarHistorico();   /* realizado dos meses fechados → alimenta o motor */
+    if(!mesTocado) mesAtivo=mesInicial();
     montarEstado(); salvarRetrato(); setPage(currentPage);
     carregarMes();         /* lançamentos e fechamento do mês em foco */
     carregarRegras();      /* padrões já aprendidos, para a aba de regras */
@@ -2300,19 +2301,95 @@ async function recarregarAplicacoes(){
 let impEtapa="mes", impLinhas=[], impArquivo=null, impConta=null, impCol="primeiro", impSinal="auto";
 /* ---- mês em foco na aba Lançamentos ---- */
 const mesHoje = () => { const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
-let mesAtivo=mesHoje(), lancData=[], fechData=[], lancFiltro="todos";
+let mesAtivo=mesHoje(), mesTocado=false, lancData=[], lancJanela=[], fechData=[], lancFiltro="todos";
+/* Nos primeiros dias do mês o trabalho ainda é fechar o anterior (a fatura
+   fechou, o salário caiu): a aba abre nele até ele ser fechado. */
+function mesInicial(){
+  const m=mesHoje(), ant=mesAnterior(m);
+  if(new Date().getDate()>10) return m;
+  return histFech.some(f=>String(f.mes_referencia).slice(0,7)===ant&&f.status==="fechado") ? m : ant;
+}
 let regrasData=[], aprendidasAgora=0, generalizadasAgora=[], novaCatAberta=false;
 let fixoAberto=null, filtroCat="";   /* categoria expandida no painel · filtro da aba Classificar */
 /* histórico curto usado pelo motor: o REALIZADO dos meses já fechados é a melhor
    fonte de gasto variável que existe — melhor que qualquer valor declarado. */
 let histLancs=[], histFech=[];
 const dia1  = m => m+"-01";
-/* O mês em que o lançamento CONTA. No cartão difere da data da compra:
-   a fatura conta no mês do salário que a paga. Sem competência, vale a data. */
-const compDe = l => String(l.competencia||l.data||"").slice(0,7);
 const diaN  = m => { const [a,b]=m.split("-").map(Number); return new Date(Date.UTC(a,b,0)).toISOString().slice(0,10); };
 const mesAnterior = m => { const [a,b]=m.split("-").map(Number); const d=new Date(Date.UTC(a,b-2,1)); return d.toISOString().slice(0,7); };
 const mesSeguinte = m => { const [a,b]=m.split("-").map(Number); const d=new Date(Date.UTC(a,b,1)); return d.toISOString().slice(0,7); };
+const diaAbs = d => Math.round(Date.parse(String(d).slice(0,10)+"T00:00:00Z")/86400000);
+const somaDias = (d,n) => new Date((diaAbs(d)+n)*86400000).toISOString().slice(0,10);
+/* distância entre dois dias do mês, dando a volta: o dia 1º está a 2 dias do dia 30 */
+const distDia = (a,b) => { const d=Math.abs(Number(a)-Number(b)); return Math.min(d, 31-d); };
+/* a data em que o dia D cai no mês m — dia 31 em setembro vira dia 30 */
+const dataNoMes = (m,dia) => m+"-"+String(Math.min(Number(dia), Number(diaN(m).slice(8)))).padStart(2,"0");
+
+/* ================= O MÊS DE CADA LANÇAMENTO =================
+   Uma regra só: o mês é o do SALÁRIO. A fatura conta no mês do salário que a
+   paga, e o salário conta no mês a que pertence, não no dia em que caiu.
+   Assim "fatura de agosto paga com o salário de agosto" fecha sempre:
+   salário adiantado no fim de semana, atrasado para o dia 1º, fatura que
+   fechou num dia diferente — nada disso muda o mês. */
+/* o salário principal: a maior receita cadastrada com dia certo */
+function salarioBase(){
+  return (compsData||[]).filter(c=>c.tipo==="receita"&&c.dia_vencimento&&num(c.valor)>0)
+    .sort((a,b)=>num(b.valor)-num(a.valor))[0]||null;
+}
+/* Qual salário paga a fatura que vence em `venc`: o último que cai até o
+   vencimento. Sem salário cadastrado, vale o mês anterior ao vencimento. */
+function mesQuePagaFatura(venc){
+  const m=String(venc).slice(0,7), s=salarioBase();
+  if(!s) return mesAnterior(m);
+  return dataNoMes(m,s.dia_vencimento)<=String(venc).slice(0,10) ? m : mesAnterior(m);
+}
+/* Entrada grande perto do dia do salário É o salário — mesmo vindo por Pix de
+   outra conta sua. Conta no mês em que era esperada (até 7 dias de folga). */
+function mesDoSalario(l){
+  const v=num(l.valor), s=salarioBase();
+  if(!s||v<=0||!l.data||l.eh_transferencia||l.eh_estorno) return null;
+  const conta=(contasData||[]).find(c=>c.id===l.conta_id);
+  if(conta&&conta.natureza==="cartao") return null;
+  const ehCat=!!(l.categoria_id&&l.categoria_id===s.categoria_id);
+  if(!ehCat && v<num(s.valor)*0.5) return null;
+  const m=String(l.data).slice(0,7);
+  let melhor=null, perto=99;
+  [mesAnterior(m),m,mesSeguinte(m)].forEach(x=>{
+    const d=Math.abs(diaAbs(dataNoMes(x,s.dia_vencimento))-diaAbs(l.data));
+    if(d<perto){ perto=d; melhor=x; } });
+  return perto<=7?melhor:null;
+}
+/* O mês em que o lançamento CONTA. Competência gravada diferente da data é
+   decisão tomada (fatura do cartão ou ajuste à mão) e prevalece. */
+const compDe = l => {
+  const d=String(l.data||"").slice(0,7), c=String(l.competencia||"").slice(0,7);
+  if(c&&c!==d) return c;
+  return mesDoSalario(l)||c||d;
+};
+/* Mostra quando o lançamento conta num mês diferente do da data — compra do
+   fim do ciclo do cartão, salário que caiu adiantado ou atrasado. */
+const notaMes = l => { const c=compDe(l);
+  return c&&c!==String(l.data||"").slice(0,7) ? ` · <b style="color:${cssv("--brand")}" title="Conta no mês do salário que paga (ou que é)">conta em ${esc(mesLabel(c).split(" ")[0])}</b>` : ""; };
+/* Uma fatura inteira tem uma competência só. O PDF diz o vencimento; o CSV
+   não diz — aí vale o dia de fechamento e de vencimento aprendidos da conta,
+   e na falta deles a última compra do arquivo (o Nubank vence 7 dias depois). */
+function competenciaDaFatura(arq, conta){
+  let venc=arq.vencimento||null;
+  if(!venc){
+    const datas=(arq.lancs||[]).map(l=>l.data).filter(Boolean).sort();
+    if(!datas.length) return null;
+    let fech=datas[datas.length-1];
+    if(conta&&conta.dia_fechamento){
+      const m=fech.slice(0,7), alvo=dataNoMes(m,conta.dia_fechamento);
+      fech = alvo>=fech ? alvo : dataNoMes(mesSeguinte(m),conta.dia_fechamento);
+    }
+    if(conta&&conta.dia_vencimento){
+      const m=fech.slice(0,7), alvo=dataNoMes(m,conta.dia_vencimento);
+      venc = alvo>fech ? alvo : dataNoMes(mesSeguinte(m),conta.dia_vencimento);
+    } else venc=somaDias(fech,7);
+  }
+  return mesQuePagaFatura(venc)+"-01";
+}
 const mesLabel = m => { const [a,b]=m.split("-").map(Number);
   return ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"][b-1]+" de "+a; };
 
@@ -2376,7 +2453,8 @@ async function carregarMes(){
       .gte("data",de).lte("data",ate).order("data",{ascending:true}),
     sb.from("fechamentos_mensais").select("*").eq("cliente_id",cid).eq("mes_referencia",dia1(mesAtivo)),
   ]);
-  lancData = lr.error?[]:(lr.data||[]).filter(l=>compDe(l)===mesAtivo);
+  lancJanela = lr.error?[]:(lr.data||[]);
+  lancData = lancJanela.filter(l=>compDe(l)===mesAtivo);
   fechData = fr.error?[]:(fr.data||[]);
   /* o mês em foco também alimenta o histórico curto que o motor usa */
   const outros=histLancs.filter(l=>compDe(l)!==mesAtivo);
@@ -2421,7 +2499,7 @@ function casarComFixo(dataISO, desc, valor){
     if((c.tipo==="receita")!==(valor>0)) return false;
     if(Math.abs(Math.abs(valor)-cv)/cv>0.03) return false;
     const nomeOk=nd.includes(normalizarDesc(c.descricao||"").split(" ")[0]||"###");
-    const diaOk=c.dia_vencimento?Math.abs(Number(String(dataISO).slice(8,10))-Number(c.dia_vencimento))<=3:false;
+    const diaOk=c.dia_vencimento?distDia(String(dataISO).slice(8,10),c.dia_vencimento)<=3:false;
     return nomeOk||diaOk;
   })||null;
 }
@@ -2517,7 +2595,7 @@ function conciliarFixos(lancs){
       if(dif<=0.02) n+=5; else if(dif<=0.10) n+=3; else if(dif<=0.25) n+=1;
       n += tk.filter(w=>nd.includes(w)).length*3;
       if(c.dia_vencimento && l.data &&
-         Math.abs(Number(String(l.data).slice(8,10))-Number(c.dia_vencimento))<=3) n+=2;
+         distDia(String(l.data).slice(8,10),c.dia_vencimento)<=3) n+=2;
       if(n>nota){ nota=n; melhor=l; }
     });
     if(melhor && nota>=4){
@@ -2548,13 +2626,12 @@ function resumoMes(lancs){
     porCategoria[k]=(porCategoria[k]||0)+gasto;
   });
   const saidas=fixos+variaveis;
-  /* Duas perguntas diferentes, dois numeros:
-       sobra       = entradas - saidas do MES (competencia). Diz se o mes fechou
-                     no azul, contando a fatura no mes em que ela foi gerada.
-       sobraCaixa  = o que sobrou de dinheiro NA CONTA, ja descontado o pagamento
-                     da fatura anterior. E o saldo que a pessoa ve no banco. */
+  /* sobra = entradas - saidas do MES (competencia): a fatura conta no mes do
+     salario que a paga. O pagamento da fatura NAO entra: descontar o pagamento
+     da fatura anterior E as compras desta contaria o cartao duas vezes por mes.
+     O dinheiro que de fato ficou no banco e outra conta: caixaDoMes(). */
   return { entradas, saidas, fixos, variaveis, transf, estornado, quitacao,
-           sobra:entradas-saidas, sobraCaixa:entradas-saidas-quitacao,
+           sobra:entradas-saidas,
            porCategoria, total:reais.length,
            pendentes:(lancs||[]).filter(l=>!l.categoria_id&&!neutro(l)).length };
 }
@@ -2749,7 +2826,13 @@ const LEITORES=[
     const per=txt.match(/Período vigente:\s*(\d{2})\s+([A-Z]{3})\s+a\s+(\d{2})\s+([A-Z]{3})/i);
     const totalTxt=txt.match(/Total a pagar\s*R\$\s*([\d.,]+)/i);
     out.forEach(l=>{ l.competencia=competencia; });
-    return { lancs:out, final_cartao:final, competencia,
+    /* vencimento e fechamento em data cheia: é com eles que o app descobre
+       qual salário paga esta fatura, e aprende o ciclo do cartão */
+    const vencimento=mesVenc?iso(anoVenc,mesVenc,Number(venc[1])):null;
+    let fechamento=null;
+    if(per&&mesVenc){ const mf=MESES_PT[per[4].toUpperCase()];
+      if(mf) fechamento=iso(mf>mesVenc?anoVenc-1:anoVenc, mf, Number(per[3])); }
+    return { lancs:out, final_cartao:final, competencia, vencimento, fechamento,
       periodo: per?{de:per[1]+" "+per[2], ate:per[3]+" "+per[4]}:null,
       total: totalTxt?parseValorBR(totalTxt[1]):null };
   }
@@ -2813,7 +2896,13 @@ const LEITORES=[
       if(!desc||desc.length<3) continue;
       out.push({ data:dataAtual, desc:desc.slice(0,120), valor:sinal*Math.abs(v) });
     }
-    return { lancs:out, saldos, conta:{ agencia:ag, numero:conta } };
+    /* o período impresso é o que a conferência de saldo usa — não o mês do
+       calendário: um extrato de 15/jul a 14/ago fecha com as datas dele */
+    const mper=txt.match(/(\d{2})\s+DE\s+([A-ZÇÃÕ]{3,})\s+DE\s+(\d{4})\s+a\s+(\d{2})\s+DE\s+([A-ZÇÃÕ]{3,})\s+DE\s+(\d{4})/i);
+    let periodo=null;
+    if(mper){ const m1=MESES_PT[mper[2].slice(0,3).toUpperCase()], m2=MESES_PT[mper[5].slice(0,3).toUpperCase()];
+      if(m1&&m2) periodo={ ini:iso(Number(mper[3]),m1,Number(mper[1])), fim:iso(Number(mper[6]),m2,Number(mper[4])) }; }
+    return { lancs:out, saldos, periodo, conta:{ agencia:ag, numero:conta } };
   }
 },
 ];
@@ -2886,7 +2975,7 @@ function classificar(lancs, regras){
         const bate=Math.abs(Math.abs(l.valor)-cv)/cv<=0.03;
         const tipoOk=(c.tipo==="receita")===(l.valor>0);
         const nomeOk=nd.includes(normalizarDesc(c.descricao).split(" ")[0]||"###");
-        const diaOk=c.dia_vencimento?Math.abs(Number(l.data.slice(8,10))-Number(c.dia_vencimento))<=3:false;
+        const diaOk=c.dia_vencimento?distDia(l.data.slice(8,10),c.dia_vencimento)<=3:false;
         return bate&&tipoOk&&(nomeOk||diaOk);
       });
       if(alvo&&alvo.categoria_id){ cat=alvo.categoria_id; origem="fixo"; conf=0.75; }
@@ -2937,7 +3026,7 @@ function renderExtratos(){
       return `<div class="rev-row" style="flex-wrap:wrap">
         <div class="rev-b" style="min-width:180px">
           <div class="rev-n">${esc(l.desc)}</div>
-          <div class="rev-s">${dataBR(l.data)} · ${esc(nomeConta(l.conta_id))} ${selo}${fixo?` · <b style="color:${cssv("--brand")}">é o seu gasto fixo “${esc(fixo.descricao)}”</b>`:""}${l.eh_transferencia?` · <b style="color:${cssv("--teal")}">transferência entre suas contas</b>`:""}${l.eh_estorno?` · <b style="color:${cssv("--slate")}">compra estornada — não conta</b>`:""}${l.eh_pagamento_fatura?` · <b style="color:${cssv("--slate")}">quitação da fatura — o gasto já foi contado no cartão</b>`:""}</div>
+          <div class="rev-s">${dataBR(l.data)} · ${esc(nomeConta(l.conta_id))}${notaMes(l)} ${selo}${fixo?` · <b style="color:${cssv("--brand")}">é o seu gasto fixo “${esc(fixo.descricao)}”</b>`:""}${l.eh_transferencia?` · <b style="color:${cssv("--teal")}">transferência entre suas contas</b>`:""}${l.eh_estorno?` · <b style="color:${cssv("--slate")}">compra estornada — não conta</b>`:""}${l.eh_pagamento_fatura?` · <b style="color:${cssv("--slate")}">quitação da fatura — o gasto já foi contado no cartão</b>`:""}</div>
         </div>
         <div class="rev-v ${l.valor>=0?"pos":"neg"}">${fmt(l.valor)}</div>
         ${l.eh_transferencia
@@ -3033,7 +3122,7 @@ function etapaClassificar(){
     return `<div class="rev-row" style="flex-wrap:wrap">
       <div class="rev-b" style="min-width:180px">
         <div class="rev-n">${esc(l.descricao||"")}</div>
-        <div class="rev-s">${dataBR(l.data)} · ${esc(nomeConta(l.conta_id))} ${marca}</div>
+        <div class="rev-s">${dataBR(l.data)} · ${esc(nomeConta(l.conta_id))}${notaMes(l)} ${marca}</div>
       </div>
       <div class="rev-v ${num(l.valor)>=0?"pos":"neg"}">${fmt(num(l.valor))}</div>
       ${neutro(l)
@@ -3251,6 +3340,18 @@ const ESTADOS_MES={ aberto:"em preenchimento", enviado:"enviado para o consultor
                     revisao:"em revisão", fechado:"fechado" };
 const fechDe = contaId => fechData.find(f=>f.conta_id===contaId)||null;
 const lancsDe = contaId => lancData.filter(l=>l.conta_id===contaId);
+/* A conferência de saldo é do EXTRATO, não da competência: soma o que caiu na
+   conta dentro do período impresso nele (ou no mês do calendário). O salário
+   que atrasou para o dia 1º conta no mês anterior, mas está no extrato deste. */
+function lancsDoExtrato(conta){
+  if(!conta||conta.natureza==="cartao") return lancsDe(conta&&conta.id);
+  const f=fechDe(conta.id);
+  const ini=f&&f.periodo_ini?String(f.periodo_ini).slice(0,10):dia1(mesAtivo);
+  const fim=f&&f.periodo_fim?String(f.periodo_fim).slice(0,10):diaN(mesAtivo);
+  /* sem a janela carregada (retrato offline), o mês em foco é o que há */
+  const fonte=lancJanela.length?lancJanela:lancData;
+  return fonte.filter(l=>l.conta_id===conta.id && String(l.data)>=ini && String(l.data)<=fim);
+}
 const estadoMes = () => {
   const fs=fechData.filter(f=>f.status);
   if(!fs.length) return "aberto";
@@ -3279,6 +3380,7 @@ function etapaMes(){
       <div class="mt-v" style="color:${cor}">${fmt(val)}</div>
       ${sub?`<div class="mt-s">${sub}</div>`:""}</div>`;
 
+  const cx=caixaDoMes();
   const naoContam=[ r.transf>0?fmt(r.transf)+" em transferências":null,
                     r.estornado>0?fmt(r.estornado)+" em estornos":null ].filter(Boolean).join(" · ");
   const tiles=`<div class="mtiles">
@@ -3289,13 +3391,14 @@ function etapaMes(){
     ${cartao("Gastos variáveis", r.variaveis, cssv("--amber"), "cart", "")}
     ${r.quitacao>0?cartao("Quitação de fatura", r.quitacao, cssv("--slate"), "card",
              "saiu da conta, mas <b>não é gasto deste mês</b> — as compras já foram contadas na fatura", true):""}
-    ${cartao("Sobrou em caixa", r.sobraCaixa, r.sobraCaixa>=0?cssv("--green"):cssv("--rose"), "coins",
-             (r.quitacao>0?"já descontado o pagamento da fatura de "+fmt(r.quitacao):"entradas − saídas deste mês")
-             +(naoContam?" · fora do cálculo: "+naoContam:""))}
-  </div>`;
+    ${cx.n?cartao("Sobrou em caixa", cx.valor, cx.valor>=0?cssv("--green"):cssv("--rose"), "coins",
+             "o que entrou menos o que saiu da conta no período do extrato"
+             +(r.quitacao>0?", já com o pagamento da fatura de "+fmt(r.quitacao):"")
+             +(naoContam?" · fora do cálculo: "+naoContam:"")):""}
+  </div>${blocoGarantia(r)}`;
 
   const cartaoConta=c=>{
-    const f=fechDe(c.id), ls=lancsDe(c.id), cf=conferirFechamento(f,ls,c.natureza);
+    const f=fechDe(c.id), ls=lancsDoExtrato(c), cf=conferirFechamento(f,ls,c.natureza);
     const cor = cf.ok===true?cssv("--green") : cf.ok===false?cssv("--rose") : cssv("--muted");
     const situacao = cf.ok===true?"confere ✓" : cf.ok===false?"não fecha"
                    : cf.cartao?"sem conferência" : "informe os saldos";
@@ -3347,7 +3450,7 @@ function etapaMes(){
      exigir isso deixaria o mês preso para sempre. */
   const deFluxo=contas.filter(c=>c.natureza!=="cartao");
   const podeEnviar = isHost && !isConsultor && est==="aberto" && contas.length &&
-    deFluxo.every(c=>{ const f=fechDe(c.id); const cf=conferirFechamento(f,lancsDe(c.id),c.natureza);
+    deFluxo.every(c=>{ const f=fechDe(c.id); const cf=conferirFechamento(f,lancsDoExtrato(c),c.natureza);
                        return cf.ok===true || (cf.ok===false && f&&f.justificativa); });
   const acoes = est==="fechado" ? `<div class="alerta g" style="margin-top:14px"><div class="a-ic" style="background:color-mix(in srgb,${cssv("--green")} 18%,transparent);color:${cssv("--green")}">${svgIcon("check")}</div>
       <div><b>Mês fechado.</b> Vira histórico e não muda mais. O saldo final é o inicial de ${esc(mesLabel(mesSeguinte(mesAtivo)))}.</div></div>`
@@ -3440,7 +3543,7 @@ function painelFixos(lancs){
   const linhaEditavel=l=>`<div class="rev-row" style="padding:7px 0;flex-wrap:wrap">
       <div class="rev-b" style="min-width:150px">
         <div class="rev-n">${esc(l.descricao||"")}</div>
-        <div class="rev-s">${dataBR(l.data)}${l.observacao?" · "+esc(l.observacao):""}</div>
+        <div class="rev-s">${dataBR(l.data)}${notaMes(l)}${l.observacao?" · "+esc(l.observacao):""}</div>
       </div>
       <div class="rev-v neg">${fmt(num(l.valor))}</div>
       <select onchange="salvarCategoriaLanc('${l.id}',this.value)" ${offline?"disabled":""}>
@@ -3503,6 +3606,44 @@ function painelFixos(lancs){
 }
 function abrirFixo(catId){ fixoAberto = fixoAberto===catId ? null : catId; renderExtratos(); }
 
+/* Caixa é o que o BANCO mostra: soma do que entrou e saiu das contas de fluxo
+   dentro do período do extrato. Não usa competência — o salário que caiu
+   dia 1º está no extrato deste mês, mesmo contando no anterior. */
+function caixaDoMes(){
+  const fluxo=contasData.filter(c=>c.ativa!==false&&c.natureza!=="cartao"&&c.natureza!=="investimento");
+  const ls=[].concat(...fluxo.map(lancsDoExtrato)).filter(l=>!l.eh_transferencia);
+  return { valor:ls.reduce((a,l)=>a+num(l.valor),0), n:ls.length };
+}
+
+/* A pergunta que importa para quem vive no cartão: o salário deste mês paga
+   a fatura deste mês? Se não paga, a diferença sai da reserva ou do próximo
+   salário — e é exatamente assim que começa a bola de neve. */
+function blocoGarantia(r){
+  const cartoes=new Set(contasData.filter(c=>c.natureza==="cartao").map(c=>c.id));
+  const fatura=lancData.filter(l=>cartoes.has(l.conta_id)&&!l.eh_transferencia&&!l.eh_pagamento_fatura)
+                       .reduce((a,l)=>a-num(l.valor),0);
+  const s=salarioBase();
+  const chegou=!s || lancData.some(l=>mesDoSalario(l)===mesAtivo);
+  const previsto=chegou?0:num(s.valor);
+  const renda=r.entradas+previsto, saldo=renda-r.saidas;
+  if(!renda && !r.saidas) return "";
+  const mes=mesLabel(mesAtivo).split(" ")[0];
+  const ok=saldo>=0, cor=ok?cssv("--green"):cssv("--rose");
+  const pergunta=fatura>0?`A fatura de ${mes} está garantida?`:`O mês de ${mes} se paga?`;
+  const outros=r.saidas-fatura;
+  const corpo = ok
+    ? (fatura>0
+        ? `<b>Sim.</b> A renda de ${mes} (${fmt(renda)}) paga a fatura de ${fmt(fatura)} e os ${fmt(outros)} gastos fora do cartão, e ainda sobram <b>${fmt(saldo)}</b>.`
+        : `<b>Sim.</b> A renda de ${mes} (${fmt(renda)}) cobre os gastos do mês e sobram <b>${fmt(saldo)}</b>.`)
+    : `<b>Não — faltam ${fmt(-saldo)}.</b> Os gastos de ${mes}${fatura>0?` (fatura de ${fmt(fatura)} + ${fmt(outros)} fora do cartão)`:""}
+       passam da renda de ${fmt(renda)}. A diferença sai da reserva ou do salário do mês que vem — é assim que a fatura começa a empurrar a seguinte.`;
+  const aviso = previsto ? `<div class="cap" style="margin-top:6px">Conta com o salário previsto de ${fmt(previsto)} para o dia ${s.dia_vencimento}, que ainda não apareceu nos extratos deste mês.</div>` : "";
+  return `<div class="alerta" style="background:color-mix(in srgb,${cor} 9%,var(--card));border:1px solid color-mix(in srgb,${cor} 30%,transparent);margin-top:14px">
+      <div class="a-ic" style="background:color-mix(in srgb,${cor} 18%,transparent);color:${cor}">${svgIcon(ok?"check":"alert")}</div>
+      <div><div style="font-weight:800;margin-bottom:2px">${pergunta} ${help("Cada fatura conta no mês do salário que a paga, e o salário conta no mês a que pertence — mesmo que caia adiantado ou atrasado alguns dias. Por isso fatura de "+mes+" e salário de "+mes+" ficam sempre juntos aqui.")}</div>
+        ${corpo}${aviso}</div></div>`;
+}
+
 function cabecMes(est){
   const cor = est==="fechado"?cssv("--green") : est==="aberto"?cssv("--muted") : cssv("--amber");
   return `<div class="card"><div class="card-h">
@@ -3528,8 +3669,9 @@ async function salvarFechamento(contaId){
   const v=id=>{ const el=document.getElementById(id); return el?numOuNulo(el.value):null; };
   const just=(document.getElementById("fiJust-"+contaId)||{}).value;
   const ini=v("fiIni-"+contaId), fim=v("fiFim-"+contaId);
-  const ls=lancsDe(contaId);
-  const cf=conferirFechamento({saldo_inicial:ini,saldo_final:fim}, ls);
+  const ct=contasData.find(c=>c.id===contaId);
+  const ls=lancsDoExtrato(ct||{id:contaId});
+  const cf=conferirFechamento({saldo_inicial:ini,saldo_final:fim}, ls, ct&&ct.natureza);
   const reg={ cliente_id:perfilData.cliente_id, conta_id:contaId, mes_referencia:dia1(mesAtivo),
               saldo_inicial:ini, saldo_final:fim, diferenca:cf.diferenca,
               justificativa:just?String(just).trim()||null:undefined };
@@ -3744,7 +3886,7 @@ function seletorMes(){
     <button class="btn-sec" style="height:34px;padding:0 10px" onclick="trocarMes('${mesSeguinte(mesAtivo)}')" ${mesAtivo>=mesHoje()?"disabled":""}>›</button>
   </div>`;
 }
-async function trocarMes(m){ mesAtivo=m; await carregarMes(); renderExtratos(); }
+async function trocarMes(m){ mesTocado=true; mesAtivo=m; await carregarMes(); renderExtratos(); }
 
 function removerArquivo(i){ impArquivos.splice(i,1); renderExtratos(); }
 function atribuirConta(i){
@@ -3781,7 +3923,8 @@ async function lerArquivos(files){
       impArquivos.push({ nome:file.name, linhas, lancs,
         conta_id:id.conta?id.conta.id:null, motivo:id.motivo, dica,
         leitor:lido.leitor?lido.leitor.nome:null, saldos:lido.saldos||null,
-        periodo:lido.periodo||null, vazio:lancs.length<2 });
+        periodo:lido.periodo||null, vencimento:lido.vencimento||null, fechamento:lido.fechamento||null,
+        vazio:lancs.length<2 });
     }catch(e){
       impArquivos.push({ nome:file.name, linhas:[], lancs:[], conta_id:null,
         motivo:"não consegui ler: "+(e.message||e) });
@@ -3799,6 +3942,12 @@ async function irParaRevisao(){
   if(msg){ msg.className="msg"; msg.textContent="Conferindo duplicidade…"; }
   const todos=[];
   for(const a of prontos){
+    /* cartão: a fatura inteira vai para o mês do salário que a paga */
+    const ct=contasData.find(c=>c.id===a.conta_id);
+    if(ct&&ct.natureza==="cartao"){
+      const comp=competenciaDaFatura(a, ct);
+      if(comp) a.lancs.forEach(l=>{ l.competencia=comp; });
+    }
     const { data:existentes }=await sb.from("lancamentos").select("hash").eq("conta_id",a.conta_id);
     const jaTem=new Set((existentes||[]).map(x=>x.hash));
     const vistos=new Set();
@@ -3955,15 +4104,38 @@ async function gravarImportacao(continuarDepois){
       /* o extrato traz o saldo inicial e o final impressos: usa para já deixar
          a conferência do mês montada, em vez de pedir para digitar de novo */
       if(arq&&arq.saldos&&(arq.saldos.inicial!=null||arq.saldos.final!=null)){
+        /* saldo é coisa do EXTRATO: o mês é o do fim do período impresso,
+           não o da competência (o salário que atrasou não muda o extrato) */
         const meses={};
-        linhas.forEach(l=>{ const m=compDe(l); meses[m]=(meses[m]||0)+1; });
-        const mes=Object.keys(meses).sort((a,b)=>meses[b]-meses[a])[0];
+        linhas.forEach(l=>{ const m=String(l.data).slice(0,7); meses[m]=(meses[m]||0)+1; });
+        const mes=arq.periodo&&arq.periodo.fim ? arq.periodo.fim.slice(0,7)
+                 : Object.keys(meses).sort((a,b)=>meses[b]-meses[a])[0];
         if(mes){
           const { error:e3 }=await sb.from("fechamentos_mensais").upsert({
             cliente_id:perfilData.cliente_id, conta_id:contaId, mes_referencia:mes+"-01",
             saldo_inicial:arq.saldos.inicial, saldo_final:arq.saldos.final },
             {onConflict:"conta_id,mes_referencia"});
           if(e3) console.warn("saldos não gravados:", e3.message);
+          /* em separado: sem a migração 22 isto falha e o resto segue */
+          else if(arq.periodo){
+            const { error:e4 }=await sb.from("fechamentos_mensais")
+              .update({ periodo_ini:arq.periodo.ini, periodo_fim:arq.periodo.fim })
+              .eq("conta_id",contaId).eq("mes_referencia",mes+"-01");
+            if(e4) console.warn("período não gravado (rode a migração 22):", e4.message);
+          }
+        }
+      }
+      /* o cartão ensina o próprio ciclo: da próxima vez, até o CSV (que não
+         traz vencimento) cai no mês certo */
+      const ctG=contasData.find(c=>c.id===contaId);
+      if(arq&&ctG&&ctG.natureza==="cartao"&&(arq.fechamento||arq.vencimento)){
+        const up={};
+        if(arq.fechamento&&!ctG.dia_fechamento) up.dia_fechamento=Number(arq.fechamento.slice(8,10));
+        if(arq.vencimento&&!ctG.dia_vencimento) up.dia_vencimento=Number(arq.vencimento.slice(8,10));
+        if(Object.keys(up).length){
+          const { error:e5 }=await sb.from("contas_bancarias").update(up).eq("id",contaId);
+          if(e5) console.warn("ciclo do cartão não gravado (rode a migração 22):", e5.message);
+          else Object.assign(ctG, up);
         }
       }
       await salvarModelo(contaId, /\.pdf$/i.test((arq&&arq.nome)||"")?"PDF":"CSV",
