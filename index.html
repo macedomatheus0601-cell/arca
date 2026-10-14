@@ -3512,25 +3512,26 @@ function etapaMes(){
   const cx=caixaDoMes();
   const naoContam=[ r.transf>0?fmt(r.transf)+" em transferências":null,
                     r.estornado>0?fmt(r.estornado)+" em estornos":null ].filter(Boolean).join(" · ");
-  /* O saldo é o que o banco mostra: terminou o mês com X. Quando os extratos
-     trazem saldo inicial e final, é ele que aparece; senão, a variação. */
+  /* Leitura de cima para baixo, como o extrato: com quanto começou, o que
+     entrou, o que saiu — e embaixo, de onde saiu (quitação, fixos, variáveis).
+     Quando os extratos trazem saldo inicial e final, o primeiro cartão conta
+     a história toda; senão, mostra a variação de caixa. */
   const sd=saldosDoMes();
   const tileSaldo = sd
-    ? cartao("Saldo na conta", sd.fim, sd.fim>=0?cssv("--green"):cssv("--rose"), "coins",
-        "começou o mês com <b>"+fmt(sd.ini)+"</b> · variação "+(sd.fim-sd.ini>=0?"+":"−")+fmt(Math.abs(sd.fim-sd.ini))
-        +(r.quitacao>0?", já pagando a fatura de "+fmt(r.quitacao):""))
+    ? cartao("Saldo inicial", sd.ini, cssv("--slate"), "coins",
+        "terminou o mês com <b>"+fmt(sd.fim)+"</b>"+(r.quitacao>0?", já pagando a fatura de "+fmt(r.quitacao):""))
     : cx.n ? cartao("Sobrou em caixa", cx.valor, cx.valor>=0?cssv("--green"):cssv("--rose"), "coins",
         "o que entrou menos o que saiu da conta no período do extrato"
         +(r.quitacao>0?", já com o pagamento da fatura de "+fmt(r.quitacao):"")) : "";
   const tileQuit = r.quitacao>0 ? cartao("Quitação de fatura", r.quitacao, cssv("--slate"), "card",
         "saiu da conta, mas <b>não é gasto deste mês</b> — as compras já estão na fatura", true) : "";
   const lista=[
+    tileSaldo,
     cartao("Entradas", r.entradas, cssv("--green"), "trend", "o que entrou no mês"),
     cartao("Saídas", r.saidas, cssv("--rose"), "card", "fixos + variáveis, sem a quitação"),
-    tileSaldo,
+    tileQuit,
     cartao("Gastos fixos", r.fixos, cssv("--slate"), "home", "o que se repete todo mês"),
-    cartao("Gastos variáveis", r.variaveis, cssv("--amber"), "cart", "o resto: mercado, lazer, compras"),
-    tileQuit ].filter(Boolean);
+    cartao("Gastos variáveis", r.variaveis, cssv("--amber"), "cart", "o resto: mercado, lazer, compras") ].filter(Boolean);
   const tiles=`<div class="mtiles ${lista.length===5?"n5":""}">${lista.join("")}</div>`;
 
   const cartaoConta=c=>{
