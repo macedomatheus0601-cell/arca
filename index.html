@@ -2513,6 +2513,24 @@ const ehPagamentoFatura = d => /pagamento\s+(de\s+)?fatura|pagto\s+fatura|pag\.?
    o lançamento deixa de contar como gasto, porque as compras já foram contadas
    dentro da fatura. Nem todo banco escreve "Pagamento de fatura". */
 const catQuitacao = () => (catsData.find(k=>/quita[çc][ãa]o de fatura/i.test(k.nome||""))||{}).id||null;
+const ehCartao = contaId => ((contasData||[]).find(c=>c.id===contaId)||{}).natureza==="cartao";
+/* O extrato imprime o CPF mascarado do titular ("•••.855.388-••") e o mesmo
+   CPF aparece no Pix para outra conta dele. Isso é PROVA de que o dinheiro
+   ficou com ele — não é palpite pelo nome. */
+const RE_CPF_MASC=/[•*]{3}\.\d{3}\.\d{3}-[•*]{2}/;
+const OBS_PROPRIA="entre contas suas — a outra conta não está cadastrada";
+function marcarContasProprias(lancs, cpf){
+  if(!cpf) return 0;
+  let n=0;
+  lancs.forEach(l=>{
+    if(l.eh_transferencia||l.eh_estorno||l.eh_pagamento_fatura) return;
+    if(!String(l.desc||l.descricao||"").includes(cpf)) return;
+    /* o salário que chega por Pix da sua outra conta continua sendo renda */
+    if(num(l.valor)>0 && mesDoSalario(l)) return;
+    l.eh_transferencia=true; l.observacao=OBS_PROPRIA; n++;
+  });
+  return n;
+}
 function casarTransferencias(lancs, tolValor=5, tolDias=3){
   const diaNum=d=>Math.round(Date.parse(String(d).slice(0,10)+"T00:00:00Z")/86400000);
   const usados=new Set(), pares=[];
@@ -2520,10 +2538,17 @@ function casarTransferencias(lancs, tolValor=5, tolDias=3){
   for(const sd of saidas){
     if(usados.has(sd.id)) continue;
     const alvo=Math.abs(num(sd.valor));
-    const par=lancs.find(e=>!usados.has(e.id)&&e.id!==sd.id&&num(e.valor)>0
-      && e.conta_id!==sd.conta_id
+    if(ehCartao(sd.conta_id)) continue;
+    /* Cartão nunca é lado de transferência: o pagamento da fatura nem entra
+       no cartão, e o que sobra de positivo lá é ESTORNO. Sem isto um Pix de
+       R$ 41,90 casava com um estorno de R$ 44,48 e sumia do gasto.
+       Entre vários candidatos, fica o de valor e data mais próximos. */
+    const par=lancs.filter(e=>!usados.has(e.id)&&e.id!==sd.id&&num(e.valor)>0
+      && e.conta_id!==sd.conta_id && !ehCartao(e.conta_id)
       && Math.abs(num(e.valor)-alvo)<=tolValor
-      && Math.abs(diaNum(e.data)-diaNum(sd.data))<=tolDias);
+      && Math.abs(diaNum(e.data)-diaNum(sd.data))<=tolDias)
+      .sort((a,b)=>Math.abs(num(a.valor)-alvo)-Math.abs(num(b.valor)-alvo)
+                 || Math.abs(diaNum(a.data)-diaNum(sd.data))-Math.abs(diaNum(b.data)-diaNum(sd.data)))[0];
     if(par){ usados.add(sd.id); usados.add(par.id); pares.push([sd,par]); }
   }
   return pares;
@@ -2824,7 +2849,15 @@ const LEITORES=[
     if(mesVenc){ const mc=mesVenc-1, ac=mc===0?anoVenc-1:anoVenc;
       competencia=iso(ac, mc===0?12:mc, 1); }
     const per=txt.match(/Período vigente:\s*(\d{2})\s+([A-Z]{3})\s+a\s+(\d{2})\s+([A-Z]{3})/i);
-    const totalTxt=txt.match(/Total a pagar\s*R\$\s*([\d.,]+)/i);
+    /* O "Total a pagar" que interessa é o do RESUMO: linha com UM valor só.
+       A tabela de parcelamento repete o rótulo com dois valores e enganava.
+       Do total tira-se o saldo que veio da fatura anterior: o que sobra são
+       as compras DESTE ciclo — e isso tem que bater com a soma lida. */
+    const vRes=re=>{ const m=txt.match(re); return m?parseValorBR(m[1]):null; };
+    const totalPagar=vRes(/^Total a pagar\s*R\$\s*([\d.]*,\d{2})\s*$/im);
+    const anterior=vRes(/Fatura anterior\s*R\$\s*([\d.]*,\d{2})/i)||0;
+    const pago=vRes(/Pagamento recebido\s*[−–-]?\s*R\$\s*([\d.]*,\d{2})/i)||0;
+    const totalCiclo=totalPagar==null?null:Math.round((totalPagar-(anterior-pago))*100)/100;
     out.forEach(l=>{ l.competencia=competencia; });
     /* vencimento e fechamento em data cheia: é com eles que o app descobre
        qual salário paga esta fatura, e aprende o ciclo do cartão */
@@ -2834,7 +2867,7 @@ const LEITORES=[
       if(mf) fechamento=iso(mf>mesVenc?anoVenc-1:anoVenc, mf, Number(per[3])); }
     return { lancs:out, final_cartao:final, competencia, vencimento, fechamento,
       periodo: per?{de:per[1]+" "+per[2], ate:per[3]+" "+per[4]}:null,
-      total: totalTxt?parseValorBR(totalTxt[1]):null };
+      total: totalCiclo, total_pagar: totalPagar };
   }
 },
 {
@@ -2902,7 +2935,8 @@ const LEITORES=[
     let periodo=null;
     if(mper){ const m1=MESES_PT[mper[2].slice(0,3).toUpperCase()], m2=MESES_PT[mper[5].slice(0,3).toUpperCase()];
       if(m1&&m2) periodo={ ini:iso(Number(mper[3]),m1,Number(mper[1])), fim:iso(Number(mper[6]),m2,Number(mper[4])) }; }
-    return { lancs:out, saldos, periodo, conta:{ agencia:ag, numero:conta } };
+    const titular=(txt.match(new RegExp("CPF\\s*("+RE_CPF_MASC.source+")"))||[])[1]||null;
+    return { lancs:out, saldos, periodo, titular, conta:{ agencia:ag, numero:conta } };
   }
 },
 ];
@@ -3393,9 +3427,8 @@ function etapaMes(){
              "saiu da conta, mas <b>não é gasto deste mês</b> — as compras já foram contadas na fatura", true):""}
     ${cx.n?cartao("Sobrou em caixa", cx.valor, cx.valor>=0?cssv("--green"):cssv("--rose"), "coins",
              "o que entrou menos o que saiu da conta no período do extrato"
-             +(r.quitacao>0?", já com o pagamento da fatura de "+fmt(r.quitacao):"")
-             +(naoContam?" · fora do cálculo: "+naoContam:"")):""}
-  </div>${blocoGarantia(r)}`;
+             +(r.quitacao>0?", já com o pagamento da fatura de "+fmt(r.quitacao):"")):""}
+  </div>`;
 
   const cartaoConta=c=>{
     const f=fechDe(c.id), ls=lancsDoExtrato(c), cf=conferirFechamento(f,ls,c.natureza);
@@ -3410,16 +3443,16 @@ function etapaMes(){
           <div><label>Compras do período</label><div class="ro-box">${fmt(cf.deb)}</div></div>
           <div><label>Estornos</label><div class="ro-box">${fmt(cf.cred)}</div></div>
           <div><label>Total da fatura (calculado)</label><div class="ro-box" style="font-weight:750">${fmt(cf.total)}</div></div>
-          <div><label>Total impresso na fatura <span style="color:var(--muted)">(opcional)</span></label>
+          <div><label>Compras do ciclo impressas na fatura <span style="color:var(--muted)">(lido sozinho do PDF)</span></label>
             <input id="fiFim-${c.id}" type="number" step="0.01" value="${f&&f.saldo_final!=null?f.saldo_final:""}"
                    ${travado?"disabled":""} placeholder="confere se quiser"></div>
           ${travado?"":`<button class="btn-p" onclick="salvarFechamento('${c.id}')">Conferir</button>`}
         </div>
         <div class="cap" style="margin-top:8px">${cf.ok===true
-          ? `O total lido bate com o impresso na fatura ✓`
+          ? `A soma dos lançamentos bate com o total impresso na fatura (já descontado o saldo da fatura anterior) ✓`
           : cf.ok===false
             ? `<b style="color:${cssv("--rose")}">Diferença de ${fmt(Math.abs(cf.diferenca))}</b> entre o total lido (${fmt(cf.total)}) e o que você informou. Pode faltar página da fatura.`
-            : `Cartão não tem saldo: a conferência aqui é o total da fatura. Se quiser checar, digite o valor impresso — mas não é obrigatório para enviar o mês.`}</div>`
+            : `Cartão não tem saldo: a conferência é o total da fatura. Pelo PDF ela é feita sozinha; pelo CSV, digite o valor se quiser — não é obrigatório para enviar o mês.`}</div>`
       : `<div class="adm-form">
           <div><label>Saldo no início do mês</label><input id="fiIni-${c.id}" type="number" step="0.01"
                value="${f&&f.saldo_inicial!=null?f.saldo_inicial:""}" ${travado?"disabled":""} placeholder="0,00"></div>
@@ -3481,7 +3514,17 @@ function etapaMes(){
         As compras já foram contadas dentro da fatura — deixar assim conta o cartão duas vezes no mês.
         <div style="margin-top:8px"><button class="btn-p" style="height:34px" onclick="marcarQuitacoes()" ${offline?"disabled":""}>Tirar do gasto do mês</button></div></div></div>` : "";
 
-  return `${cabecMes(est)}${tiles}${avisoQuit}
+  const proprias=lancData.filter(l=>l.observacao===OBS_PROPRIA);
+  const pOut=proprias.filter(l=>num(l.valor)<0).reduce((a,l)=>a-num(l.valor),0);
+  const pIn =proprias.filter(l=>num(l.valor)>0).reduce((a,l)=>a+num(l.valor),0);
+  const avisoProprias = proprias.length ? `<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin:14px 0">
+      <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
+      <div><b>Dinheiro indo e vindo de outra conta sua que não está cadastrada</b>
+        (${pOut?fmt(pOut)+" saíram":""}${pOut&&pIn?" · ":""}${pIn?fmt(pIn)+" entraram":""}, para o seu próprio CPF).
+        Não conta como gasto nem como renda. Mas o que for gasto <b>lá</b> fica invisível para o app —
+        cadastre essa conta em <b>Subir extratos → Cadastrar nova conta bancária</b> e suba o extrato dela também.</div></div>` : "";
+
+  return `${cabecMes(est)}${blocoGarantia(r)}${tiles}${avisoQuit}${avisoProprias}
     ${r.pendentes?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin:14px 0">
       <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
       <div>${r.pendentes} lançamento(s) sem categoria — eles entram no total, mas ficam fora da análise por categoria.</div></div>`:""}
@@ -3631,13 +3674,18 @@ function blocoGarantia(r){
   const ok=saldo>=0, cor=ok?cssv("--green"):cssv("--rose");
   const pergunta=fatura>0?`A fatura de ${mes} está garantida?`:`O mês de ${mes} se paga?`;
   const outros=r.saidas-fatura;
+  /* a renda tem que bater com o card de Entradas: quando o salário ainda não
+     caiu, diz com todas as letras que a conta inclui o previsto */
+  const rendaTxt = previsto
+    ? `${fmt(renda)} (${fmt(previsto)} de salário previsto, que ainda não caiu, + ${fmt(r.entradas)} já recebidos)`
+    : fmt(renda);
   const corpo = ok
     ? (fatura>0
-        ? `<b>Sim.</b> A renda de ${mes} (${fmt(renda)}) paga a fatura de ${fmt(fatura)} e os ${fmt(outros)} gastos fora do cartão, e ainda sobram <b>${fmt(saldo)}</b>.`
-        : `<b>Sim.</b> A renda de ${mes} (${fmt(renda)}) cobre os gastos do mês e sobram <b>${fmt(saldo)}</b>.`)
+        ? `<b>Sim.</b> A renda de ${mes}, ${rendaTxt}, paga a fatura de ${fmt(fatura)} e os ${fmt(outros)} gastos fora do cartão, e ainda sobram <b>${fmt(saldo)}</b>.`
+        : `<b>Sim.</b> A renda de ${mes}, ${rendaTxt}, cobre os gastos do mês e sobram <b>${fmt(saldo)}</b>.`)
     : `<b>Não — faltam ${fmt(-saldo)}.</b> Os gastos de ${mes}${fatura>0?` (fatura de ${fmt(fatura)} + ${fmt(outros)} fora do cartão)`:""}
-       passam da renda de ${fmt(renda)}. A diferença sai da reserva ou do salário do mês que vem — é assim que a fatura começa a empurrar a seguinte.`;
-  const aviso = previsto ? `<div class="cap" style="margin-top:6px">Conta com o salário previsto de ${fmt(previsto)} para o dia ${s.dia_vencimento}, que ainda não apareceu nos extratos deste mês.</div>` : "";
+       passam da renda de ${rendaTxt}. A diferença sai da reserva ou do salário do mês que vem — é assim que a fatura começa a empurrar a seguinte.`;
+  const aviso = previsto ? `<div class="cap" style="margin-top:6px">Quando o extrato com o salário (dia ${s.dia_vencimento}) subir, a conta passa a usar o valor real.</div>` : "";
   return `<div class="alerta" style="background:color-mix(in srgb,${cor} 9%,var(--card));border:1px solid color-mix(in srgb,${cor} 30%,transparent);margin-top:14px">
       <div class="a-ic" style="background:color-mix(in srgb,${cor} 18%,transparent);color:${cor}">${svgIcon(ok?"check":"alert")}</div>
       <div><div style="font-weight:800;margin-bottom:2px">${pergunta} ${help("Cada fatura conta no mês do salário que a paga, e o salário conta no mês a que pertence — mesmo que caia adiantado ou atrasado alguns dias. Por isso fatura de "+mes+" e salário de "+mes+" ficam sempre juntos aqui.")}</div>
@@ -3924,6 +3972,7 @@ async function lerArquivos(files){
         conta_id:id.conta?id.conta.id:null, motivo:id.motivo, dica,
         leitor:lido.leitor?lido.leitor.nome:null, saldos:lido.saldos||null,
         periodo:lido.periodo||null, vencimento:lido.vencimento||null, fechamento:lido.fechamento||null,
+        titular:lido.titular||null, total:lido.total!=null?lido.total:null,
         vazio:lancs.length<2 });
     }catch(e){
       impArquivos.push({ nome:file.name, linhas:[], lancs:[], conta_id:null,
@@ -3963,6 +4012,9 @@ async function irParaRevisao(){
   todos.forEach((l,i)=>{ l.id="tmp"+i; l.eh_transferencia=false; l.eh_pagamento_fatura=false; });
   casarTransferencias(todos).forEach(([a,b])=>{
     a.eh_transferencia=true; b.eh_transferencia=true; a.par=b.id; b.par=a.id; });
+  /* Pix para o próprio CPF numa conta que não está cadastrada: não é gasto
+     nem renda, é dinheiro mudando de bolso */
+  prontos.forEach(a=>{ if(a.titular) marcarContasProprias(todos.filter(l=>l.arquivo===a.nome), a.titular); });
 
   /* PAGAMENTO DE FATURA é outra coisa: não tem contrapartida em conta nenhuma,
      porque o gasto já foi contado dentro da própria fatura, na competência
@@ -4101,41 +4153,58 @@ async function gravarImportacao(continuarDepois){
         if(e2) throw e2;
       }
       gravados+=regs.length;
-      /* o extrato traz o saldo inicial e o final impressos: usa para já deixar
-         a conferência do mês montada, em vez de pedir para digitar de novo */
-      if(arq&&arq.saldos&&(arq.saldos.inicial!=null||arq.saldos.final!=null)){
-        /* saldo é coisa do EXTRATO: o mês é o do fim do período impresso,
-           não o da competência (o salário que atrasou não muda o extrato) */
-        const meses={};
-        linhas.forEach(l=>{ const m=String(l.data).slice(0,7); meses[m]=(meses[m]||0)+1; });
-        const mes=arq.periodo&&arq.periodo.fim ? arq.periodo.fim.slice(0,7)
-                 : Object.keys(meses).sort((a,b)=>meses[b]-meses[a])[0];
-        if(mes){
-          const { error:e3 }=await sb.from("fechamentos_mensais").upsert({
-            cliente_id:perfilData.cliente_id, conta_id:contaId, mes_referencia:mes+"-01",
-            saldo_inicial:arq.saldos.inicial, saldo_final:arq.saldos.final },
-            {onConflict:"conta_id,mes_referencia"});
-          if(e3) console.warn("saldos não gravados:", e3.message);
-          /* em separado: sem a migração 22 isto falha e o resto segue */
-          else if(arq.periodo){
-            const { error:e4 }=await sb.from("fechamentos_mensais")
-              .update({ periodo_ini:arq.periodo.ini, periodo_fim:arq.periodo.fim })
-              .eq("conta_id",contaId).eq("mes_referencia",mes+"-01");
-            if(e4) console.warn("período não gravado (rode a migração 22):", e4.message);
+      /* Cada ARQUIVO traz os seus próprios saldos, período e total. Duas
+         faturas do mesmo cartão subidas juntas são dois fechamentos — usar só
+         o primeiro arquivo deixava a segunda fatura sem conferência. */
+      const ctG=contasData.find(c=>c.id===contaId);
+      for(const arqF of impArquivos.filter(a=>a.conta_id===contaId)){
+        const doArq=linhas.filter(l=>l.arquivo===arqF.nome);
+        const base=doArq.length?doArq:(arqF.lancs||[]);
+        /* o extrato traz o saldo inicial e o final impressos: a conferência
+           do mês já nasce montada, sem pedir para digitar de novo */
+        if(arqF.saldos&&(arqF.saldos.inicial!=null||arqF.saldos.final!=null)){
+          /* saldo é coisa do EXTRATO: o mês é o do fim do período impresso,
+             não o da competência (o salário que atrasou não muda o extrato) */
+          const meses={};
+          base.forEach(l=>{ const m=String(l.data).slice(0,7); meses[m]=(meses[m]||0)+1; });
+          const mes=arqF.periodo&&arqF.periodo.fim ? arqF.periodo.fim.slice(0,7)
+                   : Object.keys(meses).sort((a,b)=>meses[b]-meses[a])[0];
+          if(mes){
+            const { error:e3 }=await sb.from("fechamentos_mensais").upsert({
+              cliente_id:perfilData.cliente_id, conta_id:contaId, mes_referencia:mes+"-01",
+              saldo_inicial:arqF.saldos.inicial, saldo_final:arqF.saldos.final },
+              {onConflict:"conta_id,mes_referencia"});
+            if(e3) console.warn("saldos não gravados:", e3.message);
+            /* em separado: sem a migração 22 isto falha e o resto segue */
+            else if(arqF.periodo){
+              const { error:e4 }=await sb.from("fechamentos_mensais")
+                .update({ periodo_ini:arqF.periodo.ini, periodo_fim:arqF.periodo.fim })
+                .eq("conta_id",contaId).eq("mes_referencia",mes+"-01");
+              if(e4) console.warn("período não gravado (rode a migração 22):", e4.message);
+            }
           }
         }
-      }
-      /* o cartão ensina o próprio ciclo: da próxima vez, até o CSV (que não
-         traz vencimento) cai no mês certo */
-      const ctG=contasData.find(c=>c.id===contaId);
-      if(arq&&ctG&&ctG.natureza==="cartao"&&(arq.fechamento||arq.vencimento)){
-        const up={};
-        if(arq.fechamento&&!ctG.dia_fechamento) up.dia_fechamento=Number(arq.fechamento.slice(8,10));
-        if(arq.vencimento&&!ctG.dia_vencimento) up.dia_vencimento=Number(arq.vencimento.slice(8,10));
-        if(Object.keys(up).length){
-          const { error:e5 }=await sb.from("contas_bancarias").update(up).eq("id",contaId);
-          if(e5) console.warn("ciclo do cartão não gravado (rode a migração 22):", e5.message);
-          else Object.assign(ctG, up);
+        /* a fatura traz o próprio total: a conferência do cartão já nasce
+           feita. Se não bater, falta página — ou um lançamento foi lido errado. */
+        const compF=(base.find(l=>l.competencia)||{}).competencia;
+        if(arqF.total!=null&&compF){
+          const { error:e6 }=await sb.from("fechamentos_mensais").upsert({
+            cliente_id:perfilData.cliente_id, conta_id:contaId,
+            mes_referencia:String(compF).slice(0,10), saldo_final:arqF.total },
+            {onConflict:"conta_id,mes_referencia"});
+          if(e6) console.warn("total da fatura não gravado:", e6.message);
+        }
+        /* o cartão ensina o próprio ciclo: da próxima vez, até o CSV (que
+           não traz vencimento) cai no mês certo */
+        if(ctG&&ctG.natureza==="cartao"&&(arqF.fechamento||arqF.vencimento)){
+          const up={};
+          if(arqF.fechamento&&!ctG.dia_fechamento) up.dia_fechamento=Number(arqF.fechamento.slice(8,10));
+          if(arqF.vencimento&&!ctG.dia_vencimento) up.dia_vencimento=Number(arqF.vencimento.slice(8,10));
+          if(Object.keys(up).length){
+            const { error:e5 }=await sb.from("contas_bancarias").update(up).eq("id",contaId);
+            if(e5) console.warn("ciclo do cartão não gravado (rode a migração 22):", e5.message);
+            else Object.assign(ctG, up);
+          }
         }
       }
       await salvarModelo(contaId, /\.pdf$/i.test((arq&&arq.nome)||"")?"PDF":"CSV",
