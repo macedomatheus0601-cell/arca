@@ -2658,6 +2658,19 @@ function conciliarFixos(lancs){
 }
 
 /* ---- o que REALMENTE aconteceu no mês ---- */
+/* Chave de uma categoria: o NOME. Duas "Estacionamento" (uma da migração, outra
+   criada à mão) são a mesma categoria para quem olha a tela. */
+const chaveCategoria = id => { const k=(catsData||[]).find(x=>x.id===id); return k?"n:"+normalizarDesc(k.nome):"i:"+id; };
+/* O gasto é FIXO quando a categoria dele é a de algum gasto fixo cadastrado —
+   a mesma régua do painel "Gastos fixos do mês". Antes o cartão "Gastos fixos"
+   procurava o valor linha a linha e mostrava R$ 500 enquanto o painel, logo
+   abaixo, somava R$ 2.850 nas mesmas categorias. Sem categoria ainda, vale o
+   casamento por nome e valor. */
+function ehGastoFixo(l){
+  const cats=new Set((compsData||[]).filter(c=>c.tipo==="despesa"&&c.categoria_id).map(c=>chaveCategoria(c.categoria_id)));
+  if(l.categoria_id) return cats.has(chaveCategoria(l.categoria_id));
+  return !!casarComFixo(l.data,l.descricao,num(l.valor));
+}
 function resumoMes(lancs){
   const neutro=l=>l.eh_transferencia||l.eh_estorno||l.eh_pagamento_fatura;
   const reais=(lancs||[]).filter(l=>!neutro(l));
@@ -2670,7 +2683,7 @@ function resumoMes(lancs){
     if(l.eh_transferencia){ transf+=Math.abs(v); return; }
     if(v>0){ entradas+=v; return; }
     const gasto=-v;
-    if(casarComFixo(l.data,l.descricao,v)) fixos+=gasto; else variaveis+=gasto;
+    if(ehGastoFixo(l)) fixos+=gasto; else variaveis+=gasto;
     const k=l.categoria_id||"sem";
     porCategoria[k]=(porCategoria[k]||0)+gasto;
   });
