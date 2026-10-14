@@ -3587,15 +3587,31 @@ function etapaMes(){
 }
 /* Checklist dos gastos fixos declarados contra o que apareceu no extrato.
    Sem isto, "subi um extrato" e "o mês está completo" viram a mesma coisa. */
+/* A categoria costuma ser paga no cartão? Olha o histórico: se a maior parte
+   dos lançamentos dela veio de cartão, ela só aparece quando a fatura fecha. */
+function vemNoCartao(catId){
+  const ls=histLancs.concat(lancJanela).filter(l=>l.categoria_id===catId);
+  return ls.length>0 && ls.filter(l=>ehCartao(l.conta_id)).length*2>ls.length;
+}
+/* data em que a fatura do mês em foco fecha, se o ciclo do cartão é conhecido */
+function fechamentoFatura(){
+  const c=contasData.find(x=>x.natureza==="cartao"&&x.dia_fechamento);
+  return c?dataNoMes(mesAtivo,c.dia_fechamento):null;
+}
 function painelFixos(lancs){
   const { porCategoria, soltos } = conciliarFixos(lancs);
+  /* Mês com a fatura ainda por vir: o que é pago no cartão NÃO está faltando,
+     está esperando a fatura fechar. Chamar isso de "nada classificado" fazia
+     parecer que a classificação tinha se perdido. */
+  const faturaPendente=extratosFaltando().some(c=>c.natureza==="cartao");
+  if(faturaPendente) porCategoria.forEach(g=>{ if(g.status==="nenhum"&&vemNoCartao(g.catId)) g.status="aguardando"; });
   if(!porCategoria.length && !soltos.length) return `<div class="card"><div class="empty">Nenhum gasto fixo cadastrado para conferir.
     Lance-os em <b>Clientes &rarr; Renda e gastos</b> — é contra eles que o extrato é cruzado.</div></div>`;
 
   /* Sobrar e faltar sao coisas diferentes: um e excesso, o outro e lacuna.
      Cores distintas evitam o "tudo amarelo" que nao diz nada. */
-  const CORES={ ok:cssv("--green"), sobra:cssv("--rose"), falta:cssv("--teal"), nenhum:cssv("--slate") };
-  const ROTULO={ ok:"confere", sobra:"acima do previsto", falta:"falta aparecer", nenhum:"nada classificado" };
+  const CORES={ ok:cssv("--green"), sobra:cssv("--rose"), falta:cssv("--teal"), nenhum:cssv("--slate"), aguardando:cssv("--slate") };
+  const ROTULO={ ok:"confere", sobra:"acima do previsto", falta:"falta aparecer", nenhum:"nada classificado", aguardando:"vem na fatura, que ainda não fechou" };
   const previstoTotal = porCategoria.reduce((a,g)=>a+g.previsto,0) + soltos.reduce((a,x)=>a+num(x.comp.valor),0);
   const realizadoTotal = porCategoria.reduce((a,g)=>a+g.realizado,0)
                        + soltos.filter(x=>x.achou).reduce((a,x)=>a+Math.abs(num(x.lanc.valor)),0);
@@ -3666,6 +3682,8 @@ function painelFixos(lancs){
   };
 
   const semNada = porCategoria.filter(g=>g.status==="nenhum");
+  const aguardam = porCategoria.filter(g=>g.status==="aguardando");
+  const fechaEm = fechamentoFatura();
   const faltando = porCategoria.filter(g=>g.status==="falta");
   const sobrando = porCategoria.filter(g=>g.status==="sobra");
   const naoAchados = soltos.filter(x=>!x.achou);
@@ -3682,6 +3700,10 @@ function painelFixos(lancs){
 
     ${soltos.length?`<div class="eyebrow" style="margin-top:16px">Sem categoria no cadastro ${help("Estes gastos fixos não têm categoria definida, então são procurados linha a linha pelo nome e pelo valor. Defina a categoria deles em Clientes → Renda e gastos para a conferência somar direito.")}</div>
       <div class="fx-grid">${soltos.map(cardSolto).join("")}</div>`:""}
+
+    ${aguardam.length?`<div class="cap" style="margin-top:12px"><b>Esperando a fatura de ${esc(mesLabel(mesAtivo).split(" ")[0])}:</b>
+      ${esc(aguardam.map(g=>g.nome).join(", "))} são pagos no cartão e entram quando a fatura fechar${fechaEm?" ("+dataBR(fechaEm)+")":""}.
+      Não é classificação perdida — o que você já classificou está no mês da fatura anterior.</div>`:""}
 
     ${(semNada.length||naoAchados.length)?`<div class="alerta" style="background:var(--card2);border:1px solid var(--border-strong);margin-top:14px">
       <div class="a-ic" style="background:color-mix(in srgb,${cssv("--slate")} 16%,transparent);color:${cssv("--slate")}">${svgIcon("alert")}</div>
