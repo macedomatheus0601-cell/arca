@@ -2588,22 +2588,31 @@ function conciliarFixos(lancs){
      em Moradia), por isso a comparação é feita por categoria, não por linha —
      senão o mesmo lançamento seria contado duas vezes. */
   const fixosDespesa=compsData.filter(c=>c.tipo==="despesa");
-  const grupos={};
+  /* A categoria é reconhecida pelo NOME, não só pelo id. Quando existem duas
+     "Estacionamento" (uma criada pela migração, outra criada à mão), o gasto
+     fixo aponta para uma e o lançamento é classificado na outra: o cartão
+     ficava vazio apesar de tudo estar classificado. Agora as duas contam. */
+  const chaveCat=id=>{ const k=catsData.find(x=>x.id===id); return k?"n:"+norm(k.nome):"i:"+id; };
+  const grupos={}, idsDe={};
   fixosDespesa.filter(c=>c.categoria_id).forEach(c=>{
-    (grupos[c.categoria_id]=grupos[c.categoria_id]||[]).push(c);
+    const k=chaveCat(c.categoria_id);
+    (grupos[k]=grupos[k]||[]).push(c);
+    (idsDe[k]=idsDe[k]||[]).push(c.categoria_id);
   });
-  const porCategoria=Object.keys(grupos).map(catId=>{
+  const porCategoria=Object.keys(grupos).map(chave=>{
+    const catId=idsDe[chave][0];
     const cat=catsData.find(k=>k.id===catId)||{};
-    const doGrupo=cands.filter(l=>l.categoria_id===catId);
+    const doGrupo=cands.filter(l=>l.categoria_id && chaveCat(l.categoria_id)===chave
+                                  && ((catsData.find(k=>k.id===l.categoria_id)||{}).tipo||"Despesa")==="Despesa");
     doGrupo.forEach(l=>usados.add(l.id));
-    const previsto=grupos[catId].reduce((a,c)=>a+num(c.valor),0);
+    const previsto=grupos[chave].reduce((a,c)=>a+num(c.valor),0);
     const realizado=doGrupo.reduce((a,l)=>a+Math.abs(num(l.valor)),0);
     const dif=realizado-previsto;
     /* Gasto FIXO que se move deixa de ser fixo. A tolerancia aqui e so de
        arredondamento (R$ 1) — 10% num gasto de R$ 207 escondia R$ 20 de
        diferenca e mostrava "confere", que e justamente o que nao era. */
     const tol=1;
-    return { catId, nome:cat.nome||"(categoria removida)", fixos:grupos[catId],
+    return { catId, nome:cat.nome||"(categoria removida)", fixos:grupos[chave],
              lancs:doGrupo, previsto, realizado, dif, tol,
              status: !doGrupo.length ? "nenhum" : Math.abs(dif)<=tol ? "ok" : dif>0 ? "sobra" : "falta" };
   }).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),"pt-BR"));
@@ -3590,7 +3599,9 @@ function etapaMes(){
 /* A categoria costuma ser paga no cartão? Olha o histórico: se a maior parte
    dos lançamentos dela veio de cartão, ela só aparece quando a fatura fecha. */
 function vemNoCartao(catId){
-  const ls=histLancs.concat(lancJanela).filter(l=>l.categoria_id===catId);
+  const nome=n=>normalizarDesc(((catsData.find(k=>k.id===n)||{}).nome)||"");
+  const alvo=nome(catId);
+  const ls=histLancs.concat(lancJanela).filter(l=>l.categoria_id===catId||(alvo&&nome(l.categoria_id)===alvo));
   return ls.length>0 && ls.filter(l=>ehCartao(l.conta_id)).length*2>ls.length;
 }
 /* data em que a fatura do mês em foco fecha, se o ciclo do cartão é conhecido */
