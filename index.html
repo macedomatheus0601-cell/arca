@@ -3736,8 +3736,14 @@ function avisoFaltam(){
   if(mesAtivo>mesHoje()) return "";
   const falta=extratosFaltando(); if(!falta.length) return "";
   const mes=mesLabel(mesAtivo).split(" ")[0];
+  /* O banco batiza a fatura pelo mês do VENCIMENTO ("fatura de outubro") e
+     aqui ela conta no mês do salário que a paga (setembro). Sem dizer isso,
+     a pessoa apaga ou procura a fatura no mês errado. */
+  const s=salarioBase();
+  const mesVenc=c=>{ const mesmo=s&&c.dia_vencimento&&Number(s.dia_vencimento)<=Number(c.dia_vencimento);
+    return mesLabel(mesmo?mesAtivo:mesSeguinte(mesAtivo)).split(" ")[0]; };
   const itens=falta.map(c=>c.natureza==="cartao"
-    ? `a <b>fatura de ${esc(rotuloConta(c))}</b> paga pelo salário de ${mes}`
+    ? `a <b>fatura de ${esc(rotuloConta(c))} que vence em ${mesVenc(c)}</b> — o banco chama de “fatura de ${mesVenc(c)}”, mas ela é paga pelo salário de ${mes} e conta aqui`
     : `o <b>extrato de ${mes} de ${esc(rotuloConta(c))}</b>`);
   return `<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:14px">
       <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
