@@ -432,7 +432,14 @@
   /* align-items:start impede que abrir um cartão estique os vizinhos da linha */
   .fx-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:11px; align-items:start; }
   /* resumo do mês: cartões compactos, todos da mesma altura */
-  .mtiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(158px,1fr)); gap:11px; }
+  .mtiles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:11px; }
+  .mtiles.n5 .mtile:last-child { grid-column:span 2; }
+  @media (max-width:820px){
+    .mtiles { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .mtiles.n5 .mtile:last-child { grid-column:auto; }
+    .mtiles.n5 .mtile:nth-child(1) { grid-column:span 2; }
+  }
+  .mtile .mt-v small { font-size:12px; font-weight:650; color:var(--muted); letter-spacing:0; }
   .mtile { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 15px;
            box-shadow:var(--shadow); display:flex; flex-direction:column; gap:2px; }
   .mtile .mt-top { display:flex; align-items:center; gap:8px; }
@@ -3505,18 +3512,26 @@ function etapaMes(){
   const cx=caixaDoMes();
   const naoContam=[ r.transf>0?fmt(r.transf)+" em transferências":null,
                     r.estornado>0?fmt(r.estornado)+" em estornos":null ].filter(Boolean).join(" · ");
-  const tiles=`<div class="mtiles">
-    ${cartao("Entradas", r.entradas, cssv("--green"), "trend", "")}
-    ${cartao("Saídas", r.saidas, cssv("--rose"), "card",
-             "fixos "+fmt(r.fixos)+" + variáveis "+fmt(r.variaveis))}
-    ${cartao("Gastos fixos", r.fixos, cssv("--slate"), "home", "")}
-    ${cartao("Gastos variáveis", r.variaveis, cssv("--amber"), "cart", "")}
-    ${r.quitacao>0?cartao("Quitação de fatura", r.quitacao, cssv("--slate"), "card",
-             "saiu da conta, mas <b>não é gasto deste mês</b> — as compras já foram contadas na fatura", true):""}
-    ${cx.n?cartao("Sobrou em caixa", cx.valor, cx.valor>=0?cssv("--green"):cssv("--rose"), "coins",
-             "o que entrou menos o que saiu da conta no período do extrato"
-             +(r.quitacao>0?", já com o pagamento da fatura de "+fmt(r.quitacao):"")):""}
-  </div>`;
+  /* O saldo é o que o banco mostra: terminou o mês com X. Quando os extratos
+     trazem saldo inicial e final, é ele que aparece; senão, a variação. */
+  const sd=saldosDoMes();
+  const tileSaldo = sd
+    ? cartao("Saldo na conta", sd.fim, sd.fim>=0?cssv("--green"):cssv("--rose"), "coins",
+        "começou o mês com <b>"+fmt(sd.ini)+"</b> · variação "+(sd.fim-sd.ini>=0?"+":"−")+fmt(Math.abs(sd.fim-sd.ini))
+        +(r.quitacao>0?", já pagando a fatura de "+fmt(r.quitacao):""))
+    : cx.n ? cartao("Sobrou em caixa", cx.valor, cx.valor>=0?cssv("--green"):cssv("--rose"), "coins",
+        "o que entrou menos o que saiu da conta no período do extrato"
+        +(r.quitacao>0?", já com o pagamento da fatura de "+fmt(r.quitacao):"")) : "";
+  const tileQuit = r.quitacao>0 ? cartao("Quitação de fatura", r.quitacao, cssv("--slate"), "card",
+        "saiu da conta, mas <b>não é gasto deste mês</b> — as compras já estão na fatura", true) : "";
+  const lista=[
+    cartao("Entradas", r.entradas, cssv("--green"), "trend", "o que entrou no mês"),
+    cartao("Saídas", r.saidas, cssv("--rose"), "card", "fixos + variáveis, sem a quitação"),
+    tileSaldo,
+    cartao("Gastos fixos", r.fixos, cssv("--slate"), "home", "o que se repete todo mês"),
+    cartao("Gastos variáveis", r.variaveis, cssv("--amber"), "cart", "o resto: mercado, lazer, compras"),
+    tileQuit ].filter(Boolean);
+  const tiles=`<div class="mtiles ${lista.length===5?"n5":""}">${lista.join("")}</div>`;
 
   const cartaoConta=c=>{
     const f=fechDe(c.id), ls=lancsDoExtrato(c), cf=conferirFechamento(f,ls,c.natureza);
@@ -3838,14 +3853,12 @@ function blocoGarantia(r){
         : `<b>Sim.</b> A renda de ${mes}, ${rendaTxt}, cobre os gastos do mês e sobram <b>${fmt(saldo)}</b>.`)
     : `<b>Não — faltam ${fmt(-saldo)}.</b> Os gastos de ${mes}${fatura>0?` (fatura de ${fmt(fatura)} + ${fmt(outros)} fora do cartão)`:""}
        passam da renda de ${rendaTxt}. A diferença sai da reserva ou do salário do mês que vem — é assim que a fatura começa a empurrar a seguinte.`;
-  const sd=saldosDoMes();
-  const linhaSaldo = sd ? `<div class="cap" style="margin-top:6px">Na conta corrente: o mês começou com <b>${fmt(sd.ini)}</b> e terminou com <b>${fmt(sd.fim)}</b>${r.quitacao>0?", já depois de pagar a fatura de "+fmt(r.quitacao):""}.</div>` : "";
   const mCai=mesEmQueCaiOSalario(mesAtivo);
   const aviso = previsto ? `<div class="cap" style="margin-top:6px">O salário de ${mes} é o que cai no dia ${s.dia_vencimento} de ${esc(mesLabel(mCai).split(" ")[0])}. Quando o extrato dele subir, a conta passa a usar o valor real.</div>` : "";
   return `<div class="alerta" style="background:color-mix(in srgb,${cor} 9%,var(--card));border:1px solid color-mix(in srgb,${cor} 30%,transparent);margin-top:14px">
       <div class="a-ic" style="background:color-mix(in srgb,${cor} 18%,transparent);color:${cor}">${svgIcon(ok?"check":"alert")}</div>
       <div><div style="font-weight:800;margin-bottom:2px">${pergunta} ${help("A fatura conta no mês em que vence, junto com o extrato da conta daquele mês. O salário conta no mês que ele financia: o que cai no fim de um mês paga o mês seguinte — mesmo que caia adiantado ou atrasado alguns dias.")}</div>
-        ${corpo}${linhaSaldo}${aviso}</div></div>`;
+        ${corpo}${aviso}</div></div>`;
 }
 
 function cabecMes(est){
