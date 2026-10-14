@@ -3037,7 +3037,28 @@ let envData=[], envExcluindo=null;
 async function carregarEnviados(){
   if(!perfilData||!sb||offline||!navigator.onLine){ envData=[]; return; }
   const { data, error }=await sb.from("importacoes").select("*").eq("cliente_id",perfilData.cliente_id);
-  envData=error?[]:(data||[]).sort((a,b)=>String(b.criado_em||"").localeCompare(String(a.criado_em||""))).slice(0,30);
+  envData=error?[]:(data||[]).sort((a,b)=>String(b.criado_em||"").localeCompare(String(a.criado_em||""))).slice(0,15);
+  /* em que mês cada arquivo CONTA: o nome do arquivo engana — o banco chama a
+     fatura pelo mês do vencimento, e aqui ela conta no mês do salário que paga */
+  if(envData.length){
+    const { data:ls }=await sb.from("lancamentos").select("importacao_id,data,competencia")
+      .in("importacao_id", envData.map(e=>e.id));
+    envData.forEach(e=>{
+      const mine=(ls||[]).filter(l=>l.importacao_id===e.id);
+      if(!mine.length) return;
+      const datas=mine.map(l=>String(l.data).slice(0,10)).sort();
+      e.de=datas[0]; e.ate=datas[datas.length-1];
+      e.comps=[...new Set(mine.map(l=>String(l.competencia||l.data).slice(0,7)))].sort();
+    });
+  }
+}
+/* "conta em agosto de 2026" (cartão) ou "01/09 a 30/09" (conta) */
+function ondeConta(e){
+  if(!e.de) return "";
+  const c=contasData.find(x=>x.id===e.conta_id)||{};
+  if(c.natureza==="cartao"&&e.comps&&e.comps.length===1)
+    return ` · compras de ${dataBR(e.de).slice(0,5)} a ${dataBR(e.ate).slice(0,5)} — <b style="color:${cssv("--brand")}">conta em ${esc(mesLabel(e.comps[0]))}</b>`;
+  return ` · ${dataBR(e.de).slice(0,5)} a ${dataBR(e.ate).slice(0,5)}`;
 }
 async function excluirEnvio(id){
   /* busca o elemento a cada vez: a tela é redesenhada no meio do caminho */
@@ -4006,7 +4027,10 @@ function etapaUpload(){
     if(a.conta_id){ const c=contasData.find(x=>x.id===a.conta_id)||{};
       return `<div class="ap-row"><div class="ap-ic" style="background:color-mix(in srgb, ${cssv("--green")} 15%, transparent);color:${cssv("--green")}">${svgIcon("check")}</div>
         <div class="ap-b"><div class="ap-n">${esc(a.nome)} <span class="badge b">${esc(rotuloConta(c))}</span></div>
-          <div class="ap-s">${(a.lancs||[]).length} lançamento(s) · ${esc(a.motivo||"conta escolhida por você")}</div></div>
+          <div class="ap-s" style="white-space:normal">${(a.lancs||[]).length} lançamento(s) · ${esc(a.motivo||"conta escolhida por você")}${(() => {
+            if(c.natureza!=="cartao") return "";
+            const comp=competenciaDaFatura(a,c); if(!comp) return "";
+            return `<br><b style="color:${cssv("--brand")}">${a.vencimento?"Vence em "+dataBR(a.vencimento)+" → ":""}esta fatura conta em ${esc(mesLabel(comp.slice(0,7)))}</b>`; })()}</div></div>
         <button class="ap-del" onclick="removerArquivo(${i})" ${offline?"disabled":""}>×</button></div>`; }
     return `<div class="cli-card" style="flex-direction:column;align-items:stretch;border-color:color-mix(in srgb,${cssv("--amber")} 45%,transparent)">
       <div><div class="cli-n">\u26a0 ${esc(a.nome)} — de qual conta é este extrato?</div>
@@ -4057,7 +4081,7 @@ function listaEnviados(){
     return `<div class="ap-row">
       <div class="ap-ic" style="background:var(--card2)">${svgIcon(c.natureza==="cartao"?"card":"bank")}</div>
       <div class="ap-b"><div class="ap-n">${esc(e.nome_arquivo)}</div>
-        <div class="ap-s">${esc(rotuloConta(c))} · ${e.total_lancamentos||0} lançamento(s)${quando?" · enviado em "+quando:""}</div></div>
+        <div class="ap-s" style="white-space:normal">${esc(rotuloConta(c))} · ${e.total_lancamentos||0} lançamento(s)${ondeConta(e)}${quando?" · enviado em "+quando:""}</div></div>
       <button class="ap-del" title="Apagar este arquivo" aria-label="Apagar ${esc(e.nome_arquivo)}"
         onclick="envExcluindo='${e.id}';renderExtratos()" ${offline?"disabled":""}>×</button></div>`;
   };
