@@ -2326,25 +2326,33 @@ const distDia = (a,b) => { const d=Math.abs(Number(a)-Number(b)); return Math.mi
 const dataNoMes = (m,dia) => m+"-"+String(Math.min(Number(dia), Number(diaN(m).slice(8)))).padStart(2,"0");
 
 /* ================= O MÊS DE CADA LANÇAMENTO =================
-   Uma regra só: o mês é o do SALÁRIO. A fatura conta no mês do salário que a
-   paga, e o salário conta no mês a que pertence, não no dia em que caiu.
-   Assim "fatura de agosto paga com o salário de agosto" fecha sempre:
-   salário adiantado no fim de semana, atrasado para o dia 1º, fatura que
-   fechou num dia diferente — nada disso muda o mês. */
+   Uma regra só: o mês é o do BANCO. Fatura de outubro (vence em outubro) e
+   extrato de outubro formam o mês de outubro, e o salário que financia esse
+   mês entra nele — mesmo que tenha caído no dia 30 de setembro, adiantado no
+   fim de semana ou atrasado para o dia 1º. */
 /* o salário principal: a maior receita cadastrada com dia certo */
 function salarioBase(){
   return (compsData||[]).filter(c=>c.tipo==="receita"&&c.dia_vencimento&&num(c.valor)>0)
     .sort((a,b)=>num(b.valor)-num(a.valor))[0]||null;
 }
-/* Qual salário paga a fatura que vence em `venc`: o último que cai até o
-   vencimento. Sem salário cadastrado, vale o mês anterior ao vencimento. */
-function mesQuePagaFatura(venc){
-  const m=String(venc).slice(0,7), s=salarioBase();
-  if(!s) return mesAnterior(m);
-  return dataNoMes(m,s.dia_vencimento)<=String(venc).slice(0,10) ? m : mesAnterior(m);
+/* O MÊS é o do banco: a fatura que vence em outubro é a "fatura de outubro" e
+   conta em outubro, junto com o extrato da conta de outubro (onde ela é paga).
+   O salário conta no mês que ele FINANCIA: o que cai dia 30 de setembro paga a
+   fatura que vence dia 5 de outubro, então é o salário de outubro. */
+const mesDaFatura = venc => String(venc).slice(0,7);
+const diaVencCartao = () => { const c=(contasData||[]).find(x=>x.natureza==="cartao"&&x.dia_vencimento); return c?Number(c.dia_vencimento):null; };
+/* O salário que cai no mês `mesCaida` financia este mês: o mesmo, se cai antes
+   do vencimento do cartão; o seguinte, se cai depois (ou no fim do mês). */
+function mesQueOSalarioFinancia(mesCaida){
+  const s=salarioBase(); if(!s) return mesCaida;
+  const dv=diaVencCartao(), dia=Number(s.dia_vencimento);
+  const mesmo = dv ? dia<dv : dia<=15;
+  return mesmo ? mesCaida : mesSeguinte(mesCaida);
 }
+/* o inverso: em que mês cai o salário que financia `mes` */
+function mesEmQueCaiOSalario(mes){ return mesQueOSalarioFinancia(mes)===mes ? mes : mesAnterior(mes); }
 /* Entrada grande perto do dia do salário É o salário — mesmo vindo por Pix de
-   outra conta sua. Conta no mês em que era esperada (até 7 dias de folga). */
+   outra conta sua. Até 7 dias de folga: adiantado ou atrasado, conta igual. */
 function mesDoSalario(l){
   const v=num(l.valor), s=salarioBase();
   if(!s||v<=0||!l.data||l.eh_transferencia||l.eh_estorno) return null;
@@ -2357,7 +2365,7 @@ function mesDoSalario(l){
   [mesAnterior(m),m,mesSeguinte(m)].forEach(x=>{
     const d=Math.abs(diaAbs(dataNoMes(x,s.dia_vencimento))-diaAbs(l.data));
     if(d<perto){ perto=d; melhor=x; } });
-  return perto<=7?melhor:null;
+  return perto<=7?mesQueOSalarioFinancia(melhor):null;
 }
 /* O mês em que o lançamento CONTA. Competência gravada diferente da data é
    decisão tomada (fatura do cartão ou ajuste à mão) e prevalece. */
@@ -2388,7 +2396,7 @@ function competenciaDaFatura(arq, conta){
       venc = alvo>fech ? alvo : dataNoMes(mesSeguinte(m),conta.dia_vencimento);
     } else venc=somaDias(fech,7);
   }
-  return mesQuePagaFatura(venc)+"-01";
+  return mesDaFatura(venc)+"-01";
 }
 const mesLabel = m => { const [a,b]=m.split("-").map(Number);
   return ["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"][b-1]+" de "+a; };
@@ -2851,12 +2859,11 @@ const LEITORES=[
                  parcela_atual:par?par.atual:null, total_parcelas:par?par.total:null,
                  cartao_final:final });
     }
-    /* a fatura que vence em setembro é paga com o salário de agosto:
-       para o orçamento, ela é gasto de AGOSTO. Competência = mês anterior ao
-       vencimento, independentemente da data de cada compra. */
+    /* a fatura que vence em outubro é a "fatura de outubro" e conta em
+       OUTUBRO, junto com o extrato da conta de outubro (onde ela é paga),
+       independentemente da data de cada compra. */
     let competencia=null;
-    if(mesVenc){ const mc=mesVenc-1, ac=mc===0?anoVenc-1:anoVenc;
-      competencia=iso(ac, mc===0?12:mc, 1); }
+    if(mesVenc) competencia=iso(anoVenc, mesVenc, 1);
     const per=txt.match(/Período vigente:\s*(\d{2})\s+([A-Z]{3})\s+a\s+(\d{2})\s+([A-Z]{3})/i);
     /* O "Total a pagar" que interessa é o do RESUMO: linha com UM valor só.
        A tabela de parcelamento repete o rótulo com dois valores e enganava.
@@ -3625,10 +3632,15 @@ function vemNoCartao(catId){
   const ls=histLancs.concat(lancJanela).filter(l=>l.categoria_id===catId||(alvo&&nome(l.categoria_id)===alvo));
   return ls.length>0 && ls.filter(l=>ehCartao(l.conta_id)).length*2>ls.length;
 }
-/* data em que a fatura do mês em foco fecha, se o ciclo do cartão é conhecido */
+/* data em que fechou (ou fecha) a fatura que vence no mês em foco: o último
+   dia de fechamento ANTES do vencimento. Fecha dia 28, vence dia 5: a fatura
+   de outubro fechou em 28 de setembro. */
 function fechamentoFatura(){
   const c=contasData.find(x=>x.natureza==="cartao"&&x.dia_fechamento);
-  return c?dataNoMes(mesAtivo,c.dia_fechamento):null;
+  if(!c) return null;
+  const df=Number(c.dia_fechamento), dv=Number(c.dia_vencimento)||((df+6)%31)+1;
+  const venc=dataNoMes(mesAtivo,dv), cand=dataNoMes(mesAtivo,df);
+  return cand<venc ? cand : dataNoMes(mesAnterior(mesAtivo),df);
 }
 function painelFixos(lancs){
   const { porCategoria, soltos } = conciliarFixos(lancs);
@@ -3643,7 +3655,7 @@ function painelFixos(lancs){
   /* Sobrar e faltar sao coisas diferentes: um e excesso, o outro e lacuna.
      Cores distintas evitam o "tudo amarelo" que nao diz nada. */
   const CORES={ ok:cssv("--green"), sobra:cssv("--rose"), falta:cssv("--teal"), nenhum:cssv("--slate"), aguardando:cssv("--slate") };
-  const ROTULO={ ok:"confere", sobra:"acima do previsto", falta:"falta aparecer", nenhum:"nada classificado", aguardando:"vem na fatura, que ainda não fechou" };
+  const ROTULO={ ok:"confere", sobra:"acima do previsto", falta:"falta aparecer", nenhum:"nada classificado", aguardando:"vem na fatura do cartão" };
   const previstoTotal = porCategoria.reduce((a,g)=>a+g.previsto,0) + soltos.reduce((a,x)=>a+num(x.comp.valor),0);
   const realizadoTotal = porCategoria.reduce((a,g)=>a+g.realizado,0)
                        + soltos.filter(x=>x.achou).reduce((a,x)=>a+Math.abs(num(x.lanc.valor)),0);
@@ -3734,8 +3746,8 @@ function painelFixos(lancs){
       <div class="fx-grid">${soltos.map(cardSolto).join("")}</div>`:""}
 
     ${aguardam.length?`<div class="cap" style="margin-top:12px"><b>Esperando a fatura de ${esc(mesLabel(mesAtivo).split(" ")[0])}:</b>
-      ${esc(aguardam.map(g=>g.nome).join(", "))} são pagos no cartão e entram quando a fatura fechar${fechaEm?" ("+dataBR(fechaEm)+")":""}.
-      Não é classificação perdida — o que você já classificou está no mês da fatura anterior.</div>`:""}
+      ${esc(aguardam.map(g=>g.nome).join(", "))} são pagos no cartão e só aparecem quando a fatura que vence em ${esc(mesLabel(mesAtivo).split(" ")[0])} for lida${fechaEm?" — ela "+(fechaEm<=new Date().toISOString().slice(0,10)?"fechou":"fecha")+" em "+dataBR(fechaEm):""}.
+      Não é classificação perdida: o que você já classificou está na fatura do mês anterior.</div>`:""}
 
     ${(semNada.length||naoAchados.length)?`<div class="alerta" style="background:var(--card2);border:1px solid var(--border-strong);margin-top:14px">
       <div class="a-ic" style="background:color-mix(in srgb,${cssv("--slate")} 16%,transparent);color:${cssv("--slate")}">${svgIcon("alert")}</div>
@@ -3768,14 +3780,8 @@ function avisoFaltam(){
   if(mesAtivo>mesHoje()) return "";
   const falta=extratosFaltando(); if(!falta.length) return "";
   const mes=mesLabel(mesAtivo).split(" ")[0];
-  /* O banco batiza a fatura pelo mês do VENCIMENTO ("fatura de outubro") e
-     aqui ela conta no mês do salário que a paga (setembro). Sem dizer isso,
-     a pessoa apaga ou procura a fatura no mês errado. */
-  const s=salarioBase();
-  const mesVenc=c=>{ const mesmo=s&&c.dia_vencimento&&Number(s.dia_vencimento)<=Number(c.dia_vencimento);
-    return mesLabel(mesmo?mesAtivo:mesSeguinte(mesAtivo)).split(" ")[0]; };
   const itens=falta.map(c=>c.natureza==="cartao"
-    ? `a <b>fatura de ${esc(rotuloConta(c))} que vence em ${mesVenc(c)}</b> — o banco chama de “fatura de ${mesVenc(c)}”, mas ela é paga pelo salário de ${mes} e conta aqui`
+    ? `a <b>fatura de ${mes}</b> de ${esc(rotuloConta(c))} (a que vence em ${mes})`
     : `o <b>extrato de ${mes} de ${esc(rotuloConta(c))}</b>`);
   return `<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:14px">
       <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
@@ -3796,6 +3802,15 @@ function caixaDoMes(){
 /* A pergunta que importa para quem vive no cartão: o salário deste mês paga
    a fatura deste mês? Se não paga, a diferença sai da reserva ou do próximo
    salário — e é exatamente assim que começa a bola de neve. */
+/* Saldo da(s) conta(s) corrente(s) no início e no fim do período do extrato.
+   É o que a pessoa vê no app do banco: "comecei o mês com X, terminei com Y". */
+function saldosDoMes(){
+  const fluxo=contasData.filter(c=>c.ativa!==false&&c.natureza!=="cartao"&&c.natureza!=="investimento");
+  let ini=0, fim=0, n=0;
+  fluxo.forEach(c=>{ const f=fechDe(c.id);
+    if(f&&f.saldo_inicial!=null&&f.saldo_final!=null&&lancsDoExtrato(c).length){ ini+=num(f.saldo_inicial); fim+=num(f.saldo_final); n++; } });
+  return n&&n===fluxo.length ? {ini,fim} : null;
+}
 function blocoGarantia(r){
   const cartoes=new Set(contasData.filter(c=>c.natureza==="cartao").map(c=>c.id));
   const fatura=lancData.filter(l=>cartoes.has(l.conta_id)&&!l.eh_transferencia&&!l.eh_pagamento_fatura)
@@ -3823,11 +3838,14 @@ function blocoGarantia(r){
         : `<b>Sim.</b> A renda de ${mes}, ${rendaTxt}, cobre os gastos do mês e sobram <b>${fmt(saldo)}</b>.`)
     : `<b>Não — faltam ${fmt(-saldo)}.</b> Os gastos de ${mes}${fatura>0?` (fatura de ${fmt(fatura)} + ${fmt(outros)} fora do cartão)`:""}
        passam da renda de ${rendaTxt}. A diferença sai da reserva ou do salário do mês que vem — é assim que a fatura começa a empurrar a seguinte.`;
-  const aviso = previsto ? `<div class="cap" style="margin-top:6px">Quando o extrato com o salário (dia ${s.dia_vencimento}) subir, a conta passa a usar o valor real.</div>` : "";
+  const sd=saldosDoMes();
+  const linhaSaldo = sd ? `<div class="cap" style="margin-top:6px">Na conta corrente: o mês começou com <b>${fmt(sd.ini)}</b> e terminou com <b>${fmt(sd.fim)}</b>${r.quitacao>0?", já depois de pagar a fatura de "+fmt(r.quitacao):""}.</div>` : "";
+  const mCai=mesEmQueCaiOSalario(mesAtivo);
+  const aviso = previsto ? `<div class="cap" style="margin-top:6px">O salário de ${mes} é o que cai no dia ${s.dia_vencimento} de ${esc(mesLabel(mCai).split(" ")[0])}. Quando o extrato dele subir, a conta passa a usar o valor real.</div>` : "";
   return `<div class="alerta" style="background:color-mix(in srgb,${cor} 9%,var(--card));border:1px solid color-mix(in srgb,${cor} 30%,transparent);margin-top:14px">
       <div class="a-ic" style="background:color-mix(in srgb,${cor} 18%,transparent);color:${cor}">${svgIcon(ok?"check":"alert")}</div>
-      <div><div style="font-weight:800;margin-bottom:2px">${pergunta} ${help("Cada fatura conta no mês do salário que a paga, e o salário conta no mês a que pertence — mesmo que caia adiantado ou atrasado alguns dias. Por isso fatura de "+mes+" e salário de "+mes+" ficam sempre juntos aqui.")}</div>
-        ${corpo}${aviso}</div></div>`;
+      <div><div style="font-weight:800;margin-bottom:2px">${pergunta} ${help("A fatura conta no mês em que vence, junto com o extrato da conta daquele mês. O salário conta no mês que ele financia: o que cai no fim de um mês paga o mês seguinte — mesmo que caia adiantado ou atrasado alguns dias.")}</div>
+        ${corpo}${linhaSaldo}${aviso}</div></div>`;
 }
 
 function cabecMes(est){
