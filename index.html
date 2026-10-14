@@ -3524,7 +3524,7 @@ function etapaMes(){
         Não conta como gasto nem como renda. Mas o que for gasto <b>lá</b> fica invisível para o app —
         cadastre essa conta em <b>Subir extratos → Cadastrar nova conta bancária</b> e suba o extrato dela também.</div></div>` : "";
 
-  return `${cabecMes(est)}${blocoGarantia(r)}${tiles}${avisoQuit}${avisoProprias}
+  return `${cabecMes(est)}${avisoFaltam()}${blocoGarantia(r)}${tiles}${avisoQuit}${avisoProprias}
     ${r.pendentes?`<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin:14px 0">
       <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
       <div>${r.pendentes} lançamento(s) sem categoria — eles entram no total, mas ficam fora da análise por categoria.</div></div>`:""}
@@ -3649,6 +3649,30 @@ function painelFixos(lancs){
 }
 function abrirFixo(catId){ fixoAberto = fixoAberto===catId ? null : catId; renderExtratos(); }
 
+/* Quais contas ainda não têm o arquivo deste mês. Sem isso a pessoa vê a
+   fatura num mês e o pagamento no outro e conclui que o app "cortou" a
+   fatura — quando o que falta é o extrato da conta corrente do mês. */
+function extratosFaltando(){
+  return contasData.filter(c=>c.ativa!==false&&c.natureza!=="investimento").filter(c=>{
+    if(c.natureza==="cartao") return !lancsDe(c.id).length;
+    const f=fechDe(c.id);
+    return !lancsDoExtrato(c).length && !(f&&f.saldo_final!=null);
+  });
+}
+function avisoFaltam(){
+  if(mesAtivo>mesHoje()) return "";
+  const falta=extratosFaltando(); if(!falta.length) return "";
+  const mes=mesLabel(mesAtivo).split(" ")[0];
+  const itens=falta.map(c=>c.natureza==="cartao"
+    ? `a <b>fatura de ${esc(rotuloConta(c))}</b> paga pelo salário de ${mes}`
+    : `o <b>extrato de ${mes} de ${esc(rotuloConta(c))}</b>`);
+  return `<div class="alerta" style="background:var(--amber-bg);border:1px solid color-mix(in srgb,${cssv("--amber")} 30%,transparent);margin-top:14px">
+      <div class="a-ic" style="background:color-mix(in srgb,${cssv("--amber")} 20%,transparent);color:${cssv("--amber")}">${svgIcon("alert")}</div>
+      <div><b>${mes[0].toUpperCase()+mes.slice(1)} ainda está incompleto.</b> Falta ${itens.join(" e ")}.
+        Até subir, os números abaixo são provisórios — gasto fixo vai aparecer como "falta" e a sobra não é a real.
+        ${isHost&&!isConsultor?`<div style="margin-top:8px"><button class="btn-p" style="height:34px" onclick="setImpEtapa('upload')">Subir agora</button></div>`:""}</div></div>`;
+}
+
 /* Caixa é o que o BANCO mostra: soma do que entrou e saiu das contas de fluxo
    dentro do período do extrato. Não usa competência — o salário que caiu
    dia 1º está no extrato deste mês, mesmo contando no anterior. */
@@ -3668,16 +3692,19 @@ function blocoGarantia(r){
   const s=salarioBase();
   const chegou=!s || lancData.some(l=>mesDoSalario(l)===mesAtivo);
   const previsto=chegou?0:num(s.valor);
-  const renda=r.entradas+previsto, saldo=renda-r.saidas;
+  /* Estorno do cartão abate a FATURA, não é renda. Somá-lo às entradas e às
+     compras ao mesmo tempo inventava "gastos fora do cartão" que eram só a
+     diferença entre compras brutas e fatura líquida. */
+  const fora=resumoMes(lancData.filter(l=>!cartoes.has(l.conta_id)));
+  const renda=fora.entradas+previsto, outros=fora.saidas, saldo=renda-fatura-outros;
   if(!renda && !r.saidas) return "";
   const mes=mesLabel(mesAtivo).split(" ")[0];
   const ok=saldo>=0, cor=ok?cssv("--green"):cssv("--rose");
   const pergunta=fatura>0?`A fatura de ${mes} está garantida?`:`O mês de ${mes} se paga?`;
-  const outros=r.saidas-fatura;
   /* a renda tem que bater com o card de Entradas: quando o salário ainda não
      caiu, diz com todas as letras que a conta inclui o previsto */
   const rendaTxt = previsto
-    ? `${fmt(renda)} (${fmt(previsto)} de salário previsto, que ainda não caiu, + ${fmt(r.entradas)} já recebidos)`
+    ? `${fmt(renda)} (${fmt(previsto)} de salário previsto, que ainda não caiu, + ${fmt(fora.entradas)} já recebidos)`
     : fmt(renda);
   const corpo = ok
     ? (fatura>0
